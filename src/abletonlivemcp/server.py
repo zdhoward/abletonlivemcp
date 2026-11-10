@@ -13,6 +13,8 @@ from .als import read_set, scan_projects
 from .bridge import BridgeClient
 from .chain_presets import PRESETS, stock_equivalent
 from .judge import get_judge
+from .preferences import load_preferences
+from .resolve import plan_chain
 
 MAX_JUDGE_ITEMS = 200
 
@@ -200,10 +202,43 @@ def live_build_chain(track: int, stages: list[dict]) -> dict:
         raise ValueError(str(exc)) from exc
 
 
+def _plan(stages: list[dict], preferences: dict | None) -> dict:
+    prefs = {**load_preferences(), **{k.lower(): v for k, v in (preferences or {}).items()}}
+    try:
+        return plan_chain(_bridge.call, stages, prefs)
+    except chain.ChainError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@mcp.tool()
+def live_plan_chain(stages: list[dict], preferences: dict | None = None) -> dict:
+    """Dry run: resolve role stages to the devices this user has, without changing anything.
+
+    stages: [{"role": "compressor", "intent": {"threshold": "-18 dB", "ratio": 4}}, ...]. Roles:
+    eq, compressor, saturation, reverb. preferences: {"compressor": ["Pro-C 2"]}, merged over the
+    user's preferences file. Returns the concrete stages and a report of every choice, skipped
+    device and guess. Read-only."""
+    return _plan(stages, preferences)
+
+
+@mcp.tool()
+def live_build_role_chain(track: int, stages: list[dict], preferences: dict | None = None) -> dict:
+    """Resolve role stages (see live_plan_chain) and build them on a track.
+
+    Prefer this over live_build_chain unless you need one exact device. The result holds both the
+    plan report (what was chosen and why) and the build result (what Live actually displays)."""
+    planned = _plan(stages, preferences)
+    try:
+        built = chain.build_chain(_bridge.call, track, planned["stages"])
+    except chain.ChainError as exc:
+        raise ValueError(str(exc)) from exc
+    return {"plan": planned["report"], "build": built}
+
+
 @mcp.tool()
 def live_vocal_presets() -> dict:
-    """List the starting-point vocal chains (stock effects only; values from general mixing
-    practice, not judged by ear) with their stages, ready to pass to live_build_chain."""
+    """List the starting-point vocal chains as role stages (values from general mixing practice,
+    not judged by ear), ready to pass to live_build_role_chain or live_plan_chain."""
     return PRESETS
 
 

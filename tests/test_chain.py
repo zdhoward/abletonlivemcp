@@ -2,7 +2,13 @@ import math
 
 import pytest
 
-from abletonlivemcp.chain import ChainError, build_chain, parse_display, set_to_display
+from abletonlivemcp.chain import (
+    ChainError,
+    build_chain,
+    parse_display,
+    set_parameters,
+    set_to_display,
+)
 
 
 @pytest.mark.parametrize(
@@ -249,3 +255,79 @@ def test_bad_stage_shapes_are_refused(stages):
         build_chain(FakeLive().call, 0, stages)
     with pytest.raises(ChainError):
         build_chain(FakeLive().call, 0, [{"device": "Compressor"}] * 13)
+
+
+class StubPlugin:
+    """A plugin whose `Style` is words reported as a continuous parameter, and `Mix` a bare 0..1."""
+
+    STYLES = ["Clean", "Classic", "Opto", "Vocal"]
+    PARAMS = [
+        {"index": 0, "name": "Style", "min": 0.0, "max": 1.0, "is_quantized": False},
+        {"index": 1, "name": "Mix", "min": 0.0, "max": 1.0, "is_quantized": False},
+    ]
+
+    def __init__(self):
+        self.calls = []
+        self.writes = []
+
+    def _display(self, index, v):
+        return self.STYLES[min(int(v * 4), 3)] if index == 0 else f"{v:.2f}"
+
+    def call(self, method, p):
+        self.calls.append(method)
+        if method == "sample_parameters":
+            return {
+                "results": [
+                    {"displays": [self._display(r["parameter"], v) for v in r["values"]]}
+                    for r in p["requests"]
+                ]
+            }
+        assert method == "set_device_parameters"
+        self.writes.append([w["parameter"] for w in p["writes"]])
+        return {
+            "results": [{"display": self._display(w["parameter"], w["value"])} for w in p["writes"]]
+        }
+
+
+def test_option_names_reported_as_continuous_are_matched_by_text():
+    stub = StubPlugin()
+    results, problems = set_parameters(stub.call, {}, [(StubPlugin.PARAMS[0], "vocal")])
+    assert not problems and results[0]["actual"] == "Vocal" and results[0]["exact"]
+    results, problems = set_parameters(stub.call, {}, [(StubPlugin.PARAMS[0], "Warm")])
+    assert not results and "options are ['Clean', 'Classic', 'Opto', 'Vocal']" in problems[0]
+
+
+def test_raw_targets_are_written_as_given_without_sampling():
+    stub = StubPlugin()
+    results, problems = set_parameters(stub.call, {}, [(StubPlugin.PARAMS[1], {"raw": 0.3})])
+    assert not problems and results[0]["exact"] and results[0]["actual"] == "0.30"
+    assert stub.calls == ["set_device_parameters"]
+    for bad in [{"raw": 2}, {"raw": True}, {"raw": "x"}, {}]:
+        _, problems = set_parameters(stub.call, {}, [(StubPlugin.PARAMS[1], bad)])
+        assert "raw value must be a number" in problems[0]
+
+
+def test_text_options_are_written_before_numbers():
+    stub = StubPlugin()
+    set_parameters(
+        stub.call, {}, [(StubPlugin.PARAMS[1], {"raw": 0.5}), (StubPlugin.PARAMS[0], "Opto")]
+    )
+    assert stub.writes == [[0], [1]]
+
+
+def test_stage_with_explicit_path_loads_by_path_and_skips_the_stock_listing():
+    live = FakeLive()
+    loads = []
+
+    def spy(method, p=None):
+        if method == "load_item":
+            loads.append(p)
+        return live.call(method, p)
+
+    stage = {"device": "Pro-C 2", "root": "plugins", "path": ["Compressor"], "params": {"Ratio": 4}}
+    out = build_chain(spy, 0, [stage])
+    assert out["ok"] and "browser_list" not in live.calls
+    assert loads == [{"track": 0, "root": "plugins", "path": ["Compressor"]}]
+    for bad in ["x", [], None]:
+        with pytest.raises(ChainError, match="path"):
+            build_chain(live.call, 0, [{**stage, "path": bad}])

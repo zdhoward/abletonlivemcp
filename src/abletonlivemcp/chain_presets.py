@@ -1,4 +1,4 @@
-"""Starting-point vocal chains made only of Live's stock effects, and a rough gear lookup.
+"""Starting-point vocal chains expressed as roles, and a rough gear lookup.
 
 CAVEAT: these values come from general mixing practice. They are NOT taken from any artist or
 article and have not been judged by ear; treat them as a first pass to adjust. The gear lookup
@@ -8,28 +8,35 @@ emulation.
 
 from __future__ import annotations
 
-_EQ_CLEAN = {
-    "1 Filter On A": True,
-    "1 Filter Type A": "High Pass 12dB",
-    "1 Frequency A": "80 Hz",
-    "2 Frequency A": "250 Hz",
-    "2 Gain A": "-2 dB",
-}
+_EQ_CLEAN = {"high_pass": "80 Hz", "cut_freq": "250 Hz", "cut_gain": "-2 dB"}
 
+# Stages name a ROLE and an intent, not a device. `plan_chain` (resolve.py) turns them into the
+# devices this user prefers and owns, falling back to stock. A reverb decay carries a physical
+# value for devices that show units and a level for devices that do not.
 PRESETS: dict[str, dict] = {
     "vocal_clean_lead": {
         "description": "Transparent lead vocal: high-pass, mud cut, gentle compression, light "
         "saturation, short reverb.",
         "stages": [
-            {"device": "EQ Eight", "params": _EQ_CLEAN},
+            {"role": "eq", "intent": _EQ_CLEAN},
             {
-                "device": "Compressor",
-                "params": {"Threshold": "-18 dB", "Ratio": 4, "Attack": "5 ms", "Release": "80 ms"},
+                "role": "compressor",
+                "intent": {
+                    "style": "Vocal",
+                    "threshold": "-18 dB",
+                    "ratio": 4,
+                    "attack": "5 ms",
+                    "release": "80 ms",
+                },
             },
-            {"device": "Saturator", "params": {"Drive": "3 dB", "Dry/Wet": "30 %"}},
+            {"role": "saturation", "intent": {"drive": "3 dB", "mix": "30 %"}},
             {
-                "device": "Reverb",
-                "params": {"Predelay": "20 ms", "Decay Time": "1.2 s", "Dry/Wet": "12 %"},
+                "role": "reverb",
+                "intent": {
+                    "predelay": "20 ms",
+                    "decay": {"value": "1.2 s", "level": "short"},
+                    "mix": "12 %",
+                },
             },
         ],
     },
@@ -37,15 +44,25 @@ PRESETS: dict[str, dict] = {
         "description": "Forward, dense vocal: harder compression and more saturation, tighter "
         "reverb.",
         "stages": [
-            {"device": "EQ Eight", "params": _EQ_CLEAN},
+            {"role": "eq", "intent": _EQ_CLEAN},
             {
-                "device": "Compressor",
-                "params": {"Threshold": "-24 dB", "Ratio": 8, "Attack": "1 ms", "Release": "50 ms"},
+                "role": "compressor",
+                "intent": {
+                    "style": "Punch",
+                    "threshold": "-24 dB",
+                    "ratio": 8,
+                    "attack": "1 ms",
+                    "release": "50 ms",
+                },
             },
-            {"device": "Saturator", "params": {"Drive": "8 dB", "Dry/Wet": "50 %"}},
+            {"role": "saturation", "intent": {"drive": "8 dB", "mix": "50 %"}},
             {
-                "device": "Reverb",
-                "params": {"Predelay": "10 ms", "Decay Time": "0.8 s", "Dry/Wet": "8 %"},
+                "role": "reverb",
+                "intent": {
+                    "predelay": "10 ms",
+                    "decay": {"value": "0.8 s", "level": "short"},
+                    "mix": "8 %",
+                },
             },
         ],
     },

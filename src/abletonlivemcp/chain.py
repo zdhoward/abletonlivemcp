@@ -78,15 +78,21 @@ class _Solver:
         self.pick: float | None = None
         self.values: list[float] | None = None  # next values to sample; None once decided
         self._goal: tuple[float, str | None] | None = None
+        self._text: str | None = None  # set when the target is a word, e.g. a style name
         self._options: list[int] = []
         lo, hi = float(param["min"]), float(param["max"])
-        if param["is_quantized"]:
+        if isinstance(target, dict):  # {"raw": 0.3}: write the stored value as given
+            raw = target.get("raw")
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not lo <= raw <= hi:
+                raise ChainError(f"{self.name!r}: raw value must be a number within {lo:g}..{hi:g}")
+            self.pick = float(raw)
+        elif param["is_quantized"]:
             self._options = list(range(int(lo), int(hi) + 1))
             self.values = [float(v) for v in self._options]
         else:
-            self._goal = parse_display(str(target))
+            self._goal = parse_display(str(_on_off(target)))
             if self._goal is None:
-                raise ChainError(f"{self.name!r}: cannot read a number from {target!r}")
+                self._text = str(_on_off(target))
             self.values = _linspace(lo, hi, GRID)
 
     def feed(self, shown: list[str]) -> None:
@@ -97,6 +103,16 @@ class _Solver:
                     self.pick, self.values = float(v), None
                     return
             raise ChainError(f"{self.name!r}: no option {self.target!r}; options are {shown}")
+
+        if self._text is not None:  # option names that Live reports as a continuous parameter
+            hits = [i for i, t in enumerate(shown) if _same_text(t, self._text)]
+            if not hits and all(parse_display(t) is not None for t in shown):
+                raise ChainError(f"{self.name!r}: cannot read a number from {self.target!r}")
+            if not hits:
+                seen = list(dict.fromkeys(shown))
+                raise ChainError(f"{self.name!r}: no option {self.target!r}; options are {seen}")
+            self.pick, self.values = self.values[hits[len(hits) // 2]], None
+            return
 
         goal_value, goal_kind = self._goal
         parsed = [parse_display(t) for t in shown]
@@ -131,7 +147,7 @@ class _Solver:
 def _solve_and_write(call, loc, solvers: list[_Solver]) -> dict[int, dict]:
     """Sample, then write, a group of parameters. Returns {id(solver): result or error}."""
     out: dict[int, dict] = {}
-    active = list(solvers)
+    active = [s for s in solvers if s.values is not None]  # raw targets need no sampling
     while active:
         nxt = []
         for group in _chunks(active):
@@ -156,7 +172,9 @@ def _solve_and_write(call, loc, solvers: list[_Solver]) -> dict[int, dict]:
 
 
 def _result(s: _Solver, display: str) -> dict:
-    if s.param["is_quantized"]:
+    if isinstance(s.target, dict):
+        exact = True  # written exactly as given; `actual` is only Live's own readout
+    elif s.param["is_quantized"] or s._text is not None:
         exact = _same_text(display, _on_off(s.target))
     else:
         got = parse_display(display)
@@ -183,9 +201,10 @@ def set_parameters(
             solvers.append(None)
             problems.append(str(exc))
     live = [s for s in solvers if s is not None]
+    modes = [s for s in live if s.param["is_quantized"] or s._text is not None]
     done: dict[int, dict] = {}
-    done.update(_solve_and_write(call, loc, [s for s in live if s.param["is_quantized"]]))
-    done.update(_solve_and_write(call, loc, [s for s in live if not s.param["is_quantized"]]))
+    done.update(_solve_and_write(call, loc, modes))
+    done.update(_solve_and_write(call, loc, [s for s in live if s not in modes]))
     results = []
     for s in solvers:
         if s is None:
@@ -220,6 +239,8 @@ def _validate(stages) -> None:
     for s in stages:
         if not isinstance(s, dict) or not isinstance(s.get("device"), str):
             raise ChainError("each stage needs a 'device' name")
+        if "path" in s and not (isinstance(s["path"], list) and s["path"]):
+            raise ChainError("'path' must be a non-empty list of browser names")
         if not isinstance(s.get("params", {}), dict):
             raise ChainError("'params' must be an object of parameter name -> value")
 
@@ -227,19 +248,27 @@ def _validate(stages) -> None:
 def build_chain(call, track: int, stages: list[dict]) -> dict:
     """Load each stage's stock device onto `track` (appended in order) and set its parameters."""
     _validate(stages)
-    listing = call("browser_list", {"root": ROOT, "path": []})
-    items = listing["items"] if isinstance(listing, dict) else listing
-    names = [i["name"] if isinstance(i, dict) else i for i in items]
-    by_lower = {n.lower(): n for n in names}
-    missing = [s["device"] for s in stages if s["device"].lower() not in by_lower]
-    if missing:
-        close = {m: difflib.get_close_matches(m, names, n=3, cutoff=0.5) for m in missing}
-        raise ChainError(f"not in Live's {ROOT} browser: {close}")
+    by_lower: dict[str, str] = {}
+    if any("path" not in s for s in stages):  # stages with an explicit browser path skip this
+        listing = call("browser_list", {"root": ROOT, "path": []})
+        items = listing["items"] if isinstance(listing, dict) else listing
+        names = [i["name"] if isinstance(i, dict) else i for i in items]
+        by_lower = {n.lower(): n for n in names}
+        missing = [
+            s["device"] for s in stages if "path" not in s and s["device"].lower() not in by_lower
+        ]
+        if missing:
+            close = {m: difflib.get_close_matches(m, names, n=3, cutoff=0.5) for m in missing}
+            raise ChainError(f"not in Live's {ROOT} browser: {close}")
 
     results = []
     for s in stages:
-        real = by_lower[s["device"].lower()]
-        loaded = call("load_item", {"track": track, "root": ROOT, "path": [real]})
+        if "path" in s:
+            real, root, path = s["device"], s.get("root", "plugins"), s["path"]
+        else:
+            real = by_lower[s["device"].lower()]
+            root, path = ROOT, [real]
+        loaded = call("load_item", {"track": track, "root": root, "path": path})
         if loaded["devices_after"] != loaded["devices_before"] + 1:
             raise ChainError(f"loading {real!r} did not add exactly one device")
         index = loaded["devices_after"] - 1
