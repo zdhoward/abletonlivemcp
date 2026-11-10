@@ -17,7 +17,11 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Multimedia :: Sound/Audio",
 ]
-dependencies = []
+dependencies = ["mcp>=2,<3"]
+
+[project.scripts]
+abletonlivemcp = "abletonlivemcp.server:main"
+abletonlivemcp-install = "abletonlivemcp.install:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
