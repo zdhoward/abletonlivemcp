@@ -407,10 +407,18 @@ def test_mcp_tools_registered_and_forward_readbacks(monkeypatch, method, params)
         return readback
 
     monkeypatch.setattr(server._bridge, "call", call)
+    monkeypatch.setattr(server.time, "sleep", lambda _s: None)
     names = {tool.name for tool in asyncio.run(server.mcp.list_tools())}
     assert f"live_{method}" in names
     assert getattr(server, f"live_{method}")(**params) is readback
-    assert calls == [(method, params)]
+    # Play/stop/launch re-read the real state after Live applies them (see test_server_settle).
+    follow_up = {"play": "get_transport", "stop": "get_transport"}.get(
+        method, "get_clip" if method in ("fire_clip", "stop_clip") else None
+    )
+    expected = [(method, params)]
+    if follow_up:
+        expected.append((follow_up, {} if follow_up == "get_transport" else params))
+    assert calls == expected
 
 
 def test_probe_slot_sampling_is_bounded(env, monkeypatch):

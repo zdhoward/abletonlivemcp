@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -15,6 +16,14 @@ MAX_JUDGE_ITEMS = 200
 
 mcp = MCPServer("abletonlivemcp")
 _bridge = BridgeClient()
+SETTLE_SECONDS = 0.3  # Live applies play/stop/launch a tick after the call returns
+
+
+def _settled(method: str, params: dict | None, readback: str, readback_params: dict | None):
+    """Run a command, wait for Live to apply it, then return the real state, not the stale one."""
+    _bridge.call(method, params)
+    time.sleep(SETTLE_SECONDS)
+    return _bridge.call(readback, readback_params)
 
 
 @mcp.tool()
@@ -100,14 +109,14 @@ def live_set_tempo(bpm: float) -> dict:
 
 @mcp.tool()
 def live_play() -> dict:
-    """Start the transport and return its current play state."""
-    return _bridge.call("play")
+    """Start the transport and return its play state as read back after Live applied it."""
+    return _settled("play", None, "get_transport", None)
 
 
 @mcp.tool()
 def live_stop() -> dict:
-    """Stop the transport and return its current play state."""
-    return _bridge.call("stop")
+    """Stop the transport and return its play state as read back after Live applied it."""
+    return _settled("stop", None, "get_transport", None)
 
 
 @mcp.tool()
@@ -164,13 +173,15 @@ def live_get_notes(track: int, scene: int) -> dict:
 @mcp.tool()
 def live_fire_clip(track: int, scene: int) -> dict:
     """Launch a clip and return its current state (launch quantization applies)."""
-    return _bridge.call("fire_clip", {"track": track, "scene": scene})
+    slot = {"track": track, "scene": scene}
+    return _settled("fire_clip", slot, "get_clip", slot)
 
 
 @mcp.tool()
 def live_stop_clip(track: int, scene: int) -> dict:
     """Stop a clip and return its current state."""
-    return _bridge.call("stop_clip", {"track": track, "scene": scene})
+    slot = {"track": track, "scene": scene}
+    return _settled("stop_clip", slot, "get_clip", slot)
 
 
 @mcp.tool()
