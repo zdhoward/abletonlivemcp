@@ -9,6 +9,9 @@ from mcp.server.mcpserver import MCPServer
 
 from .als import read_set, scan_projects
 from .bridge import BridgeClient
+from .judge import get_judge
+
+MAX_JUDGE_ITEMS = 200
 
 mcp = MCPServer("abletonlivemcp")
 _bridge = BridgeClient()
@@ -187,6 +190,44 @@ def als_usage_index(root: str) -> dict:
     """Scan every saved Set under `root` (skipping Backup folders) and count device, plugin and
     sample usage across projects. Read-only; Live need not be running."""
     return asdict(scan_projects(Path(root)))
+
+
+@mcp.tool()
+def judge_status() -> dict:
+    """Which judging backend is active ('jev' needs the jev extra + TYPESAFE_API_KEY, else
+    'rules') and exactly what a Jev call would send."""
+    j = get_judge()
+    return {
+        "backend": j.name,
+        "sends_to_jev": {
+            "sample": "file name and its last two folder names (never the full path)",
+            "plugin": "plugin name and format",
+        },
+    }
+
+
+@mcp.tool()
+def classify_samples(paths: list[str]) -> list:
+    """Judge up to 200 sample files: one-shot vs loop, and drum type when it is a drum sound.
+    `unsure` means the evidence did not settle it."""
+    if len(paths) > MAX_JUDGE_ITEMS:
+        raise ValueError(f"at most {MAX_JUDGE_ITEMS} paths per call")
+    j = get_judge()
+    out = []
+    for p in paths:
+        path = Path(p)
+        out.append(asdict(j.classify_sample(path.name, [d.name for d in path.parents][:2][::-1])))
+    return out
+
+
+@mcp.tool()
+def classify_plugins(plugins: list[dict]) -> list:
+    """Judge up to 200 plugins given as {name, format}: which audio-production category fits,
+    or none."""
+    if len(plugins) > MAX_JUDGE_ITEMS:
+        raise ValueError(f"at most {MAX_JUDGE_ITEMS} plugins per call")
+    j = get_judge()
+    return [asdict(j.classify_plugin(str(x["name"]), x.get("format"))) for x in plugins]
 
 
 def main() -> None:
