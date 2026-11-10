@@ -8,11 +8,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
-from AbletonLiveMCP.core import BridgeServer  # noqa: E402
-from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
-
 from abletonlivemcp import install  # noqa: E402
 from abletonlivemcp.bridge import BridgeClient, BridgeError  # noqa: E402
+from AbletonLiveMCP.core import BridgeServer  # noqa: E402
+from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
 from test_bridge import FakeApp, FakeSong  # noqa: E402
 
 

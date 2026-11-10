@@ -7,10 +7,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
+from AbletonLiveMCP import core  # noqa: E402
 from AbletonLiveMCP.core import BridgeServer  # noqa: E402
 from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
-
-from AbletonLiveMCP import core  # noqa: E402
 
 
 class FakeDevice:

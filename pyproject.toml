@@ -34,7 +34,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "remote_script"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

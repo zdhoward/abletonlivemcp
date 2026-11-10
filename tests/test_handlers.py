@@ -5,9 +5,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
-from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
-
 from AbletonLiveMCP import handlers  # noqa: E402
+from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
 
 
 class Item:
