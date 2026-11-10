@@ -194,8 +194,8 @@ def als_usage_index(root: str) -> dict:
 
 @mcp.tool()
 def judge_status() -> dict:
-    """Which judging backend is active ('jev' needs the jev extra + TYPESAFE_API_KEY, else
-    'rules') and exactly what a Jev call would send."""
+    """Which judging backend is active ('jev' when OPENROUTER_API_KEY, or TYPESAFE_API_KEY with
+    the jev extra, is set; else 'rules') and exactly what a Jev call would send."""
     j = get_judge()
     return {
         "backend": j.name,

@@ -20,9 +20,7 @@ def install(user_library: Path) -> Path:
     dest = user_library / "Remote Scripts" / SCRIPT
     if dest.exists():
         shutil.rmtree(dest)  # only ever our own folder, by fixed name
-    shutil.copytree(
-        source_dir(), dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
-    )
+    shutil.copytree(source_dir(), dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     return dest
 
 

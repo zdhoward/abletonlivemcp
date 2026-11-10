@@ -150,7 +150,11 @@ def _sample_use(
         return None  # Empty sampler slots have no sample to count.
     size = _integer(_val(sample, "OriginalFileSize") or _val(ref, "OriginalFileSize"))
     sampler = device_class in {
-        "OriginalSimpler", "Simpler", "DrumCell", "MultiSampler", "DrumGroupDevice"
+        "OriginalSimpler",
+        "Simpler",
+        "DrumCell",
+        "MultiSampler",
+        "DrumGroupDevice",
     }
     return SampleRefUse(
         path=path,

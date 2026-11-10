@@ -83,13 +83,13 @@ def get_judge(prefer: str | None = None) -> Judge:
 
     if choice == "rules":
         return RuleJudge()
-    have_key = bool(os.environ.get("TYPESAFE_API_KEY"))
-    try:
+    have_key = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("TYPESAFE_API_KEY"))
+    if choice == "jev" or have_key:
         from .jev import JevJudge
 
-        if have_key or choice == "jev":
+        try:
             return JevJudge()
-    except ImportError as exc:
-        if choice == "jev":
-            raise JudgeError("jev backend needs: pip install 'abletonlivemcp[jev]'") from exc
+        except JudgeError:
+            if choice == "jev":
+                raise
     return RuleJudge()
