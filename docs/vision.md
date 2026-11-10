@@ -38,4 +38,5 @@ and a tool the owner uses daily.
 ## Decision log
 
 - 2026-11-10: Project started. Prompt recorded verbatim.
+- 2026-11-10: Owner runs Live 12.4 (latest). Target Live 12.4 only for now, so 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) are usable without gates; Live 11 and earlier 12.x are unsupported until someone contributes fixtures. Capability probing at runtime stays.
 - 2026-11-10: Owner approved plan. Repo stays private until a v1 the owner is happy with. MIT license, no telemetry.
