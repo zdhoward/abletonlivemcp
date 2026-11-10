@@ -30,6 +30,9 @@ dev = ["pytest>=8", "ruff>=0.6", "typesafe-sdk>=0.7"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/abletonlivemcp"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["knowledge", "research", "tasks"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

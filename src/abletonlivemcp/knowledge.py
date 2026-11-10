@@ -37,6 +37,12 @@ def knowledge_root() -> Path:
     return Path(override) if override else Path(__file__).resolve().parents[2] / "knowledge"
 
 
+def available() -> bool:
+    """True when a knowledge folder exists. A normal install has none (the research lives in the
+    repo, not the package), so the server only offers the knowledge tools when this is true."""
+    return knowledge_root().is_dir()
+
+
 @dataclass
 class Section:
     heading: str  # "Parent > Child" path of headings

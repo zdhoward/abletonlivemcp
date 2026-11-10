@@ -18,8 +18,10 @@ as close to native as possible. Not an autonomous producer: you stay in charge, 
 ## Knowledge base
 
 [`knowledge/`](knowledge/INDEX.md) holds sourced notes on FX chains (vocals, drums, busses, guitar/bass,
-keys/synths, mastering). Query it through the MCP tools `knowledge_list`, `knowledge_search` and
-`knowledge_read`. Anyone can add a Markdown page there; see the index for the two-line convention.
+keys/synths, mastering). It is a development resource and is **not shipped** in the package. In a
+checkout, or with `ABLETONLIVEMCP_KNOWLEDGE` pointing at a folder of Markdown, the MCP tools
+`knowledge_list`, `knowledge_search` and `knowledge_read` appear; a normal install doesn't list them.
+Anyone can add a Markdown page there; see the index for the two-line convention.
 
 See [`docs/vision.md`](docs/vision.md) for details and [`docs/original-prompt.md`](docs/original-prompt.md)
 for the verbatim founding prompt.

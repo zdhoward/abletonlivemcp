@@ -48,7 +48,12 @@ def _tool(fn):
     return mcp.tool()(run)
 
 
-SETTLE_SECONDS = 0.3  # Live applies play/stop/launch a tick after the call returns
+def _knowledge_tool(fn):
+    """Like `_tool`, but only registered when a knowledge folder exists."""
+    return _tool(fn) if knowledge.available() else fn
+
+
+SETTLE_SECONDS = 0.3 # Live applies play/stop/launch a tick after the call returns
 
 
 def _settled(method: str, params: dict | None, readback: str, readback_params: dict | None):
@@ -270,7 +275,7 @@ def _knowledge(fn, *args):
         raise ValueError(str(exc)) from exc
 
 
-@_tool
+@_knowledge_tool
 def knowledge_list() -> dict:
     """List every page of the FX-chain knowledge base (vocals, drums, busses, mastering, ...).
 
@@ -282,7 +287,7 @@ def knowledge_list() -> dict:
     return {"directory": str(knowledge.knowledge_root()), "pages": pages}
 
 
-@_tool
+@_knowledge_tool
 def knowledge_search(query: str, limit: int = 8) -> dict:
     """Search the knowledge base by words, e.g. 'parallel compression drums' or 'return high-pass'.
 
@@ -292,7 +297,7 @@ def knowledge_search(query: str, limit: int = 8) -> dict:
     return _knowledge(knowledge.search, query, limit)
 
 
-@_tool
+@_knowledge_tool
 def knowledge_read(page: str, section: str | None = None) -> dict:
     """Read a knowledge page, or just one section of it (matched by heading text).
 
