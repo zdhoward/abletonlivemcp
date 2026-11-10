@@ -156,6 +156,19 @@ def test_set_parameter_readback_and_guards(env):
         d("set_device_parameter", {"track": 0, "device": 0, "parameter": True, "value": 0.5})
 
 
+def test_sample_parameter_reads_displays_without_writing(env):
+    song, _app, d = env
+    r = d("sample_parameter", {"track": 0, "device": 0, "parameter": 0, "values": [0, 0.25, 1]})
+    assert r == {"name": "Gain", "displays": ["0.00", "0.25", "1.00"]}
+    assert song.tracks[0].devices[0].parameters[0].value == 0.5  # untouched
+    bad = [[], "x", [2], [True], ["0.5"], [0.5] * 130]
+    for values in bad:
+        with pytest.raises(ValueError):
+            d("sample_parameter", {"track": 0, "device": 0, "parameter": 0, "values": values})
+    with pytest.raises(ValueError):
+        d("sample_parameter", {"track": 0, "device": 0, "parameter": 9, "values": [0.5]})
+
+
 def test_create_track_name_color_tempo(env):
     song, _a, d = env
     assert d("create_track", {"kind": "midi"})["track_count"] == 3

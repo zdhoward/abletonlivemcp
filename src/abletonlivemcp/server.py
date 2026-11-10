@@ -8,8 +8,10 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from . import chain
 from .als import read_set, scan_projects
 from .bridge import BridgeClient
+from .chain_presets import PRESETS, stock_equivalent
 from .judge import get_judge
 
 MAX_JUDGE_ITEMS = 200
@@ -182,6 +184,34 @@ def live_stop_clip(track: int, scene: int) -> dict:
     """Stop a clip and return its current state."""
     slot = {"track": track, "scene": scene}
     return _settled("stop_clip", slot, "get_clip", slot)
+
+
+@mcp.tool()
+def live_build_chain(track: int, stages: list[dict]) -> dict:
+    """Load stock audio effects onto a track in order and set parameters from human values.
+
+    stages: [{"device": "Compressor", "params": {"Threshold": "-18 dB", "Ratio": 4}}, ...].
+    Names are checked before anything loads. Units are required where Live shows one. Each
+    parameter returns what Live actually displays; `ok` is false if any failed. Takes ~3 s per
+    parameter."""
+    try:
+        return chain.build_chain(_bridge.call, track, stages)
+    except chain.ChainError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+@mcp.tool()
+def live_vocal_presets() -> dict:
+    """List the starting-point vocal chains (stock effects only; values from general mixing
+    practice, not judged by ear) with their stages, ready to pass to live_build_chain."""
+    return PRESETS
+
+
+@mcp.tool()
+def stock_equivalent_for_gear(gear: str) -> dict:
+    """Nearest stock Ableton device and what to aim for, for gear like '1176' or 'Pultec'.
+    An approximation, not an emulation."""
+    return stock_equivalent(gear)
 
 
 @mcp.tool()

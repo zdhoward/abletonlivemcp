@@ -24,6 +24,7 @@ BROWSER_ROOTS = (
 WALK_BUDGET = 4000  # max browser nodes visited per call (main-thread safety)
 LIST_LIMIT = 200
 NOTE_LIMIT = 2000
+SAMPLE_LIMIT = 129
 
 
 def _scene(song, params):
@@ -258,6 +259,23 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         q.value = value
         return {"name": q.name, "value": q.value, "display": q.str_for_value(q.value)}
 
+    def sample_parameter(p):
+        """Display text for candidate values of one parameter. Read-only; writes nothing."""
+        dev = _device(_track(song, p), p)
+        idx = p.get("parameter")
+        if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(dev.parameters):
+            raise ValueError("'parameter' must be a valid parameter index")
+        q = dev.parameters[idx]
+        values = p.get("values")
+        if not isinstance(values, list) or not 1 <= len(values) <= SAMPLE_LIMIT:
+            raise ValueError(f"'values' must be a list of 1..{SAMPLE_LIMIT} numbers")
+        out = []
+        for v in values:
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not q.min <= v <= q.max:
+                raise ValueError(f"every value must be a number within {q.min}..{q.max}")
+            out.append(q.str_for_value(float(v)))
+        return {"name": q.name, "displays": out}
+
     def create_track(p):
         kind = p.get("kind")
         index = int(p.get("index", -1))
@@ -433,6 +451,7 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         "load_item": load_item,
         "device_parameters": device_parameters,
         "set_device_parameter": set_device_parameter,
+        "sample_parameter": sample_parameter,
         "create_track": create_track,
         "set_track_name": set_track_name,
         "set_track_color": set_track_color,
