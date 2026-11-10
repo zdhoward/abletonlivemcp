@@ -37,8 +37,8 @@ Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be v
 ## Milestones
 
 - [x] M0 Repo foundations: license (MIT), README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates, CI (lint+tests), `.gitignore`, pyproject. Repo stays private until the owner is happy with v1 (owner decision 2026-11-10). Research notes: `docs/research.md`.
-- [ ] M1 Parity with upstream ableton-mcp (session info, tracks, clips, devices, params, browser load, transport).
-- [ ] M2 Offline `.als` reader + usage index (UC1/UC6 foundation).
+- [ ] M1 Parity with upstream ableton-mcp (session info, tracks, clips, devices, params, browser load, transport). Start with the read-only bridge + capability probe (Remote Script + MCP server, loopback, framed JSON, main-thread queue). NEXT.
+- [~] M2 Offline `.als` reader + usage index (UC1/UC6 foundation). Reader + usage index done on synthetic XML (`src/abletonlivemcp/als/`); still to do: validate against real Sets (read-only scan of owner's projects), MCP tool wrapper, sample-vs-used classification (`referenced` / `potentially_triggered`).
 - [ ] M3 Drum rack builder, standard layout (UC1).
 - [ ] M4 Rack grouping + macro mapping from natural-language spec (UC4).
 - [ ] M5 Organization: color tags, labels, categories (UC2/UC6).
