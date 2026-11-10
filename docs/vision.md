@@ -39,4 +39,5 @@ and a tool the owner uses daily.
 
 - 2026-11-10: Project started. Prompt recorded verbatim.
 - 2026-11-10: Owner runs Live 12.4 (latest). Target Live 12.4 only for now, so 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) are usable without gates; Live 11 and earlier 12.x are unsupported until someone contributes fixtures. Capability probing at runtime stays.
+- 2026-11-10: CORRECTION to the Live 12.4 entry above: the owner's Live reports 12.2.0 (`hello` handshake, Live's log folder, and the sample Set all agree); "12.4" was an unchecked assumption. Target Live 12.2+. 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) are NOT available here and must be runtime-gated by `probe()`; on 12.2 devices are loaded through the browser (`load_item`, verified). Live 11 stays unsupported.
 - 2026-11-10: Owner approved plan. Repo stays private until a v1 the owner is happy with. MIT license, no telemetry.
