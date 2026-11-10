@@ -6,13 +6,14 @@ Both per-project presence and raw instance totals are kept so callers can rank e
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from .reader import AlsError, SetSummary, read_set
 
-SKIP_DIRS = {"backup", "samples"}  # Live's auto-backups and collected samples
+SKIP_DIRS = {"backup"}  # Live's auto-backups are not independent Sets.
 
 
 @dataclass
@@ -32,12 +33,14 @@ class UsageIndex:
 
 
 def find_sets(root: str | Path) -> list[Path]:
-    """All .als files under root, skipping Backup/ and Samples/ folders."""
+    """All .als files under root, pruning Backup directories (case insensitive)."""
+    root = Path(root)
+    if any(part.lower() in SKIP_DIRS for part in root.parts):
+        return []
     found = []
-    for p in Path(root).rglob("*.als"):
-        if any(part.lower() in SKIP_DIRS for part in p.relative_to(root).parts[:-1]):
-            continue
-        found.append(p)
+    for directory, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d.lower() not in SKIP_DIRS]
+        found.extend(Path(directory) / name for name in files if name.lower().endswith(".als"))
     return sorted(found)
 
 
@@ -61,11 +64,7 @@ def build_index(
     for s in sets:
         n += 1
         per_set = (
-            _tally(
-                d.device_class
-                for d in s.devices
-                if not d.plugin_name and d.device_class != "PluginDevice"
-            ),
+            _tally(d.device_class for d in s.devices),
             _tally(f"{d.plugin_format}:{d.plugin_name}" for d in s.devices if d.plugin_name),
             _tally(r.path or r.relative_path for r in s.samples if r.path or r.relative_path),
         )
@@ -80,6 +79,11 @@ def build_index(
 
 def scan(root: str | Path) -> UsageIndex:
     """Read every Set under root into a usage index. Unreadable Sets are reported, not fatal."""
+    return scan_projects(Path(root))
+
+
+def scan_projects(root: Path) -> UsageIndex:
+    """Aggregate saved references across Sets; collect unreadable/corrupt file errors."""
     summaries, errors = [], []
     for p in find_sets(root):
         try:

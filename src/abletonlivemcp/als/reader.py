@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import gzip
 import xml.etree.ElementTree as ET
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 MAX_XML_BYTES = 512 * 1024 * 1024  # decompression bomb guard
 
@@ -39,6 +41,8 @@ class SampleRefUse:
     relative_path: str | None
     track: str | None
     device_class: str | None
+    classification: Literal["referenced", "potentially_triggered"] = "referenced"
+    original_file_size: int | None = None
 
 
 @dataclass
@@ -103,14 +107,84 @@ def parse_xml_bytes(data: bytes, path: Path | None = None) -> SetSummary:
     return summary
 
 
-def _walk(node: ET.Element, out: SetSummary, track: str | None, device_class: str | None) -> None:
+def _integer(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
+
+
+def _midi_notes(track: ET.Element) -> frozenset[int]:
+    notes = set()
+    for clip in track.iter("MidiClip"):
+        if _val(clip, "Disabled") == "true":
+            continue
+        for key in clip.iter("KeyTrack"):
+            pitch = _integer(_val(key, "MidiKey"))
+            for event in key.iter("MidiNoteEvent"):
+                try:
+                    audible = float(event.get("Velocity", "100")) > 0
+                except ValueError:
+                    audible = False
+                if pitch is not None and audible and event.get("IsEnabled", "true") != "false":
+                    notes.add(pitch)
+    return frozenset(notes)
+
+
+def _sample_use(
+    sample: ET.Element, track: str | None, device_class: str | None, evidence: bool
+) -> SampleRefUse | None:
+    ref = sample.find("FileRef")
+    if ref is None:
+        return None
+    relative = _val(ref, "RelativePath")
+    if relative is None:
+        parts = [el.get("Dir", "") for el in ref.findall("RelativePath/RelativePathElement")]
+        relative = "/".join(parts) or None
+    name = _val(ref, "Name")
+    if name and (not relative or relative.replace("\\", "/").rsplit("/", 1)[-1] != name):
+        directory = relative.rstrip("/\\") if relative else ""
+        relative = f"{directory}/{name}" if directory else name
+    path = _val(ref, "Path") or relative or None
+    if not path:
+        return None  # Empty sampler slots have no sample to count.
+    size = _integer(_val(sample, "OriginalFileSize") or _val(ref, "OriginalFileSize"))
+    sampler = device_class in {
+        "OriginalSimpler", "Simpler", "DrumCell", "MultiSampler", "DrumGroupDevice"
+    }
+    return SampleRefUse(
+        path=path,
+        relative_path=relative or None,
+        track=track,
+        device_class=device_class,
+        classification="potentially_triggered" if sampler and not evidence else "referenced",
+        original_file_size=size if size is not None and size >= 0 else None,
+    )
+
+
+def _walk(
+    node: ET.Element,
+    out: SetSummary,
+    track: str | None,
+    device_class: str | None,
+    midi_notes: frozenset[int] = frozenset(),
+    evidence: bool = False,
+) -> None:
     for child in node:
         tag = child.tag
         if tag in TRACK_TAGS:
             name = _track_name(child)
             if name:
                 out.tracks.append(name)
-            _walk(child, out, name, None)
+            notes = _midi_notes(child)
+            _walk(child, out, name, None, notes, bool(notes))
+            continue
+        if tag == "DrumBranch":
+            note = _integer(_val(child, ".//ReceivingNote"))
+            _walk(child, out, track, device_class, midi_notes, note in midi_notes)
+            continue
+        if tag == "AudioClip":
+            _walk(child, out, track, None, midi_notes, True)
             continue
         if node.tag == "Devices":
             fmt, plug = _plugin_info(child) if tag == "PluginDevice" else (None, None)
@@ -123,21 +197,14 @@ def _walk(node: ET.Element, out: SetSummary, track: str | None, device_class: st
                     plugin_name=plug,
                 )
             )
-            _walk(child, out, track, tag)
+            _walk(child, out, track, tag, midi_notes, evidence and tag != "DrumGroupDevice")
             continue
         if tag == "SampleRef":
-            ref = child.find("FileRef")
-            if ref is not None:
-                out.samples.append(
-                    SampleRefUse(
-                        path=_val(ref, "Path") or None,
-                        relative_path=_val(ref, "RelativePath") or None,
-                        track=track,
-                        device_class=device_class,
-                    )
-                )
+            sample = _sample_use(child, track, device_class, evidence)
+            if sample is not None:
+                out.samples.append(sample)
             continue
-        _walk(child, out, track, device_class)
+        _walk(child, out, track, device_class, midi_notes, evidence)
 
 
 def read_set(path: str | Path) -> SetSummary:
@@ -146,7 +213,7 @@ def read_set(path: str | Path) -> SetSummary:
     try:
         with gzip.open(p, "rb") as fh:
             data = fh.read(MAX_XML_BYTES + 1)
-    except (OSError, EOFError) as exc:
+    except (OSError, EOFError, zlib.error) as exc:
         raise AlsError(f"cannot read {p.name}: {exc}") from exc
     if len(data) > MAX_XML_BYTES:
         raise AlsError(f"{p.name} decompresses to more than {MAX_XML_BYTES} bytes")
