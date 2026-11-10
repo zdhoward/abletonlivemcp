@@ -1,4 +1,4 @@
-"""MCP server (stdio). Read-only tools only in v0.1."""
+"""MCP server (stdio) for offline Set reads and Live bridge tools."""
 
 from __future__ import annotations
 
@@ -93,6 +93,81 @@ def live_set_track_color(track: int, color_index: int) -> dict:
 def live_set_tempo(bpm: float) -> dict:
     """Set the Set's tempo (20..999 BPM)."""
     return _bridge.call("set_tempo", {"bpm": bpm})
+
+
+@mcp.tool()
+def live_play() -> dict:
+    """Start the transport and return its current play state."""
+    return _bridge.call("play")
+
+
+@mcp.tool()
+def live_stop() -> dict:
+    """Stop the transport and return its current play state."""
+    return _bridge.call("stop")
+
+
+@mcp.tool()
+def live_get_transport() -> dict:
+    """Read play state, tempo, time signature and current song time in beats."""
+    return _bridge.call("get_transport")
+
+
+@mcp.tool()
+def live_create_scene(index: int = -1) -> dict:
+    """Create a scene at `index` (-1 = end); return its name, index and scene count."""
+    return _bridge.call("create_scene", {"index": index})
+
+
+@mcp.tool()
+def live_set_scene_name(scene: int, name: str) -> dict:
+    """Rename a scene and return its actual name."""
+    return _bridge.call("set_scene_name", {"scene": scene, "name": name})
+
+
+@mcp.tool()
+def live_fire_scene(scene: int) -> dict:
+    """Launch a scene; return its current trigger state (launch quantization applies)."""
+    return _bridge.call("fire_scene", {"scene": scene})
+
+
+@mcp.tool()
+def live_create_clip(track: int, scene: int, length_beats: float) -> dict:
+    """Create a clip in an empty MIDI slot, length > 0 and <= 1024 beats; read it back."""
+    return _bridge.call(
+        "create_clip", {"track": track, "scene": scene, "length_beats": length_beats}
+    )
+
+
+@mcp.tool()
+def live_get_clip(track: int, scene: int) -> dict:
+    """Read a clip's name, length, play state and looping state; empty slots raise an error."""
+    return _bridge.call("get_clip", {"track": track, "scene": scene})
+
+
+@mcp.tool()
+def live_add_notes(track: int, scene: int, notes: list[dict]) -> dict:
+    """Add up to 2000 MIDI notes: pitch 0..127, start_time >= 0, duration > 0,
+    velocity 1..127 and optional boolean mute. Return bounded note readback."""
+    return _bridge.call("add_notes", {"track": track, "scene": scene, "notes": notes})
+
+
+@mcp.tool()
+def live_get_notes(track: int, scene: int) -> dict:
+    """Read up to 2000 MIDI notes starting within the clip length; check `truncated`."""
+    return _bridge.call("get_notes", {"track": track, "scene": scene})
+
+
+@mcp.tool()
+def live_fire_clip(track: int, scene: int) -> dict:
+    """Launch a clip and return its current state (launch quantization applies)."""
+    return _bridge.call("fire_clip", {"track": track, "scene": scene})
+
+
+@mcp.tool()
+def live_stop_clip(track: int, scene: int) -> dict:
+    """Stop a clip and return its current state."""
+    return _bridge.call("stop_clip", {"track": track, "scene": scene})
 
 
 @mcp.tool()

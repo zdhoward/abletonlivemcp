@@ -17,6 +17,14 @@ def show(label, fn):
 show("hello", lambda: c.call("hello"))
 roots = c.call("browser_roots")
 for r in roots:
-    show(f"list {r}", lambda r=r: [i["name"] for i in c.call("browser_list", {"root": r})["items"]][:25])
-show("search Reverb", lambda: c.call("browser_search", {"root": "audio_effects", "query": "reverb"}))
-show("params track4 dev0", lambda: [p["name"] for p in c.call("device_parameters", {"track": 4, "device": 0})][:15])
+    show(
+        f"list {r}",
+        lambda r=r: [i["name"] for i in c.call("browser_list", {"root": r})["items"]][:25],
+    )
+show(
+    "search Reverb", lambda: c.call("browser_search", {"root": "audio_effects", "query": "reverb"})
+)
+show(
+    "params track4 dev0",
+    lambda: [p["name"] for p in c.call("device_parameters", {"track": 4, "device": 0})][:15],
+)

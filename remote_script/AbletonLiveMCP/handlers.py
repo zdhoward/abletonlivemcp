@@ -4,6 +4,9 @@ Rules: reads are bounded (browser walks have a node budget); every write reads t
 and returns it, so callers can see what actually happened; nothing here retries.
 """
 
+import math
+from itertools import islice
+
 from .core import PROTOCOL_VERSION
 
 BROWSER_ROOTS = (
@@ -20,6 +23,82 @@ BROWSER_ROOTS = (
 )
 WALK_BUDGET = 4000  # max browser nodes visited per call (main-thread safety)
 LIST_LIMIT = 200
+NOTE_LIMIT = 2000
+
+
+def _scene(song, params):
+    idx = params.get("scene")
+    if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(song.scenes):
+        raise ValueError(f"'scene' must be an integer scene index 0..{len(song.scenes) - 1}")
+    return song.scenes[idx]
+
+
+def _slot(song, params):
+    track = _track(song, params)
+    _scene(song, params)
+    idx = params["scene"]
+    if idx >= len(track.clip_slots):
+        raise ValueError("'scene' has no clip slot on this track")
+    return track, track.clip_slots[idx]
+
+
+def _clip(song, params):
+    _t, slot = _slot(song, params)
+    if not slot.has_clip:
+        raise ValueError("clip slot is empty")
+    return slot.clip
+
+
+def _number(value, name, minimum, maximum=None, exclusive=False):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or (isinstance(value, float) and not math.isfinite(value))
+        or (value <= minimum if exclusive else value < minimum)
+        or (maximum is not None and value > maximum)
+    ):
+        bound = f"> {minimum}" if exclusive else f">= {minimum}"
+        if maximum is not None:
+            bound += f" and <= {maximum}"
+        raise ValueError(f"'{name}' must be a finite number {bound}")
+    return value
+
+
+def _validated_notes(notes):
+    if not isinstance(notes, list) or len(notes) > NOTE_LIMIT:
+        raise ValueError(f"'notes' must be a list of at most {NOTE_LIMIT} notes")
+    result = []
+    for note in notes:
+        if not isinstance(note, dict):
+            raise ValueError("each note must be an object")
+        pitch = note.get("pitch")
+        if isinstance(pitch, bool) or not isinstance(pitch, int) or not 0 <= pitch <= 127:
+            raise ValueError("'pitch' must be an integer 0..127")
+        start = _number(note.get("start_time"), "start_time", 0)
+        duration = _number(note.get("duration"), "duration", 0, exclusive=True)
+        velocity = note.get("velocity")
+        if (
+            isinstance(velocity, bool)
+            or not isinstance(velocity, int)
+            or not 1 <= velocity <= 127
+        ):
+            raise ValueError("'velocity' must be an integer 1..127")
+        mute = note.get("mute", False)
+        if not isinstance(mute, bool):
+            raise ValueError("'mute' must be a bool")
+        result.append((pitch, start, duration, velocity, mute))
+    return result
+
+
+def _note_specification():
+    try:
+        import Live
+    except ImportError:
+        return None
+    clip_module = getattr(Live, "Clip", None)
+    if clip_module is not None and hasattr(clip_module, "MidiNoteSpecification"):
+        return clip_module.MidiNoteSpecification
+    return None
 
 
 def _live_version(app):
@@ -207,6 +286,143 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         song.tempo = bpm
         return {"tempo": song.tempo}
 
+    # ---- transport, scenes and clips ----------------------------------------------
+    def get_transport(_p):
+        return {
+            "is_playing": song.is_playing,
+            "tempo": song.tempo,
+            "signature": [song.signature_numerator, song.signature_denominator],
+            "current_song_time": song.current_song_time,
+        }
+
+    def play(_p):
+        song.start_playing()
+        return {"is_playing": song.is_playing}
+
+    def stop(_p):
+        song.stop_playing()
+        return {"is_playing": song.is_playing}
+
+    def create_scene(p):
+        index = p.get("index", -1)
+        if (
+            isinstance(index, bool)
+            or not isinstance(index, int)
+            or not -1 <= index <= len(song.scenes)
+        ):
+            raise ValueError(f"'index' must be an integer -1..{len(song.scenes)} (-1 = end)")
+        song.create_scene(index)
+        actual = len(song.scenes) - 1 if index == -1 else index
+        return {
+            "scene_count": len(song.scenes),
+            "index": actual,
+            "name": song.scenes[actual].name,
+        }
+
+    def set_scene_name(p):
+        scene = _scene(song, p)
+        name = p.get("name")
+        if not isinstance(name, str):
+            raise ValueError("'name' must be a string")
+        scene.name = name
+        return {"name": scene.name}
+
+    def fire_scene(p):
+        scene = _scene(song, p)
+        scene.fire()
+        return {"name": scene.name, "is_triggered": scene.is_triggered}
+
+    def get_clip(p):
+        clip = _clip(song, p)
+        return {
+            "name": clip.name,
+            "length": clip.length,
+            "is_playing": clip.is_playing,
+            "looping": clip.looping,
+        }
+
+    def create_clip(p):
+        track, slot = _slot(song, p)
+        length = _number(p.get("length_beats"), "length_beats", 0, 1024, exclusive=True)
+        if not track.has_midi_input:
+            raise ValueError("create_clip requires a MIDI track")
+        if slot.has_clip:
+            raise ValueError("clip slot is occupied")
+        slot.create_clip(length)
+        return get_clip(p)
+
+    def get_notes(p):
+        clip = _clip(song, p)
+        if not clip.is_midi_clip:
+            raise ValueError("get_notes requires a MIDI clip")
+        if hasattr(clip, "get_notes_extended"):
+            raw = clip.get_notes_extended(0, 128, 0.0, clip.length)
+            notes = [
+                {
+                    "pitch": n.pitch,
+                    "start_time": n.start_time,
+                    "duration": n.duration,
+                    "velocity": n.velocity,
+                    "mute": n.mute,
+                }
+                for n in islice(raw, NOTE_LIMIT + 1)
+            ]
+        elif hasattr(clip, "get_notes"):
+            raw = clip.get_notes(0.0, 0, clip.length, 128)
+            notes = [
+                {
+                    "pitch": pitch,
+                    "start_time": start,
+                    "duration": duration,
+                    "velocity": velocity,
+                    "mute": mute,
+                }
+                for pitch, start, duration, velocity, mute in islice(raw, NOTE_LIMIT + 1)
+            ]
+        else:
+            raise ValueError("clip has neither get_notes_extended nor get_notes")
+        return {"notes": notes[:NOTE_LIMIT], "truncated": len(notes) > NOTE_LIMIT}
+
+    def add_notes(p):
+        clip = _clip(song, p)
+        if not clip.is_midi_clip:
+            raise ValueError("add_notes requires a MIDI clip")
+        notes = _validated_notes(p.get("notes"))
+        # Require a read API before changing anything: all writes must return a readback.
+        if not (hasattr(clip, "get_notes_extended") or hasattr(clip, "get_notes")):
+            raise ValueError("clip has neither get_notes_extended nor get_notes")
+        if hasattr(clip, "add_new_notes"):
+            specification = _note_specification()
+            if specification is None:
+                raise ValueError("Live.Clip.MidiNoteSpecification is unavailable for add_new_notes")
+            clip.add_new_notes(
+                tuple(
+                    specification(
+                        pitch=pitch,
+                        start_time=start,
+                        duration=duration,
+                        velocity=velocity,
+                        mute=mute,
+                    )
+                    for pitch, start, duration, velocity, mute in notes
+                )
+            )
+        elif hasattr(clip, "set_notes"):
+            clip.set_notes(tuple(notes))
+        else:
+            raise ValueError("clip has neither add_new_notes nor set_notes")
+        return get_notes(p)
+
+    def fire_clip(p):
+        clip = _clip(song, p)
+        clip.fire()
+        return get_clip(p)
+
+    def stop_clip(p):
+        clip = _clip(song, p)
+        clip.stop()
+        return get_clip(p)
+
     methods = {
         "hello": hello,
         "session_info": session_info,
@@ -221,6 +437,18 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         "set_track_name": set_track_name,
         "set_track_color": set_track_color,
         "set_tempo": set_tempo,
+        "play": play,
+        "stop": stop,
+        "get_transport": get_transport,
+        "create_scene": create_scene,
+        "set_scene_name": set_scene_name,
+        "fire_scene": fire_scene,
+        "create_clip": create_clip,
+        "get_clip": get_clip,
+        "add_notes": add_notes,
+        "get_notes": get_notes,
+        "fire_clip": fire_clip,
+        "stop_clip": stop_clip,
     }
 
     def dispatch(method, params):
@@ -238,6 +466,19 @@ def probe(song, app=None):
         "track.insert_device": bool(track_cls and hasattr(track_cls, "insert_device")),  # 12.3+
         "track.color_index": bool(track_cls and hasattr(track_cls, "color_index")),
     }
+    # Sample a bounded number of slots; false means unavailable on the sampled clips.
+    clips = []
+    remaining = LIST_LIMIT
+    for track in islice(song.tracks, LIST_LIMIT):
+        slots = list(islice(getattr(track, "clip_slots", ()), remaining))
+        clips.extend(slot.clip for slot in slots if slot.has_clip)
+        remaining -= len(slots)
+        if remaining == 0:
+            break
+    for member in ("add_new_notes", "set_notes", "get_notes_extended", "get_notes"):
+        caps[f"clip.{member}"] = any(hasattr(clip, member) for clip in clips)
+    caps["clip.note_api_sample_count"] = len(clips)
+    caps["Live.Clip.MidiNoteSpecification"] = _note_specification() is not None
     if app is not None:
         browser = getattr(app, "browser", None)
         caps["browser.load_item"] = bool(browser and hasattr(browser, "load_item"))
