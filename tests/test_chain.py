@@ -48,6 +48,7 @@ class FakeLive:
         self.devices = []
         self.vals = []
         self.calls = []
+        self.writes = []
 
     def call(self, method, p=None):
         p = p or {}
@@ -81,6 +82,26 @@ class FakeLive:
                 }
                 for i, (n, k, lo, hi, q) in enumerate(rows)
             ]
+        if method == "sample_parameters":
+            return {
+                "results": [
+                    self.call(
+                        "sample_parameter", {"parameter": r["parameter"], "values": r["values"]}
+                    )
+                    for r in p["requests"]
+                ]
+            }
+        if method == "set_device_parameters":
+            self.writes.append([w["parameter"] for w in p["writes"]])
+            return {
+                "results": [
+                    self.call(
+                        "set_device_parameter",
+                        {**p, "parameter": w["parameter"], "value": w["value"]},
+                    )
+                    for w in p["writes"]
+                ]
+            }
         if method == "sample_parameter":
             n = ["On", "Threshold", "Frequency", "Ratio", "Type"][p["parameter"]]
             return {"name": n, "displays": [self._display(n, v) for v in p["values"]]}
@@ -162,6 +183,48 @@ def test_build_chain_loads_in_order_and_reports_actual_values():
     assert out["ok"] and live.devices == ["EQ Eight", "Compressor"]
     assert [s["index"] for s in out["stages"]] == [0, 1]
     assert all(p["exact"] for s in out["stages"] for p in s["params"])
+
+
+def test_a_stage_costs_a_handful_of_bridge_calls_not_one_per_parameter():
+    live = FakeLive()
+    params = {"Type": "Bell", "Frequency": "1 kHz", "Threshold": "-18 dB", "Ratio": 4}
+    out = build_chain(live.call, 0, [{"device": "Compressor", "params": params}])
+    assert out["ok"]
+    # the fake's batch calls reuse its single-parameter ones; count only what crossed the bridge
+    outer = [c for c in live.calls if c not in ("sample_parameter", "set_device_parameter")]
+    # browser_list, load_item, device_parameters, then sampling and writing in batches
+    assert len(outer) <= 9, outer
+    assert outer.count("set_device_parameters") == 2  # options wave, then numbers wave
+
+
+def test_options_are_written_before_numeric_parameters():
+    live = FakeLive()
+    build_chain(
+        live.call,
+        0,
+        [
+            {
+                "device": "Compressor",
+                "params": {"Frequency": "1 kHz", "Type": "Bell", "Device On": True},
+            }
+        ],
+    )
+    first, second = live.writes
+    assert set(first) == {0, 4} and second == [2]  # Device On and Type, then Frequency
+
+
+def test_off_target_value_makes_the_chain_not_ok():
+    live = FakeLive()
+
+    def clamping_call(method, p=None):
+        reply = live.call(method, p)
+        if method == "set_device_parameters":  # Live reads back something far from the target
+            for r in reply["results"]:
+                r["display"] = "9.00 : 1"
+        return reply
+
+    out = build_chain(clamping_call, 0, [{"device": "Compressor", "params": {"Ratio": 4}}])
+    assert out["ok"] is False and out["stages"][0]["params"][0]["exact"] is False
 
 
 def test_unknown_device_fails_before_anything_is_loaded():

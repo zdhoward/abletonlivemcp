@@ -169,6 +169,26 @@ def test_sample_parameter_reads_displays_without_writing(env):
         d("sample_parameter", {"track": 0, "device": 0, "parameter": 9, "values": [0.5]})
 
 
+def test_batch_sample_and_write_validate_everything_before_writing(env):
+    song, _app, d = env
+    loc = {"track": 0, "device": 0}
+    r = d("sample_parameters", {**loc, "requests": [{"parameter": 0, "values": [0, 1]}]})
+    assert r == {"results": [{"name": "Gain", "displays": ["0.00", "1.00"]}]}
+    r = d("set_device_parameters", {**loc, "writes": [{"parameter": 0, "value": 0.75}]})
+    assert r["results"][0]["value"] == 0.75
+    assert song.tracks[0].devices[0].parameters[0].value == 0.75
+    # one bad entry means nothing at all is written
+    bad = [{"parameter": 0, "value": 0.1}, {"parameter": 0, "value": 5}]
+    with pytest.raises(ValueError):
+        d("set_device_parameters", {**loc, "writes": bad})
+    assert song.tracks[0].devices[0].parameters[0].value == 0.75
+    for key, items in [("writes", []), ("writes", "x"), ("writes", [3]), ("writes", [{}] * 65)]:
+        with pytest.raises(ValueError):
+            d("set_device_parameters", {**loc, key: items})
+    with pytest.raises(ValueError):
+        d("set_device_parameters", {**loc, "writes": [{"parameter": 0, "value": True}]})
+
+
 def test_create_track_name_color_tempo(env):
     song, _a, d = env
     assert d("create_track", {"kind": "midi"})["track_count"] == 3

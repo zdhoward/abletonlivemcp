@@ -10,7 +10,6 @@ nothing), narrows the bracket a round at a time, then writes once and reports wh
 from __future__ import annotations
 
 import difflib
-import math
 import re
 
 ROOT = "audio_effects"
@@ -57,75 +56,154 @@ class ChainError(ValueError):
     pass
 
 
-def _sample(call, loc, param, values):
-    r = call("sample_parameter", {**loc, "parameter": param["index"], "values": values})
-    return r["displays"]
+CHUNK = 32  # requests or writes per bridge call (the Remote Script accepts up to 64)
 
 
 def _linspace(lo, hi, n):
     return [lo + (hi - lo) * i / (n - 1) for i in range(n)]
 
 
-def set_to_display(call, loc: dict, param: dict, target) -> dict:
-    """Set one parameter so Live's own display matches `target`. Returns requested/actual/exact."""
-    name = param["name"]
+def _chunks(items, size=CHUNK):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
 
-    def put(v):
-        return call("set_device_parameter", {**loc, "parameter": param["index"], "value": v})
 
-    if param["is_quantized"]:
-        options = list(range(int(param["min"]), int(param["max"]) + 1))
-        shown = _sample(call, loc, param, [float(v) for v in options])
-        want = _on_off(target)
-        for v, text in zip(options, shown, strict=True):
-            if _same_text(text, want):
-                return {
-                    "name": name,
-                    "requested": target,
-                    "actual": put(float(v))["display"],
-                    "exact": True,
-                }
-        raise ChainError(f"{name!r}: no option {target!r}; options are {shown}")
+class _Solver:
+    """Finds the stored value whose display matches one target, a sampling round at a time."""
 
-    goal = parse_display(str(target))
-    if goal is None:
-        raise ChainError(f"{name!r}: cannot read a number from {target!r}")
-    goal_value, goal_kind = goal
+    def __init__(self, param: dict, target):
+        self.param, self.target = param, target
+        self.name = param["name"]
+        self.rounds = 0
+        self.pick: float | None = None
+        self.values: list[float] | None = None  # next values to sample; None once decided
+        self._goal: tuple[float, str | None] | None = None
+        self._options: list[int] = []
+        lo, hi = float(param["min"]), float(param["max"])
+        if param["is_quantized"]:
+            self._options = list(range(int(lo), int(hi) + 1))
+            self.values = [float(v) for v in self._options]
+        else:
+            self._goal = parse_display(str(target))
+            if self._goal is None:
+                raise ChainError(f"{self.name!r}: cannot read a number from {target!r}")
+            self.values = _linspace(lo, hi, GRID)
 
-    lo, hi = float(param["min"]), float(param["max"])
-    values = _linspace(lo, hi, GRID)
-    shown = _sample(call, loc, param, values)
-    parsed = [parse_display(t) for t in shown]
-    if any(p is None for p in parsed):
-        raise ChainError(f"{name!r}: cannot read display {shown[0]!r}")
-    kind = parsed[0][1]
-    if kind is not None and goal_kind is None:
-        raise ChainError(f"{name!r}: give a unit, e.g. '{target} {kind}'")
-    if kind is None and goal_kind is not None:
-        raise ChainError(f"{name!r}: this parameter has no unit; give a plain number")
-    if kind != goal_kind:
-        raise ChainError(f"{name!r}: unit {goal_kind!r} does not match {kind!r}")
-    nums = [p[0] for p in parsed]
-    low, high = min(nums), max(nums)
-    if not low <= goal_value <= high:
-        raise ChainError(f"{name!r}: {target!r} is outside {low:g}..{high:g}")
+    def feed(self, shown: list[str]) -> None:
+        if self.param["is_quantized"]:
+            want = _on_off(self.target)
+            for v, text in zip(self._options, shown, strict=True):
+                if _same_text(text, want):
+                    self.pick, self.values = float(v), None
+                    return
+            raise ChainError(f"{self.name!r}: no option {self.target!r}; options are {shown}")
 
-    tol = max(abs(goal_value) * 0.005, 0.01)
-    best_v, best_err = values[0], math.inf
-    for _ in range(MAX_ROUNDS):
+        goal_value, goal_kind = self._goal
+        parsed = [parse_display(t) for t in shown]
+        if any(p is None for p in parsed):
+            raise ChainError(f"{self.name!r}: cannot read display {shown[0]!r}")
+        nums = [p[0] for p in parsed]
+        if self.rounds == 0:
+            kind = parsed[0][1]
+            if kind is not None and goal_kind is None:
+                raise ChainError(f"{self.name!r}: give a unit, e.g. '{self.target} {kind}'")
+            if kind is None and goal_kind is not None:
+                raise ChainError(f"{self.name!r}: this parameter has no unit; give a plain number")
+            if kind != goal_kind:
+                raise ChainError(f"{self.name!r}: unit {goal_kind!r} does not match {kind!r}")
+            if not min(nums) <= goal_value <= max(nums):
+                raise ChainError(
+                    f"{self.name!r}: {self.target!r} is outside {min(nums):g}..{max(nums):g}"
+                )
+        self.rounds += 1
         i = min(range(len(nums)), key=lambda k: abs(nums[k] - goal_value))
-        best_v, best_err = values[i], abs(nums[i] - goal_value)
-        if best_err <= tol:
-            break
+        best = self.values[i]
+        if abs(nums[i] - goal_value) <= max(abs(goal_value) * 0.005, 0.01) or (
+            self.rounds >= MAX_ROUNDS
+        ):
+            self.pick, self.values = best, None
+            return
         # narrow to the neighbours of the best sample and sample that bracket finely
-        lo, hi = values[max(i - 1, 0)], values[min(i + 1, len(values) - 1)]
-        values = _linspace(lo, hi, GRID)
-        shown = _sample(call, loc, param, values)
-        nums = [parse_display(t)[0] for t in shown]
-    reading = put(best_v)
-    final = parse_display(reading["display"])[0]
-    exact = abs(final - goal_value) <= max(abs(goal_value) * 0.02, 0.05)
-    return {"name": name, "requested": target, "actual": reading["display"], "exact": exact}
+        lo, hi = self.values[max(i - 1, 0)], self.values[min(i + 1, len(self.values) - 1)]
+        self.values = _linspace(lo, hi, GRID)
+
+
+def _solve_and_write(call, loc, solvers: list[_Solver]) -> dict[int, dict]:
+    """Sample, then write, a group of parameters. Returns {id(solver): result or error}."""
+    out: dict[int, dict] = {}
+    active = list(solvers)
+    while active:
+        nxt = []
+        for group in _chunks(active):
+            requests = [{"parameter": s.param["index"], "values": s.values} for s in group]
+            reply = call("sample_parameters", {**loc, "requests": requests})["results"]
+            for s, r in zip(group, reply, strict=True):
+                try:
+                    s.feed(r["displays"])
+                except ChainError as exc:
+                    out[id(s)] = {"error": str(exc)}
+                    continue
+                if s.values is not None:
+                    nxt.append(s)
+        active = nxt
+    ready = [s for s in solvers if id(s) not in out]
+    for group in _chunks(ready):
+        writes = [{"parameter": s.param["index"], "value": s.pick} for s in group]
+        reply = call("set_device_parameters", {**loc, "writes": writes})["results"]
+        for s, r in zip(group, reply, strict=True):
+            out[id(s)] = _result(s, r["display"])
+    return out
+
+
+def _result(s: _Solver, display: str) -> dict:
+    if s.param["is_quantized"]:
+        exact = _same_text(display, _on_off(s.target))
+    else:
+        got = parse_display(display)
+        goal = s._goal[0]
+        exact = got is not None and abs(got[0] - goal) <= max(abs(goal) * 0.02, 0.05)
+    return {"name": s.name, "requested": s.target, "actual": display, "exact": exact}
+
+
+def set_parameters(
+    call, loc: dict, items: list[tuple[dict, object]]
+) -> tuple[list[dict], list[str]]:
+    """Set several parameters of one device so Live's own display matches each target.
+
+    Options and switches go first and the numeric parameters are sampled after them, because a
+    display can depend on a mode (Echo's time units depend on its sync setting).
+    Returns (results in request order, problems).
+    """
+    solvers: list[_Solver | None] = []
+    problems: list[str] = []
+    for param, target in items:
+        try:
+            solvers.append(_Solver(param, target))
+        except ChainError as exc:
+            solvers.append(None)
+            problems.append(str(exc))
+    live = [s for s in solvers if s is not None]
+    done: dict[int, dict] = {}
+    done.update(_solve_and_write(call, loc, [s for s in live if s.param["is_quantized"]]))
+    done.update(_solve_and_write(call, loc, [s for s in live if not s.param["is_quantized"]]))
+    results = []
+    for s in solvers:
+        if s is None:
+            continue
+        r = done[id(s)]
+        if "error" in r:
+            problems.append(r["error"])
+        else:
+            results.append(r)
+    return results, problems
+
+
+def set_to_display(call, loc: dict, param: dict, target) -> dict:
+    """Set one parameter so Live's own display matches `target`."""
+    results, problems = set_parameters(call, loc, [(param, target)])
+    if problems:
+        raise ChainError(problems[0])
+    return results[0]
 
 
 def _resolve(params: list[dict], name: str) -> dict:
@@ -167,11 +245,15 @@ def build_chain(call, track: int, stages: list[dict]) -> dict:
         index = loaded["devices_after"] - 1
         loc = {"track": track, "device": index}
         params = call("device_parameters", loc)
-        done, problems = [], []
+        wanted, problems = [], []
         for pname, value in (s.get("params") or {}).items():
             try:
-                done.append(set_to_display(call, loc, _resolve(params, pname), value))
+                wanted.append((_resolve(params, pname), value))
             except ChainError as exc:
                 problems.append(str(exc))
-        results.append({"device": real, "index": index, "params": done, "problems": problems})
-    return {"track": track, "stages": results, "ok": not any(r["problems"] for r in results)}
+        done, more = set_parameters(call, loc, wanted) if wanted else ([], [])
+        results.append(
+            {"device": real, "index": index, "params": done, "problems": problems + more}
+        )
+    ok = all(not r["problems"] and all(p["exact"] for p in r["params"]) for r in results)
+    return {"track": track, "stages": results, "ok": ok}

@@ -25,6 +25,7 @@ WALK_BUDGET = 4000  # max browser nodes visited per call (main-thread safety)
 LIST_LIMIT = 200
 NOTE_LIMIT = 2000
 SAMPLE_LIMIT = 129
+BATCH_LIMIT = 64
 
 
 def _scene(song, params):
@@ -78,11 +79,7 @@ def _validated_notes(notes):
         start = _number(note.get("start_time"), "start_time", 0)
         duration = _number(note.get("duration"), "duration", 0, exclusive=True)
         velocity = note.get("velocity")
-        if (
-            isinstance(velocity, bool)
-            or not isinstance(velocity, int)
-            or not 1 <= velocity <= 127
-        ):
+        if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("'velocity' must be an integer 1..127")
         mute = note.get("mute", False)
         if not isinstance(mute, bool):
@@ -245,28 +242,25 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             for i, q in enumerate(dev.parameters)
         ]
 
-    def set_device_parameter(p):
-        dev = _device(_track(song, p), p)
-        idx = p.get("parameter")
+    def _param(dev, idx):
         if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(dev.parameters):
             raise ValueError("'parameter' must be a valid parameter index")
-        q = dev.parameters[idx]
-        value = float(p["value"])
+        return dev.parameters[idx]
+
+    def _checked_write(q, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"value for {q.name!r} must be a number")
         if not q.min <= value <= q.max:
             raise ValueError(f"value {value} outside {q.min}..{q.max} for {q.name!r}")
         if not getattr(q, "is_enabled", True):
             raise ValueError(f"parameter {q.name!r} is not enabled (macro-controlled?)")
+        return float(value)
+
+    def _write(q, value):
         q.value = value
         return {"name": q.name, "value": q.value, "display": q.str_for_value(q.value)}
 
-    def sample_parameter(p):
-        """Display text for candidate values of one parameter. Read-only; writes nothing."""
-        dev = _device(_track(song, p), p)
-        idx = p.get("parameter")
-        if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(dev.parameters):
-            raise ValueError("'parameter' must be a valid parameter index")
-        q = dev.parameters[idx]
-        values = p.get("values")
+    def _sampled(q, values):
         if not isinstance(values, list) or not 1 <= len(values) <= SAMPLE_LIMIT:
             raise ValueError(f"'values' must be a list of 1..{SAMPLE_LIMIT} numbers")
         out = []
@@ -275,6 +269,42 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
                 raise ValueError(f"every value must be a number within {q.min}..{q.max}")
             out.append(q.str_for_value(float(v)))
         return {"name": q.name, "displays": out}
+
+    def _batch(p, key):
+        items = p.get(key)
+        if not isinstance(items, list) or not 1 <= len(items) <= BATCH_LIMIT:
+            raise ValueError(f"{key!r} must be a list of 1..{BATCH_LIMIT} items")
+        if not all(isinstance(i, dict) for i in items):
+            raise ValueError(f"every item in {key!r} must be an object")
+        return items
+
+    def set_device_parameter(p):
+        q = _param(_device(_track(song, p), p), p.get("parameter"))
+        return _write(q, _checked_write(q, p.get("value")))
+
+    def set_device_parameters(p):
+        """Write several parameters of one device. Everything is validated before any write."""
+        dev = _device(_track(song, p), p)
+        plan = []
+        for w in _batch(p, "writes"):
+            q = _param(dev, w.get("parameter"))
+            plan.append((q, _checked_write(q, w.get("value"))))
+        return {"results": [_write(q, v) for q, v in plan]}
+
+    def sample_parameter(p):
+        """Display text for candidate values of one parameter. Read-only; writes nothing."""
+        q = _param(_device(_track(song, p), p), p.get("parameter"))
+        return _sampled(q, p.get("values"))
+
+    def sample_parameters(p):
+        """Like sample_parameter for many parameters of one device in a single round trip."""
+        dev = _device(_track(song, p), p)
+        return {
+            "results": [
+                _sampled(_param(dev, r.get("parameter")), r.get("values"))
+                for r in _batch(p, "requests")
+            ]
+        }
 
     def create_track(p):
         kind = p.get("kind")
@@ -451,7 +481,9 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         "load_item": load_item,
         "device_parameters": device_parameters,
         "set_device_parameter": set_device_parameter,
+        "set_device_parameters": set_device_parameters,
         "sample_parameter": sample_parameter,
+        "sample_parameters": sample_parameters,
         "create_track": create_track,
         "set_track_name": set_track_name,
         "set_track_color": set_track_color,
