@@ -13,6 +13,20 @@ The Live Object Model (LOM) is what a Remote Script can reach. Several of the ow
 5. **Plugin parameters (UC3)**: VST parameters are exposed only if "configured" (Configure button); check `Device.parameters` behavior for VST2/VST3.
 6. **Usage frequency (UC6)**: derive from `.als` scans (count device/sample usage across projects) into a local index.
 
+## Deep review result (2026-11-10, `docs/research-deep-review.md`)
+
+| Use case | Verdict |
+|---|---|
+| UC3 vocal chain, UC5 scene/VST stack, UC6 local organize | Buildable now (within exposed params; "owned" must be owner-confirmed) |
+| UC1 drum rack, UC4 group + macros | Need sample files (file-level preset generation; LOM has no macro-map or group API) |
+| UC2 plugin color tags | Blocked: no write API found; ranked recommendations only until a metadata diff proves a safe write |
+
+Build order from the review: (1) read-only bridge + capability probe, (2) offline `.als` reader + usage index,
+(3) Live parity + stack creation, (4) drum rack generator, (5) rack/macro proof of concept, (6) gear catalog,
+(7) Collections experiment. Sample pack and anonymization steps are in section 8 of the review.
+Licensing: Ziforge (GPL-3) and DawVert (GPL-3) are reference-only; write our own code. Upstream telemetry is not imported.
+Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be version-gated.
+
 ## Proposed architecture (draft)
 
 - `remote_script/` : Python control surface script running inside Live (stdlib only), TCP/JSON bridge.

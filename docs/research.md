@@ -1,5 +1,7 @@
 # Research notes
 
+> Superseded in depth by [`research-deep-review.md`](research-deep-review.md) (45 sources, confidence labels). This file is the first-pass summary.
+
 Status key: **supported** = sources agree, **unverified** = needs a test against a real Live install.
 Written 2026-11-10. Update as questions get resolved; do not delete superseded findings, mark them.
 
