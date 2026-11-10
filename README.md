@@ -15,6 +15,12 @@ as close to native as possible. Not an autonomous producer: you stay in charge, 
 - Group an FX chain into a rack and label/map macros from a plain-language spec.
 - Color-tag and organize plugins by category and how often you use them.
 
+## Knowledge base
+
+[`knowledge/`](knowledge/INDEX.md) holds sourced notes on FX chains (vocals, drums, busses, guitar/bass,
+keys/synths, mastering). Query it through the MCP tools `knowledge_list`, `knowledge_search` and
+`knowledge_read`. Anyone can add a Markdown page there; see the index for the two-line convention.
+
 See [`docs/vision.md`](docs/vision.md) for details and [`docs/original-prompt.md`](docs/original-prompt.md)
 for the verbatim founding prompt.
 

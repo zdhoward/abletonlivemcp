@@ -2,6 +2,17 @@
 
 Built by `/study` on 2026-11-10 for the Ableton Live MCP server. Each page organizes chains by **role and stage order**, not by brand, so a chain can resolve to whatever plugins a user owns (see `src/abletonlivemcp/adapters.py`). Raw collector notes with citations are in `research/raw/`.
 
+## Using and extending this folder
+
+**Reading.** Use the MCP tools `knowledge_list`, `knowledge_search` (by words, returns sections) and `knowledge_read` (a page, or one section by heading). They rescan this folder on every call, so a page added a minute ago is found at once.
+
+**Adding a page** (several threads and agents write here at the same time):
+- Drop any `.md` file in this folder. Subfolders are fine (for example `knowledge/gemini/`, `knowledge/plugins/`). The page name is its path without `.md`.
+- Start with a `# Title` line and use `##` headings for sections, so a section can be read by itself. Nothing else is required: no frontmatter, no registration.
+- Label evidence as FACT (documented for a named recording or workflow), CONVENTION or OPINION, link the source URL, and tag numbers you could not confirm against the original page with `UNCONFIRMED-NUMBER`, `UNVERIFIED`, `SECOND-HAND` or `LOW CONFIDENCE`. `knowledge_list` counts these tags per page.
+- Do **not** add your page to the table below to register it; listing is automatic. The table is a hand-written overview and can lag behind. Editing the same file from two threads causes merge conflicts.
+- Commit only your own files (`git add knowledge/<your files>`), and keep raw collector notes in `research/raw/`, not here.
+
 | Page | Covers | Strength of sourcing |
 |---|---|---|
 | [vocals](vocals.md) | Lead, backing, rap, R&B, EDM chops; named-record chains (Adele, Billie Eilish, Dua Lipa, The Weeknd, Drake, Kendrick Lamar, TWICE) | Best of the set: many Sound on Sound engineer write-ups. Rap/R&B list plugins but few numbers. |

@@ -17,6 +17,9 @@ Jev (optional judge layer, `src/abletonlivemcp/judge/`): default transport is Op
 ## NOT verified in real Live
 Loading from `plugins`, drum kits, racks. Sample extraction from a real Set (only synthetic; `Basic.als` has no samples). The test Set contains an unsaved track `ALMCP clip test` and scene `ALMCP test`.
 
+## Knowledge base (added 2026-11-10, after this handoff was written)
+`knowledge/` holds sourced FX-chain notes (see `knowledge/INDEX.md`); raw collector notes are in `research/raw/`. Other threads (e.g. a Gemini thread) add pages there concurrently. Query it with the MCP tools `knowledge_list` / `knowledge_search` / `knowledge_read` (`src/abletonlivemcp/knowledge.py`): the folder is rescanned on every call, pages need only a `# Title`, and nothing is registered by hand. Treat numbers tagged `UNCONFIRMED-NUMBER` / `UNVERIFIED` / `SECOND-HAND` / `LOW CONFIDENCE` as leads, not settings. The rest of this handoff predates the chain builder, role-based chains (`adapters.py`, `resolve.py`) and the knowledge base; run `/wrapup` to refresh it.
+
 ## Next steps
 1. Tagged `v0.1.0` after the clip checks. Next: M6 vocal chain via the browser route (no samples needed), then the rules-first Jev combination.
 2. M3 drum rack builder and M4 macro mapping need sample files (list: `docs/research-deep-review.md` section 8). M6 vocal-chain building needs no samples and can start now via the browser route.
