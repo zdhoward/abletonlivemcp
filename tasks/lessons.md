@@ -8,3 +8,7 @@
   - Separate what was done, what was verified, and what is only planned. Name which is which.
   - State the exact scope of a check ("ran the reader on one 72 KB Set"), not a general "works".
   - Don't repeat facts I haven't checked this session (e.g. CI platform matrix) as if verified.
+
+## 2026-11-10 - Don't over-test with fakes
+- Correction: stop testing against a fake Ableton; roughly one test per feature while developing.
+- Rule: prove features in real Live via scripts/live_*.py. Add at most one small test per feature. Do not grow the fake-based suite.
