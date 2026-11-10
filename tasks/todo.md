@@ -22,7 +22,7 @@ The Live Object Model (LOM) is what a Remote Script can reach. Several of the ow
 
 ## Milestones
 
-- [ ] M0 Repo foundations: license (MIT), README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates, CI (lint+tests), `.gitignore`, pyproject. Private until M1 ships.
+- [x] M0 Repo foundations: license (MIT), README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates, CI (lint+tests), `.gitignore`, pyproject. Repo stays private until the owner is happy with v1 (owner decision 2026-11-10). Research notes: `docs/research.md`.
 - [ ] M1 Parity with upstream ableton-mcp (session info, tracks, clips, devices, params, browser load, transport).
 - [ ] M2 Offline `.als` reader + usage index (UC1/UC6 foundation).
 - [ ] M3 Drum rack builder, standard layout (UC1).

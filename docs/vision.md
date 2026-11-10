@@ -38,3 +38,4 @@ and a tool the owner uses daily.
 ## Decision log
 
 - 2026-11-10: Project started. Prompt recorded verbatim.
+- 2026-11-10: Owner approved plan. Repo stays private until a v1 the owner is happy with. MIT license, no telemetry.
