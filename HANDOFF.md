@@ -11,12 +11,14 @@ Repo: `zdhoward/abletonlivemcp` (PRIVATE until the owner is happy with v1). Bran
 ## Verified in REAL Live 12.2 (2026-11-10)
 Handshake, browser roots/list/search, `load_item` (Compressor to a new track), device parameter read/write with readback (also on VST3 Nexus), track create/rename/color, tempo, range and index guards. MCP server launched over real stdio and called tools (`scripts/stdio_smoke.py`).
 
+Also verified later the same day (`scripts/live_clip_test.py`): play/stop/get_transport, create/rename/fire scene, create MIDI clip, occupied-slot guard, write and read back 3 notes, fire/stop clip, bad-index and bad-pitch guards. Live applies play/stop/launch a tick late, so the MCP server waits 0.3 s and re-reads (`server._settled`).
+Jev (optional judge layer, `src/abletonlivemcp/judge/`): default transport is OpenRouter (`OPENROUTER_API_KEY`, model `typesafe/jev-1.14`, stdlib only); `typesafe-sdk` stays as an alternative for `TYPESAFE_API_KEY`. 40 real calls on synthetic names (`scripts/jev_eval.py`): Jev beat the rules on one-shot vs loop (19/25 vs 14/25) and did not beat them on plugin category from the name alone (10/15 vs 11/15). Not yet built: rules-first, Jev-for-the-rest.
+
 ## NOT verified in real Live
-Transport, scenes, clips, notes handlers (fake-tested only; note API calls `add_new_notes`/`MidiNoteSpecification` are the riskiest). Loading from `plugins`, drum kits, racks. Sample extraction from a real Set (only synthetic; `Basic.als` has no samples).
-The script in the User Library is current, but the running Live still holds the older code until restarted.
+Loading from `plugins`, drum kits, racks. Sample extraction from a real Set (only synthetic; `Basic.als` has no samples). The test Set contains an unsaved track `ALMCP clip test` and scene `ALMCP test`.
 
 ## Next steps
-1. Restart Live, open `Basic.als`, then run the transport/scene/clip checks (write a `scripts/live_clip_test.py` like `scripts/live_write_test.py`; it must touch only new tracks/scenes) and fix whatever fails. Then tag `v0.1.0`.
+1. Tagged `v0.1.0` after the clip checks. Next: M6 vocal chain via the browser route (no samples needed), then the rules-first Jev combination.
 2. M3 drum rack builder and M4 macro mapping need sample files (list: `docs/research-deep-review.md` section 8). M6 vocal-chain building needs no samples and can start now via the browser route.
 3. Add `delete_track`/`delete_clip` only with an explicit design (currently none by choice).
 
