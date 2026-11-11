@@ -6,8 +6,12 @@ duplicate_clips); launch goes through live_launch.
 
 from __future__ import annotations
 
+from typing import Literal
+
+from ..config import load_config
 from ..models import ClipRef, ResponseFormat, TrackSel
 from ..models_clips import ClipEdit, NewClip
+from ..permissions import allowed_permissions
 from ..server import _call, _create, _overwrite, _read, _untrusted, clip_selector, issue_refs, shape
 
 CONCISE = ("track", "scene", "arrangement", "name", "kind", "length", "start", "is_playing")
@@ -42,16 +46,52 @@ def live_get_clips(
     return _untrusted(out)
 
 
+def _occupied(clips: list[NewClip]) -> set[tuple[int, int]]:
+    """Which requested slots already hold a clip (one read per 64 slots)."""
+    found: set[tuple[int, int]] = set()
+    for i in range(0, len(clips), 64):
+        addrs = [{"track": c.track, "scene": c.scene} for c in clips[i : i + 64]]
+        for row in _call("get_clips", {"clips": addrs})["clips"]:
+            if not row.get("empty"):
+                found.add((row["track"], row["scene"]))
+    return found
+
+
 @_create
-def live_create_clips(clips: list[NewClip]) -> dict:
+def live_create_clips(
+    clips: list[NewClip], if_exists: Literal["error", "skip", "replace"] = "error"
+) -> dict:
     """Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:
-    absolute path, audio track). Never overwrites. Returns readback with new note_ids.
+    absolute path, audio track). Returns readback with new note_ids. if_exists for an occupied
+    slot: "error" (default; the whole batch is refused, nothing written), "skip" (leave that
+    clip alone, create the rest; skipped slots are listed) or "replace" (delete the old clip
+    first; needs the local "delete" permission). Re-running with skip or replace is idempotent.
     Arrangement: live_create_arrangement_clips; from a .mid: live_import_midi."""
+    skipped: list[dict] = []
+    if if_exists != "error":
+        busy = _occupied(clips)
+        if if_exists == "skip":
+            skipped = [{"track": t, "scene": s} for t, s in sorted(busy)]
+            clips = [c for c in clips if (c.track, c.scene) not in busy]
+        elif busy:
+            if "delete" not in allowed_permissions(load_config()):
+                raise ValueError(
+                    "permission_denied: if_exists='replace' deletes clips and needs the local "
+                    '"delete" permission in the private bridge config'
+                )
+            rows = issue_refs([{"kind": "clip", "track": t, "scene": s} for t, s in sorted(busy)])
+            _call("delete_clips", {"targets": [{"kind": r["kind"], "ref": r["ref"]} for r in rows]})
+    if not clips:
+        return {
+            "status": "complete", "items": [], "stopped_at": None, "error": None,
+            "applied": [], "skipped": skipped,
+        }  # fmt: skip
     refs = issue_refs([{"kind": "slot", "track": c.track, "scene": c.scene} for c in clips])
     targets = [
         {"ref": r["ref"], **fields(c, ("track", "scene"))} for r, c in zip(refs, clips, strict=True)
     ]
-    return _call("create_clips", {"targets": targets})
+    receipt = _call("create_clips", {"targets": targets})
+    return {**receipt, "skipped": skipped} if skipped else receipt
 
 
 @_overwrite

@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:\nabsolute path, audio track). Never overwrites. Returns readback with new note_ids.\nArrangement: live_create_arrangement_clips; from a .mid: live_import_midi.",
+  "description": "Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:\nabsolute path, audio track). Returns readback with new note_ids. if_exists for an occupied\nslot: \"error\" (default; the whole batch is refused, nothing written), \"skip\" (leave that\nclip alone, create the rest; skipped slots are listed) or \"replace\" (delete the old clip\nfirst; needs the local \"delete\" permission). Re-running with skip or replace is idempotent.\nArrangement: live_create_arrangement_clips; from a .mid: live_import_midi.",
   "inputSchema": {
    "$defs": {
     "NewClip": {
@@ -150,6 +150,15 @@
       "$ref": "#/$defs/NewClip"
      },
      "type": "array"
+    },
+    "if_exists": {
+     "default": "error",
+     "enum": [
+      "error",
+      "skip",
+      "replace"
+     ],
+     "type": "string"
     }
    },
    "required": [

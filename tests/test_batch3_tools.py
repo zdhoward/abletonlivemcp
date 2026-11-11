@@ -152,6 +152,20 @@ def test_set_automation_issues_clip_and_param_refs(bridge):
     assert t["param"] == "R1" and t["param_kind"] == "param" and t["ramps"][0]["from"] == 0
 
 
+def test_create_clips_if_exists_skip_leaves_occupied_slots_alone(bridge):
+    bridge.replies["get_clips"] = {
+        "clips": [{"track": 0, "scene": 0, "name": "old"}, {"track": 1, "scene": 0, "empty": True}]
+    }
+    out = call(
+        clips.live_create_clips,
+        clips=[{"track": 0, "scene": 0}, {"track": 1, "scene": 0}],
+        if_exists="skip",
+    )
+    method, params = bridge.last()
+    assert method == "create_clips" and len(params["targets"]) == 1
+    assert out["skipped"] == [{"track": 0, "scene": 0}]
+
+
 def test_automation_parameter_by_name_resolves_to_its_index(bridge):
     bridge.replies["device_parameters"] = [
         {"index": 0, "name": "Device On"},
