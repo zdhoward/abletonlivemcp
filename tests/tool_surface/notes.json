@@ -1,46 +1,548 @@
 [
  {
   "annotations": {
-   "destructiveHint": false,
-   "idempotentHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Add up to 2000 MIDI notes: pitch 0..127, start_time >= 0, duration > 0,\nvelocity 1..127 and optional boolean mute. Not idempotent: notes are added, not replaced.\nReturns bounded note readback.",
+  "description": "Edit one MIDI clip's notes in one call: removes, then modify/transpose/quantize (by\nnote_id from live_get_notes), then duplicate_region, then add. Validated first; receipt\nwith new note_ids.",
   "inputSchema": {
-   "properties": {
-    "notes": {
-     "items": {
-      "additionalProperties": true,
-      "type": "object"
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
      },
-     "title": "Notes",
-     "type": "array"
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
     },
-    "scene": {
-     "title": "Scene",
-     "type": "integer"
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
     },
-    "track": {
-     "title": "Track",
-     "type": "integer"
+    "Note": {
+     "additionalProperties": false,
+     "properties": {
+      "duration": {
+       "exclusiveMinimum": 0,
+       "maximum": 16384,
+       "title": "Duration",
+       "type": "number"
+      },
+      "mute": {
+       "default": false,
+       "title": "Mute",
+       "type": "boolean"
+      },
+      "pitch": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Pitch",
+       "type": "integer"
+      },
+      "probability": {
+       "default": 1,
+       "maximum": 1,
+       "minimum": 0,
+       "title": "Probability",
+       "type": "number"
+      },
+      "release_velocity": {
+       "default": 64,
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Release Velocity",
+       "type": "number"
+      },
+      "start_time": {
+       "maximum": 16384,
+       "minimum": 0,
+       "title": "Start Time",
+       "type": "number"
+      },
+      "velocity": {
+       "default": 100,
+       "maximum": 127,
+       "minimum": 1,
+       "title": "Velocity",
+       "type": "number"
+      },
+      "velocity_deviation": {
+       "default": 0,
+       "maximum": 127,
+       "minimum": -127,
+       "title": "Velocity Deviation",
+       "type": "number"
+      }
+     },
+     "required": [
+      "pitch",
+      "start_time",
+      "duration"
+     ],
+     "title": "Note",
+     "type": "object"
+    },
+    "NoteMod": {
+     "additionalProperties": false,
+     "properties": {
+      "duration": {
+       "anyOf": [
+        {
+         "exclusiveMinimum": 0,
+         "maximum": 16384,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Duration"
+      },
+      "mute": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Mute"
+      },
+      "note_id": {
+       "minimum": 0,
+       "title": "Note Id",
+       "type": "integer"
+      },
+      "pitch": {
+       "anyOf": [
+        {
+         "maximum": 127,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pitch"
+      },
+      "probability": {
+       "anyOf": [
+        {
+         "maximum": 1,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Probability"
+      },
+      "release_velocity": {
+       "anyOf": [
+        {
+         "maximum": 127,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Release Velocity"
+      },
+      "start_time": {
+       "anyOf": [
+        {
+         "maximum": 16384,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Start Time"
+      },
+      "velocity": {
+       "anyOf": [
+        {
+         "maximum": 127,
+         "minimum": 1,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Velocity"
+      },
+      "velocity_deviation": {
+       "anyOf": [
+        {
+         "maximum": 127,
+         "minimum": -127,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Velocity Deviation"
+      }
+     },
+     "required": [
+      "note_id"
+     ],
+     "title": "NoteMod",
+     "type": "object"
+    },
+    "NoteRange": {
+     "additionalProperties": false,
+     "properties": {
+      "pitch_from": {
+       "default": 0,
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Pitch From",
+       "type": "integer"
+      },
+      "pitch_span": {
+       "default": 128,
+       "maximum": 128,
+       "minimum": 1,
+       "title": "Pitch Span",
+       "type": "integer"
+      },
+      "time_from": {
+       "title": "Time From",
+       "type": "number"
+      },
+      "time_span": {
+       "exclusiveMinimum": 0,
+       "title": "Time Span",
+       "type": "number"
+      }
+     },
+     "required": [
+      "time_from",
+      "time_span"
+     ],
+     "title": "NoteRange",
+     "type": "object"
+    },
+    "Quantize": {
+     "additionalProperties": false,
+     "properties": {
+      "amount": {
+       "default": 1.0,
+       "maximum": 1,
+       "minimum": 0,
+       "title": "Amount",
+       "type": "number"
+      },
+      "grid": {
+       "exclusiveMinimum": 0,
+       "maximum": 16,
+       "title": "Grid",
+       "type": "number"
+      },
+      "ids": {
+       "anyOf": [
+        {
+         "items": {
+          "minimum": 0,
+          "type": "integer"
+         },
+         "maxItems": 2000,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Ids"
+      }
+     },
+     "required": [
+      "grid"
+     ],
+     "title": "Quantize",
+     "type": "object"
+    },
+    "Region": {
+     "additionalProperties": false,
+     "properties": {
+      "dest": {
+       "maximum": 16384,
+       "minimum": 0,
+       "title": "Dest",
+       "type": "number"
+      },
+      "length": {
+       "exclusiveMinimum": 0,
+       "title": "Length",
+       "type": "number"
+      },
+      "start": {
+       "title": "Start",
+       "type": "number"
+      },
+      "transpose": {
+       "default": 0,
+       "maximum": 127,
+       "minimum": -127,
+       "title": "Transpose",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "start",
+      "length",
+      "dest"
+     ],
+     "title": "Region",
+     "type": "object"
+    },
+    "Transpose": {
+     "additionalProperties": false,
+     "properties": {
+      "ids": {
+       "anyOf": [
+        {
+         "items": {
+          "minimum": 0,
+          "type": "integer"
+         },
+         "maxItems": 2000,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Ids"
+      },
+      "semitones": {
+       "maximum": 127,
+       "minimum": -127,
+       "title": "Semitones",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "semitones"
+     ],
+     "title": "Transpose",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "add": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/Note"
+       },
+       "maxItems": 2000,
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Add"
+    },
+    "clip": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ClipAddr"
+      },
+      {
+       "$ref": "#/$defs/ArrangementClipAddr"
+      }
+     ],
+     "title": "Clip"
+    },
+    "duplicate_region": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Region"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "expect_name": {
+     "anyOf": [
+      {
+       "maxLength": 256,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Expect Name"
+    },
+    "modify": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/NoteMod"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Modify"
+    },
+    "quantize": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Quantize"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "remove_ids": {
+     "anyOf": [
+      {
+       "items": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "maxItems": 2000,
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Remove Ids"
+    },
+    "remove_range": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/NoteRange"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "transpose": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Transpose"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
     }
    },
    "required": [
-    "track",
-    "scene",
-    "notes"
+    "clip"
    ],
-   "title": "live_add_notesArguments",
+   "title": "live_edit_notesArguments",
    "type": "object"
   },
-  "name": "live_add_notes",
+  "name": "live_edit_notes",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_add_notesDictOutput",
+   "title": "live_edit_notesDictOutput",
    "type": "object"
   },
-  "title": "Add notes"
+  "title": "Edit notes"
  },
  {
   "annotations": {
@@ -49,21 +551,151 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Read up to 2000 MIDI notes starting within the clip length; check `truncated`.",
+  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity); page with next_offset. The default window includes notes past the clip\nend (past_clip_end counts them).",
   "inputSchema": {
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
+    },
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
+    }
+   },
    "properties": {
-    "scene": {
-     "title": "Scene",
+    "clip": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ClipAddr"
+      },
+      {
+       "$ref": "#/$defs/ArrangementClipAddr"
+      }
+     ],
+     "title": "Clip"
+    },
+    "limit": {
+     "default": 500,
+     "title": "Limit",
      "type": "integer"
     },
-    "track": {
-     "title": "Track",
+    "offset": {
+     "default": 0,
+     "title": "Offset",
      "type": "integer"
+    },
+    "pitch_from": {
+     "default": 0,
+     "title": "Pitch From",
+     "type": "integer"
+    },
+    "pitch_span": {
+     "default": 128,
+     "title": "Pitch Span",
+     "type": "integer"
+    },
+    "response_format": {
+     "default": "detailed",
+     "enum": [
+      "concise",
+      "detailed"
+     ],
+     "title": "Response Format",
+     "type": "string"
+    },
+    "time_from": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Time From"
+    },
+    "time_span": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Time Span"
     }
    },
    "required": [
-    "track",
-    "scene"
+    "clip"
    ],
    "title": "live_get_notesArguments",
    "type": "object"

@@ -6,71 +6,188 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Create a clip in an empty MIDI slot, length > 0 and <= 1024 beats; read it back.",
+  "description": "Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:\nabsolute path, audio track). Never overwrites. Returns readback with new note_ids.",
   "inputSchema": {
+   "$defs": {
+    "NewClip": {
+     "additionalProperties": false,
+     "properties": {
+      "color_index": {
+       "anyOf": [
+        {
+         "maximum": 69,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Color Index"
+      },
+      "file": {
+       "anyOf": [
+        {
+         "maxLength": 1024,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "File"
+      },
+      "kind": {
+       "default": "midi",
+       "enum": [
+        "midi",
+        "audio"
+       ],
+       "title": "Kind",
+       "type": "string"
+      },
+      "length": {
+       "default": 4.0,
+       "exclusiveMinimum": 0,
+       "maximum": 1024,
+       "title": "Length",
+       "type": "number"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "notes": {
+       "anyOf": [
+        {
+         "items": {
+          "$ref": "#/$defs/Note"
+         },
+         "maxItems": 2000,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Notes"
+      },
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "minimum": 0,
+       "title": "Track",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "NewClip",
+     "type": "object"
+    },
+    "Note": {
+     "additionalProperties": false,
+     "properties": {
+      "duration": {
+       "exclusiveMinimum": 0,
+       "maximum": 16384,
+       "title": "Duration",
+       "type": "number"
+      },
+      "mute": {
+       "default": false,
+       "title": "Mute",
+       "type": "boolean"
+      },
+      "pitch": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Pitch",
+       "type": "integer"
+      },
+      "probability": {
+       "default": 1,
+       "maximum": 1,
+       "minimum": 0,
+       "title": "Probability",
+       "type": "number"
+      },
+      "release_velocity": {
+       "default": 64,
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Release Velocity",
+       "type": "number"
+      },
+      "start_time": {
+       "maximum": 16384,
+       "minimum": 0,
+       "title": "Start Time",
+       "type": "number"
+      },
+      "velocity": {
+       "default": 100,
+       "maximum": 127,
+       "minimum": 1,
+       "title": "Velocity",
+       "type": "number"
+      },
+      "velocity_deviation": {
+       "default": 0,
+       "maximum": 127,
+       "minimum": -127,
+       "title": "Velocity Deviation",
+       "type": "number"
+      }
+     },
+     "required": [
+      "pitch",
+      "start_time",
+      "duration"
+     ],
+     "title": "Note",
+     "type": "object"
+    }
+   },
    "properties": {
-    "length_beats": {
-     "title": "Length Beats",
-     "type": "number"
-    },
-    "scene": {
-     "title": "Scene",
-     "type": "integer"
-    },
-    "track": {
-     "title": "Track",
-     "type": "integer"
+    "clips": {
+     "items": {
+      "$ref": "#/$defs/NewClip"
+     },
+     "title": "Clips",
+     "type": "array"
     }
    },
    "required": [
-    "track",
-    "scene",
-    "length_beats"
+    "clips"
    ],
-   "title": "live_create_clipArguments",
+   "title": "live_create_clipsArguments",
    "type": "object"
   },
-  "name": "live_create_clip",
+  "name": "live_create_clips",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_create_clipDictOutput",
+   "title": "live_create_clipsDictOutput",
    "type": "object"
   },
-  "title": "Create clip"
- },
- {
-  "annotations": {
-   "destructiveHint": false,
-   "idempotentHint": false,
-   "openWorldHint": false,
-   "readOnlyHint": false
-  },
-  "description": "Launch a clip and return its current state (launch quantization applies).",
-  "inputSchema": {
-   "properties": {
-    "scene": {
-     "title": "Scene",
-     "type": "integer"
-    },
-    "track": {
-     "title": "Track",
-     "type": "integer"
-    }
-   },
-   "required": [
-    "track",
-    "scene"
-   ],
-   "title": "live_fire_clipArguments",
-   "type": "object"
-  },
-  "name": "live_fire_clip",
-  "outputSchema": {
-   "additionalProperties": true,
-   "title": "live_fire_clipDictOutput",
-   "type": "object"
-  },
-  "title": "Fire clip"
+  "title": "Create clips"
  },
  {
   "annotations": {
@@ -79,32 +196,160 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Read a clip's name, length, play state and looping state; empty slots raise an error.",
+  "description": "Clips by address, or scan Session clips (filter by track/scene; 128 rows max).\ndetail=True adds launch, audio and warp-marker fields.",
   "inputSchema": {
-   "properties": {
-    "scene": {
-     "title": "Scene",
-     "type": "integer"
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
     },
-    "track": {
-     "title": "Track",
-     "type": "integer"
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
     }
    },
-   "required": [
-    "track",
-    "scene"
-   ],
-   "title": "live_get_clipArguments",
+   "properties": {
+    "clips": {
+     "anyOf": [
+      {
+       "items": {
+        "anyOf": [
+         {
+          "$ref": "#/$defs/ClipAddr"
+         },
+         {
+          "$ref": "#/$defs/ArrangementClipAddr"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Clips"
+    },
+    "detail": {
+     "default": false,
+     "title": "Detail",
+     "type": "boolean"
+    },
+    "response_format": {
+     "default": "concise",
+     "enum": [
+      "concise",
+      "detailed"
+     ],
+     "title": "Response Format",
+     "type": "string"
+    },
+    "scene": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scene"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Track"
+    }
+   },
+   "title": "live_get_clipsArguments",
    "type": "object"
   },
-  "name": "live_get_clip",
+  "name": "live_get_clips",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_get_clipDictOutput",
+   "title": "live_get_clipsDictOutput",
    "type": "object"
   },
-  "title": "Get clip"
+  "title": "Get clips"
  },
  {
   "annotations": {
@@ -113,31 +358,388 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Stop a clip and return its current state.",
+  "description": "Set clip fields (Session or arrangement). loop/markers are [start, end] beats; gain,\npitch_*, warping, warp_mode need audio clips. Validates all, then writes; receipt.",
   "inputSchema": {
-   "properties": {
-    "scene": {
-     "title": "Scene",
-     "type": "integer"
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
     },
-    "track": {
-     "title": "Track",
-     "type": "integer"
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
+    },
+    "ClipEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "clip": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/ClipAddr"
+        },
+        {
+         "$ref": "#/$defs/ArrangementClipAddr"
+        }
+       ],
+       "title": "Clip"
+      },
+      "color_index": {
+       "anyOf": [
+        {
+         "maximum": 69,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Color Index"
+      },
+      "expect_name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Expect Name"
+      },
+      "gain": {
+       "anyOf": [
+        {
+         "maximum": 1,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Gain"
+      },
+      "launch_mode": {
+       "anyOf": [
+        {
+         "enum": [
+          "trigger",
+          "gate",
+          "toggle",
+          "repeat"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Launch Mode"
+      },
+      "launch_quantization": {
+       "anyOf": [
+        {
+         "enum": [
+          "global",
+          "none",
+          "8 bars",
+          "4 bars",
+          "2 bars",
+          "1 bar",
+          "1/2",
+          "1/2t",
+          "1/4",
+          "1/4t",
+          "1/8",
+          "1/8t",
+          "1/16",
+          "1/16t",
+          "1/32"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Launch Quantization"
+      },
+      "legato": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Legato"
+      },
+      "loop": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "number"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Loop"
+      },
+      "looping": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Looping"
+      },
+      "markers": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "number"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Markers"
+      },
+      "muted": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Muted"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "pitch_coarse": {
+       "anyOf": [
+        {
+         "maximum": 48,
+         "minimum": -48,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pitch Coarse"
+      },
+      "pitch_fine": {
+       "anyOf": [
+        {
+         "maximum": 50,
+         "minimum": -50,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pitch Fine"
+      },
+      "signature": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "integer"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Signature"
+      },
+      "velocity_amount": {
+       "anyOf": [
+        {
+         "maximum": 1,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Velocity Amount"
+      },
+      "warp_mode": {
+       "anyOf": [
+        {
+         "enum": [
+          "beats",
+          "tones",
+          "texture",
+          "re_pitch",
+          "complex",
+          "rex",
+          "complex_pro"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Warp Mode"
+      },
+      "warping": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Warping"
+      }
+     },
+     "required": [
+      "clip"
+     ],
+     "title": "ClipEdit",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "targets": {
+     "items": {
+      "$ref": "#/$defs/ClipEdit"
+     },
+     "title": "Targets",
+     "type": "array"
     }
    },
    "required": [
-    "track",
-    "scene"
+    "targets"
    ],
-   "title": "live_stop_clipArguments",
+   "title": "live_set_clipsArguments",
    "type": "object"
   },
-  "name": "live_stop_clip",
+  "name": "live_set_clips",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_stop_clipDictOutput",
+   "title": "live_set_clipsDictOutput",
    "type": "object"
   },
-  "title": "Stop clip"
+  "title": "Set clips"
  }
 ]
