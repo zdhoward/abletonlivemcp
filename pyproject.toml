@@ -28,7 +28,8 @@ dev = ["pytest>=8", "ruff>=0.6"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/abletonlivemcp"]
-exclude =["**/__pycache__", "**/*.pyc", "**/*.pyo"]
+# Developer probes (remote_script/AbletonLiveMCP/probe_pNN.py) stay in the source tree only.
+exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo", "**/probe_p[0-9][0-9].py"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "remote_script/AbletonLiveMCP" = "abletonlivemcp/_remote_script/AbletonLiveMCP"
@@ -36,7 +37,7 @@ exclude =["**/__pycache__", "**/*.pyc", "**/*.pyo"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/pyproject.toml", "/README.md", "/LICENSE", "/NOTICE", "/src", "/remote_script/AbletonLiveMCP"]
-exclude = ["/.gitignore", "**/__pycache__", "**/*.pyc", "**/*.pyo"]
+exclude = ["/.gitignore", "**/__pycache__", "**/*.pyc", "**/*.pyo", "**/probe_p[0-9][0-9].py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

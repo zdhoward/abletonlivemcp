@@ -189,6 +189,28 @@ def _scenario(root):
         print(f"faults_config_unchanged={unchanged} restrictive_access=True")
 
 
+@pytest.mark.parametrize("probes", ["none", "all", "partial"])
+def test_dev_probes_are_all_or_nothing(tmp_path, monkeypatch, probes):
+    from abletonlivemcp import install as installer
+
+    files = installer.source_files()
+    if probes == "none":
+        files = {k: v for k, v in files.items() if k not in installer.OPTIONAL_PROBES}
+    elif probes == "partial":
+        files.pop("probe_p02.py")
+    monkeypatch.setattr(installer, "source_files", lambda: files)
+    monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", str(tmp_path / "cfg" / "bridge.json"))
+    (tmp_path / "lib" / "Presets").mkdir(parents=True)
+    if probes == "partial":
+        with pytest.raises(installer.InstallError, match="incomplete"):
+            installer.install(tmp_path / "lib")
+        assert not (tmp_path / "lib" / "Remote Scripts" / installer.SCRIPT).exists()
+    else:
+        dest = installer.install(tmp_path / "lib")
+        installed = {p.name for p in dest.glob("probe_p*.py")}
+        assert installed == (set() if probes == "none" else set(installer.OPTIONAL_PROBES))
+
+
 def test_install_reinstall_and_failures(tmp_path):
     wheel = os.environ.get("ABLETONLIVEMCP_TEST_WHEEL")
     if wheel:

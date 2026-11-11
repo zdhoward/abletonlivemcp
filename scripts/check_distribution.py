@@ -23,11 +23,12 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 import abletonlivemcp
-from abletonlivemcp.install import REQUIRED, source_files
+from abletonlivemcp.install import OPTIONAL_PROBES, REQUIRED, source_files
 
 assert Path(abletonlivemcp.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 files = source_files()
 assert REQUIRED <= files.keys(), sorted(REQUIRED - files.keys())
+assert not OPTIONAL_PROBES & files.keys(), "developer probes must not ship"
 assert all(files[name].read_bytes() for name in REQUIRED)
 
 async def main():
@@ -52,6 +53,12 @@ def check_name(name: str) -> PurePosixPath:
     return path
 
 
+def is_dev_probe(name: str) -> bool:
+    """Developer probe modules (probe_pNN.py) stay in the source tree only."""
+    leaf = PurePosixPath(name).name
+    return leaf.startswith("probe_p") and leaf[7:9].isdigit() and leaf[9:] == ".py"
+
+
 def check_archives(directory: Path) -> Path:
     wheels = list(directory.glob("*.whl"))
     sources = list(directory.glob("*.tar.gz"))
@@ -62,6 +69,8 @@ def check_archives(directory: Path) -> Path:
         wheel_files = {n for n in archive.namelist() if not n.endswith("/")}
         for name in wheel_files:
             path = check_name(name)
+            if is_dev_probe(name):
+                raise ValueError(f"Developer probe in wheel: {name}")
             if not (
                 (path.parts[0] == "abletonlivemcp" and
                  (path.suffix == ".py" or name == "abletonlivemcp/NOTICE"))
@@ -81,6 +90,8 @@ def check_archives(directory: Path) -> Path:
                 raise ValueError(f"Unexpected source archive member: {member.name}")
             relative = PurePosixPath(*path.parts[1:])
             name = str(relative)
+            if is_dev_probe(name):
+                raise ValueError(f"Developer probe in source archive: {name}")
             # Hatch always includes VCS ignore metadata in sdists, even when excluded.
             allowed = name in {
                 ".gitignore", "pyproject.toml", "README.md", "LICENSE", "NOTICE", "PKG-INFO"
@@ -95,7 +106,7 @@ def check_archives(directory: Path) -> Path:
         if "NOTICE" not in source_files:
             raise ValueError("Source archive is missing NOTICE attribution")
 
-    # Every source runtime module must survive both package paths, including probe imports.
+    # Every source runtime module must survive both package paths.
     source_runtime = {
         name.removeprefix("src/") for name in source_files if name.startswith("src/")
     }

@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
+from pathlib import Path
 
 from abletonlivemcp import knowledge, prompts, resources, server
 
@@ -37,7 +39,8 @@ def test_prompts_name_only_real_tools():
             prompts._build_drum_rack, prompts._macro_fx_rack, prompts._arrange_sections,
         )
     )  # fmt: skip
-    from abletonlivemcp.proof_contract import FINAL_SURFACE
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from proof_contract import FINAL_SURFACE
 
     final = {t for names in FINAL_SURFACE.values() for t in names}
     named = set(re.findall(r"\blive_[a-z]+(?:_[a-z]+)*\b", text + prompts._vocal_chain()))

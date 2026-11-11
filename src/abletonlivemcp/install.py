@@ -22,13 +22,14 @@ DOMAINS = (
     "racks", "arrangement", "automation", "recording", "editing", "song", "view", "devx", "labels",
     "probe",
 )  # fmt: skip
-# The fixed dev probe table (dom_probe imports each one; plan section 4 numbering).
+# The fixed dev probe table (dom_probe.PROBE_NUMBERS). Development add-on: release archives
+# omit every probe, a source checkout has every probe, and a partial set is refused.
 PROBES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 27, 29)
 REQUIRED = frozenset(
     {"__init__.py", "core.py", "handlers.py", "operations.py", "safety.py"}
     | {f"dom_{name}.py" for name in DOMAINS}
-    | {f"probe_p{n:02d}.py" for n in PROBES}
 )
+OPTIONAL_PROBES = frozenset(f"probe_p{n:02d}.py" for n in PROBES)
 
 
 class InstallError(ValueError):
@@ -137,7 +138,8 @@ def install(user_library: Path) -> Path:
     if _overlaps(library, package_root) or _overlaps(configuration, package_root):
         raise InstallError("Library, configuration and package resources must not overlap")
     files = source_files()
-    if not REQUIRED <= files.keys():
+    probes = OPTIONAL_PROBES & files.keys()
+    if not REQUIRED <= files.keys() or probes not in (frozenset(), OPTIONAL_PROBES):
         raise InstallError("Remote Script resources are incomplete; reinstall the host package")
     expected = {}
     for name, resource in files.items():

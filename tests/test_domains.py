@@ -29,8 +29,13 @@ def test_domain_list_matches_the_files_the_installer_requires():
     on_disk = {p.name for p in SCRIPT_DIR.glob("*.py")}
     domains = {f"{m.__name__.rsplit('.', 1)[-1]}.py" for m in safety.DOMAINS}
     assert domains == {n for n in on_disk if n.startswith("dom_")}
-    assert install.REQUIRED == on_disk  # nothing on disk is optional, nothing required is missing
+    # Nothing on disk is unaccounted for; the dev probes are the only optional files.
+    assert install.REQUIRED | install.OPTIONAL_PROBES == on_disk
+    assert install.REQUIRED.isdisjoint(install.OPTIONAL_PROBES)
     assert set(install.source_files()) == on_disk
+    from AbletonLiveMCP import dom_probe
+
+    assert dom_probe.PROBE_NUMBERS == install.PROBES
 
 
 def test_merge_matches_the_handler_table():
@@ -84,11 +89,13 @@ def test_domain_modules_use_relative_imports_and_the_stdlib_only():
     """Live's embedded Python loads the script as a package with no ctypes and no site-packages;
     domain modules also must not import ``safety`` (it imports them)."""
     allowed = {"math", "itertools", "json", "Live", "os", "re", "time"}
+    allowed_probe_table = allowed | {"importlib"}  # dom_probe loads the optional probe modules
     paths = sorted(SCRIPT_DIR.glob("dom_*.py")) + sorted(SCRIPT_DIR.glob("probe_p*.py"))
     for path in paths:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
-                assert {a.name.split(".")[0] for a in node.names} <= allowed, path.name
+                ok = allowed_probe_table if path.name == "dom_probe.py" else allowed
+                assert {a.name.split(".")[0] for a in node.names} <= ok, path.name
             elif isinstance(node, ast.ImportFrom):
                 if node.level == 0:
                     assert node.module.split(".")[0] in allowed, path.name

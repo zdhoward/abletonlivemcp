@@ -79,6 +79,18 @@ def test_bad_probe_tables_fail_closed(modules):
         dom_probe._table(modules)
 
 
+def test_release_archives_without_probes_load_an_empty_table(monkeypatch):
+    monkeypatch.setattr(dom_probe, "PROBE_NUMBERS", (97, 98))  # no such modules anywhere
+    assert dom_probe._load_probe_modules() == ()
+    assert dom_probe._table(()) == {}
+
+
+def test_a_partial_probe_set_fails_closed(monkeypatch):
+    monkeypatch.setattr(dom_probe, "PROBE_NUMBERS", (1, 98))
+    with pytest.raises(dom_probe.ProbeTableError, match="probe_p98"):
+        dom_probe._load_probe_modules()
+
+
 def test_refusals_happen_before_any_probe_runs(monkeypatch):
     _song, off = dispatcher(dev=False)
     for method in ("probe_list", "probe_read"):

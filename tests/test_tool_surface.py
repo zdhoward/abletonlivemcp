@@ -19,9 +19,12 @@ import pytest
 from mcp.server.mcpserver import MCPServer
 from pydantic import TypeAdapter, ValidationError
 
-from abletonlivemcp import proof_contract, server
+from abletonlivemcp import server
 from abletonlivemcp.models import ClipAddr, DevicePath, ParamSel, TrackSel
 from abletonlivemcp.output_models import TOOL_OUTPUTS
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import proof_contract  # noqa: E402 - development metadata, not shipped in the package
 
 SNAPSHOTS = Path(__file__).parent / "tool_surface"
 PRESETS = [server.READ, server.CREATE, server.OVERWRITE, server.CONTROL, server.DESTRUCTIVE]

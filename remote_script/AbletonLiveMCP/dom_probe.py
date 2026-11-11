@@ -20,67 +20,20 @@ Bridge methods (every one refused unless the private config says ``"dev_probes":
 The kinds are disjoint: ``probe_read`` refuses a write probe and ``probe_run`` a read probe. The
 table is built at import and fails closed: a missing or wrong id, a duplicate id, an unknown kind
 or a missing ``run`` raises ``ProbeTableError``, so the Remote Script does not load at all.
+Release archives omit the ``probe_pNN`` modules; the table is then empty and every probe id
+is refused. A partial set of probe modules also raises ``ProbeTableError``.
 A refusal happens before any probe code runs; an exception inside a probe is reported in the
 result (``ok: false``) after its scratch cleanup, never as a refusal.
 """
 
-from . import (
-    probe_p01,
-    probe_p02,
-    probe_p03,
-    probe_p04,
-    probe_p05,
-    probe_p06,
-    probe_p07,
-    probe_p08,
-    probe_p09,
-    probe_p10,
-    probe_p11,
-    probe_p12,
-    probe_p13,
-    probe_p14,
-    probe_p15,
-    probe_p16,
-    probe_p17,
-    probe_p18,
-    probe_p19,
-    probe_p20,
-    probe_p22,
-    probe_p23,
-    probe_p24,
-    probe_p27,
-    probe_p29,
-)
+import importlib
+
 from .dom_common import READ, WRITE, Refused, _same
 
 # The fixed probe list (plan section 4). P-21, P-25 and P-26 are not used; P-28 has no row.
-PROBE_MODULES = (
-    probe_p01,
-    probe_p02,
-    probe_p03,
-    probe_p04,
-    probe_p05,
-    probe_p06,
-    probe_p07,
-    probe_p08,
-    probe_p09,
-    probe_p10,
-    probe_p11,
-    probe_p12,
-    probe_p13,
-    probe_p14,
-    probe_p15,
-    probe_p16,
-    probe_p17,
-    probe_p18,
-    probe_p19,
-    probe_p20,
-    probe_p22,
-    probe_p23,
-    probe_p24,
-    probe_p27,
-    probe_p29,
-)
+PROBE_NUMBERS = (
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 27, 29,
+)  # fmt: skip
 SCRATCH_LIMIT = 8  # max scratch objects one probe run may create
 
 
@@ -109,6 +62,24 @@ def _table(modules):
     return table
 
 
+def _load_probe_modules():
+    """The probe modules are a development add-on: release archives omit all of them, the
+    source tree has all of them. A partial set is a broken copy and fails closed."""
+    found, missing = [], []
+    for number in PROBE_NUMBERS:
+        name = f"probe_p{number:02d}"
+        try:
+            found.append(importlib.import_module("." + name, __package__))
+        except ModuleNotFoundError as exc:
+            if exc.name != f"{__package__}.{name}":
+                raise  # the probe exists but one of its own imports is missing
+            missing.append(name)
+    if found and missing:
+        raise ProbeTableError("incomplete probe set; missing " + ", ".join(missing))
+    return tuple(found)
+
+
+PROBE_MODULES = _load_probe_modules()
 PROBES = _table(PROBE_MODULES)
 
 

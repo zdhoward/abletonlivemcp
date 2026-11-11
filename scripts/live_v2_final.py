@@ -74,10 +74,10 @@ from live_harness import (
 )
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client
+from proof_contract import PHASES
 
 from abletonlivemcp.bridge import BridgeError
 from abletonlivemcp.config import config_path
-from abletonlivemcp.proof_contract import PHASES
 
 CASES_DIR = Path(__file__).resolve().parent / "final_cases"
 EVIDENCE_MD = REPO / "docs" / "release" / "v2-fast-track.md"
