@@ -12,11 +12,10 @@ $set = 'S:\AbletonMCP\projects\Basic Project\Basic.als'
 $live = Get-Process | Where-Object { $_.Name -like 'Ableton Live*' }
 if ($live) {
     $live | Select-Object Id, MainWindowTitle | Out-Host
-    $other = $live | Where-Object {
-        $_.MainWindowTitle -and $_.MainWindowTitle -notlike 'Basic*' -and $_.MainWindowTitle -notlike 'Untitled*'
-    }
+    # Fail closed: an empty title (loading, modal dialog) could hide an owner Set.
+    $other = $live | Where-Object { $_.MainWindowTitle -notmatch '^(Basic|Untitled)\*? - Ableton Live' }
     if ($other -and -not $Force) {
-        Write-Error "Live has a non-Basic Set open ($($other.MainWindowTitle)); not closing it"
+        Write-Error "Live has a non-Basic or unidentified Set open ('$($other.MainWindowTitle)'); not closing it"
         exit 4
     }
     $live | ForEach-Object { [void]$_.CloseMainWindow() }
