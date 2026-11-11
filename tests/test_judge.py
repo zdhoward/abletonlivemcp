@@ -66,14 +66,28 @@ def test_bad_judge_name_is_rejected():
         get_judge("gpt")
 
 
-def test_judge_tools_registered_and_status_reports_backend(no_keys):
+def test_keys_never_select_a_network_backend(no_keys, monkeypatch):
+    import socket
+    import sys
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("TYPESAFE_API_KEY", "not-a-real-key")
+    monkeypatch.delitem(sys.modules, "abletonlivemcp.judge.jev", raising=False)
+
+    def no_network(*_a, **_k):
+        raise AssertionError("a network call was attempted")
+
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    for prefer in (None, "auto"):
+        j = get_judge(prefer)
+        assert j.name == "rules"
+        assert j.classify_sample("Kick_01.wav", []).drum_type == "kick"
+    assert "abletonlivemcp.judge.jev" not in sys.modules  # the Jev module was never imported
+    assert judge.PLUGIN_CATEGORIES
+
+
+def test_production_server_registers_no_judge_tools(no_keys):
     from abletonlivemcp import server
 
     names = {t.name for t in asyncio.run(server.mcp.list_tools())}
-    assert {"judge_status", "classify_samples", "classify_plugins"} <= names
-    assert server.judge_status()["backend"] == "rules"
-    out = server.classify_samples(["S:/x/Drums/Kicks/Kick_01.wav"])
-    assert out[0]["drum_type"] == "kick"
-    with pytest.raises(ValueError):
-        server.classify_samples(["a.wav"] * 201)
-    assert judge.PLUGIN_CATEGORIES
+    assert not names & {"judge_status", "classify_samples", "classify_plugins"}

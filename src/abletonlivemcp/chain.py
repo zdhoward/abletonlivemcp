@@ -1,18 +1,26 @@
-"""Build chains of Live's stock audio effects and set parameters from human values.
+"""Plan and build chains of audio effects and set parameters from human values.
 
 Live stores most parameters as 0..1 with a nonlinear display ("-18.0 dB", "4.00 : 1", "1.00 kHz").
 `set_to_display` finds the stored value whose display matches a target such as "-18 dB". It asks
 Live for the display text of 65 candidate values at once (`sample_parameter`, which writes
 nothing), narrows the bracket a round at a time, then writes once and reports what Live shows.
-`build_chain` checks every device name BEFORE it loads anything.
+`make_plan` checks every device and the target BEFORE anything loads; `execute` then runs the
+plan once, stops at the first stage that is not fully applied and exact, and returns a receipt.
 """
 
 from __future__ import annotations
 
+import collections
 import difflib
+import hashlib
+import json
 import re
+import time
 
-ROOT = "audio_effects"
+from .adapters import adapters_for, known_roles
+from .bridge import BridgeError
+from .models import ChainPlan, ChainReceipt, ParamResult, PlanStage, StageReceipt, Target
+
 MAX_STAGES = 12
 GRID = 65
 MAX_ROUNDS = 3
@@ -144,9 +152,25 @@ class _Solver:
         self.values = _linspace(lo, hi, GRID)
 
 
-def _solve_and_write(call, loc, solvers: list[_Solver]) -> dict[int, dict]:
-    """Sample, then write, a group of parameters. Returns {id(solver): result or error}."""
-    out: dict[int, dict] = {}
+class Refusal(ChainError):
+    """The bridge refused a call (a SUCCESSFUL reply shaped {"refused": true, ...}); nothing
+    was written by that call."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(f"{code}: {message} (not applied)")
+        self.code, self.message = code, message
+
+
+class WriteInterrupted(Exception):
+    """A settings write stopped partway. `results` are the writes that did complete."""
+
+    def __init__(self, results: list[dict], problems: list[str], cause: Exception):
+        super().__init__(str(cause))
+        self.results, self.problems, self.cause = results, problems, cause
+
+
+def _solve_and_write(call, loc, solvers: list[_Solver], out: dict[int, dict]) -> None:
+    """Sample, then write, a group of parameters; fills `out` {id(solver): result or error}."""
     active = [s for s in solvers if s.values is not None]  # raw targets need no sampling
     while active:
         nxt = []
@@ -164,23 +188,38 @@ def _solve_and_write(call, loc, solvers: list[_Solver]) -> dict[int, dict]:
         active = nxt
     ready = [s for s in solvers if id(s) not in out]
     for group in _chunks(ready):
-        writes = [{"parameter": s.param["index"], "value": s.pick} for s in group]
-        reply = call("set_device_parameters", {**loc, "writes": writes})["results"]
+        # writes name parameters by the references the parameter read issued, never by index
+        writes = [{"parameter": s.param["ref"], "value": s.pick} for s in group]
+        reply = call("set_device_parameters", {"writes": writes})["results"]
         for s, r in zip(group, reply, strict=True):
-            out[id(s)] = _result(s, r["display"])
-    return out
+            out[id(s)] = _result(s, r)
 
 
-def _result(s: _Solver, display: str) -> dict:
-    if isinstance(s.target, dict):
-        exact = True  # written exactly as given; `actual` is only Live's own readout
+def _result(s: _Solver, written: dict) -> dict:
+    """What happened to one setting, from Live's own readback of the write."""
+    display, actual_raw = written["display"], written.get("value")
+    raw = isinstance(s.target, dict)
+    if raw:  # a raw request is exact only if the stored value read back as requested
+        span = float(s.param["max"]) - float(s.param["min"])
+        exact = isinstance(actual_raw, (int, float)) and (
+            abs(actual_raw - s.pick) <= 1e-6 * max(span, 1.0)
+        )
     elif s.param["is_quantized"] or s._text is not None:
         exact = _same_text(display, _on_off(s.target))
     else:
         got = parse_display(display)
         goal = s._goal[0]
         exact = got is not None and abs(got[0] - goal) <= max(abs(goal) * 0.02, 0.05)
-    return {"name": s.name, "requested": s.target, "actual": display, "exact": exact}
+    return {
+        "name": s.name,
+        "requested": s.target,
+        "original": {"value": s.param.get("value"), "display": s.param.get("display")},
+        "actual": display,
+        "actual_raw": actual_raw,
+        "exact": bool(exact),
+        "off_target": not exact,
+        "raw": raw,
+    }
 
 
 def set_parameters(
@@ -189,7 +228,8 @@ def set_parameters(
     """Set several parameters of one device so Live's own display matches each target.
 
     Options and switches go first and the numeric parameters are sampled after them, because a
-    display can depend on a mode (Echo's time units depend on its sync setting).
+    display can depend on a mode (Echo's time units depend on its sync setting). A refusal or
+    uncertain failure of a write raises WriteInterrupted carrying the writes already made.
     Returns (results in request order, problems).
     """
     solvers: list[_Solver | None] = []
@@ -203,8 +243,19 @@ def set_parameters(
     live = [s for s in solvers if s is not None]
     modes = [s for s in live if s.param["is_quantized"] or s._text is not None]
     done: dict[int, dict] = {}
-    done.update(_solve_and_write(call, loc, modes))
-    done.update(_solve_and_write(call, loc, [s for s in live if s not in modes]))
+
+    def made() -> list[dict]:
+        return [
+            done[id(s)]
+            for s in solvers
+            if s is not None and id(s) in done and "error" not in done[id(s)]
+        ]
+
+    try:
+        _solve_and_write(call, loc, modes, done)
+        _solve_and_write(call, loc, [s for s in live if s not in modes], done)
+    except (ChainError, BridgeError) as exc:
+        raise WriteInterrupted(made(), problems, exc) from exc
     results = []
     for s in solvers:
         if s is None:
@@ -233,56 +284,314 @@ def _resolve(params: list[dict], name: str) -> dict:
     raise ChainError(f"no unique parameter {name!r}; similar: {close}")
 
 
+ROOTS = ("audio_effects", "plugins")  # the only roots a chain may load from
+BUILD_DEADLINE = 55.0  # seconds for a whole build; the bridge lease is at most 60 s
+LOAD_WAIT = 25.0  # seconds to wait for one load to be observed (Live's own timeout is 20 s)
+POLL = 0.25
+PLAN_TTL = 900.0
+MAX_PLANS = 8
+
+
 def _validate(stages) -> None:
     if not isinstance(stages, list) or not 1 <= len(stages) <= MAX_STAGES:
         raise ChainError(f"'stages' must be a list of 1..{MAX_STAGES} stages")
     for s in stages:
-        if not isinstance(s, dict) or not isinstance(s.get("device"), str):
-            raise ChainError("each stage needs a 'device' name")
-        if "path" in s and not (isinstance(s["path"], list) and s["path"]):
+        if not isinstance(s, dict) or not (
+            isinstance(s.get("device"), str) or isinstance(s.get("role"), str)
+        ):
+            raise ChainError("each stage needs a 'role' (with 'intent') or an exact 'device' name")
+        if "device" in s and "path" in s and not (isinstance(s["path"], list) and s["path"]):
             raise ChainError("'path' must be a non-empty list of browser names")
         if not isinstance(s.get("params", {}), dict):
             raise ChainError("'params' must be an object of parameter name -> value")
 
 
-def build_chain(call, track: int, stages: list[dict]) -> dict:
-    """Load each stage's stock device onto `track` (appended in order) and set its parameters."""
-    _validate(stages)
-    by_lower: dict[str, str] = {}
-    if any("path" not in s for s in stages):  # stages with an explicit browser path skip this
-        listing = call("browser_list", {"root": ROOT, "path": []})
-        items = listing["items"] if isinstance(listing, dict) else listing
-        names = [i["name"] if isinstance(i, dict) else i for i in items]
-        by_lower = {n.lower(): n for n in names}
-        missing = [
-            s["device"] for s in stages if "path" not in s and s["device"].lower() not in by_lower
-        ]
-        if missing:
-            close = {m: difflib.get_close_matches(m, names, n=3, cutoff=0.5) for m in missing}
-            raise ChainError(f"not in Live's {ROOT} browser: {close}")
+def checked(call):
+    """Wrap a bridge call so a refusal reply (a successful result) raises Refusal."""
 
-    results = []
-    for s in stages:
+    def run(method, params=None):
+        result = call(method, params)
+        if isinstance(result, dict) and result.get("refused") is True:
+            raise Refusal(str(result.get("code")), str(result.get("message")))
+        return result
+
+    return run
+
+
+def _digest(*parts) -> str:
+    raw = json.dumps(parts, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf8")).hexdigest()
+
+
+def make_plan(call, stages: list[dict], track: int, preferences: dict, resolver) -> ChainPlan:
+    """Read-only: resolve stages to concrete devices for the empty audio track at index `track`.
+
+    `resolver` is resolve.plan_chain (injected: resolve imports this module). Nothing is loaded:
+    plugin controls stay `unverified_until_loaded`. Returns a ChainPlan."""
+    call = checked(call)
+    _validate(stages)
+    if isinstance(track, bool) or not isinstance(track, int) or track < 0:
+        raise ChainError("'track' must be a track index >= 0")
+    generation = call("session_info")["generation"]
+    listing = call("tracks")
+    if track >= len(listing):
+        raise ChainError(f"track {track} does not exist ({len(listing)} tracks)")
+    row = listing[track]
+    if row["has_midi_input"] or row["devices"]:
+        raise ChainError("the target must be an empty regular audio track (no devices yet)")
+    target = Target(index=track, name=row["name"], generation=generation)
+    role_at = [i for i, s in enumerate(stages) if "role" in s]
+    resolved = resolver(call, [stages[i] for i in role_at], preferences) if role_at else None
+    out: list[PlanStage] = []
+    report: list[dict] = []
+    stock = None
+    for i, s in enumerate(stages):
+        if i in role_at:
+            k = role_at.index(i)
+            c, rep = resolved["stages"][k], resolved["report"][k]
+            omitted = tuple(n for n in rep["notes"] if "skipped" in n)
+            notes = tuple(n for n in rep["notes"] if "skipped" not in n)
+            root = c.get("root", ROOTS[0])
+            path = tuple(c.get("path") or [c["device"]])
+            out.append(
+                PlanStage(
+                    role=rep["role"],
+                    device=c["device"],
+                    root=root,
+                    path=path,
+                    params=c["params"],
+                    omitted=omitted,
+                    notes=notes,
+                )
+            )
+            report.append(rep)
+            continue
+        root = s.get("root", ROOTS[0] if "path" not in s else "plugins")
+        if root not in ROOTS:
+            raise ChainError(f"only {list(ROOTS)} devices can be built, not {root!r}")
         if "path" in s:
-            real, root, path = s["device"], s.get("root", "plugins"), s["path"]
+            path = tuple(s["path"])
         else:
-            real = by_lower[s["device"].lower()]
-            root, path = ROOT, [real]
-        loaded = call("load_item", {"track": track, "root": root, "path": path})
-        if loaded["devices_after"] != loaded["devices_before"] + 1:
-            raise ChainError(f"loading {real!r} did not add exactly one device")
-        index = loaded["devices_after"] - 1
-        loc = {"track": track, "device": index}
-        params = call("device_parameters", loc)
-        wanted, problems = [], []
-        for pname, value in (s.get("params") or {}).items():
-            try:
-                wanted.append((_resolve(params, pname), value))
-            except ChainError as exc:
-                problems.append(str(exc))
-        done, more = set_parameters(call, loc, wanted) if wanted else ([], [])
-        results.append(
-            {"device": real, "index": index, "params": done, "problems": problems + more}
+            if stock is None:
+                items = call("browser_list", {"root": ROOTS[0], "path": []})["items"]
+                stock = {x["name"].lower(): x["name"] for x in items}
+            real = stock.get(s["device"].lower())
+            if real is None:
+                close = difflib.get_close_matches(s["device"], list(stock.values()), 3, 0.5)
+                raise ChainError(f"not in Live's {ROOTS[0]} browser: {s['device']!r}; {close}")
+            path = (real,)
+        out.append(
+            PlanStage(device=s["device"], root=root, path=path, params=s.get("params") or {})
         )
-    ok = all(not r["problems"] and all(p["exact"] for p in r["params"]) for r in results)
-    return {"track": track, "stages": results, "ok": ok}
+        report.append({"device": s["device"], "exact": True})
+    fingerprint = _digest(
+        [o.model_dump() for o in out],
+        target.model_dump(),
+        preferences,
+        [repr(a) for r in known_roles() for a in adapters_for(r)],
+    )
+    return ChainPlan(
+        plan_id=fingerprint[:24],
+        fingerprint=fingerprint,
+        target=target,
+        stages=tuple(out),
+        report=tuple(report),
+        intent_complete=not any(o.omitted for o in out),
+        expires_in=PLAN_TTL,
+    )
+
+
+class PlanStore:
+    """Bounded in-memory plans. A plan builds once: later use returns its receipt or refuses."""
+
+    def __init__(self, clock=time.monotonic):
+        self._clock = clock
+        self._plans: collections.OrderedDict[str, dict] = collections.OrderedDict()
+
+    def add(self, plan: ChainPlan) -> None:
+        now = self._clock()
+        for key in [k for k, v in self._plans.items() if v["expires"] <= now]:
+            del self._plans[key]
+        if plan.plan_id in self._plans:  # same reviewed content: keep its state
+            return
+        self._plans[plan.plan_id] = {
+            "plan": plan,
+            "state": "planned",
+            "receipt": None,
+            "expires": now + PLAN_TTL,
+        }
+        while len(self._plans) > MAX_PLANS:
+            self._plans.popitem(last=False)
+
+    def claim(self, plan_id: str):
+        """('run', plan) once, then ('receipt', receipt). Unknown/expired/running -> ChainError."""
+        entry = self._plans.get(plan_id) if isinstance(plan_id, str) else None
+        if entry is not None and entry["expires"] <= self._clock():
+            del self._plans[plan_id]
+            entry = None
+        if entry is None:
+            raise ChainError("unknown or expired plan_id; plan again (nothing was built)")
+        if entry["state"] == "building":
+            raise ChainError("this plan is already being built; read its operation, do not retry")
+        if entry["state"] == "built":
+            return "receipt", entry["receipt"]
+        entry["state"] = "building"
+        return "run", entry["plan"]
+
+    def release(self, plan_id: str) -> None:
+        """Nothing was started (a precondition failed): the plan may be tried again."""
+        entry = self._plans.get(plan_id)
+        if entry is not None and entry["state"] == "building":
+            entry["state"] = "planned"
+
+    def finish(self, plan_id: str, receipt: ChainReceipt) -> None:
+        entry = self._plans[plan_id]
+        entry["state"], entry["receipt"] = "built", receipt
+
+
+def verify_target(call, plan: ChainPlan) -> str:
+    """Fresh preconditions: same Set, and the planned track is still the same empty audio track.
+    Returns a track reference for the loads. Raises ChainError before anything is written."""
+    call = checked(call)
+    t = plan.target
+    if call("session_info")["generation"] != t.generation:
+        raise ChainError("the Set or bridge session changed since planning; plan again")
+    listing = call("tracks")
+    row = listing[t.index] if t.index < len(listing) else None
+    if row is None or row["name"] != t.name or row["has_midi_input"] or row["devices"]:
+        raise ChainError("the target track changed since planning; plan again (nothing built)")
+    return row["ref"]
+
+
+def _wait_ready(call, op: dict, sleep, clock) -> dict:
+    """Poll the load operation; a pending/unknown state is never absence and never reloads."""
+    limit = clock() + LOAD_WAIT
+    while op["state"] == "pending" and clock() < limit:
+        sleep(POLL)
+        op = call("operation", {"operation": op["operation"]})
+    return op
+
+
+def _run_stage(call, plan, i, track_ref, previous, sleep, clock):
+    """Load one stage and set its parameters. Returns (StageReceipt, stop_reason or None)."""
+    st, t = plan.stages[i], plan.target
+
+    def receipt(outcome, reason=None, **kw):
+        return StageReceipt(index=i, device=st.device, outcome=outcome, reason=reason, **kw)
+
+    load = {"track": track_ref, "root": st.root, "path": list(st.path)}
+    if previous:
+        load["after"] = previous  # must be exactly the prefix this build produced
+    op = None
+    try:
+        op = call("load_item", load)
+        op = _wait_ready(call, op, sleep, clock)
+    except Refusal as exc:
+        return receipt("not_applied", exc.code, problems=(exc.message,)), exc.code
+    except BridgeError as exc:
+        outcome = "unknown" if exc.may_have_applied else "not_applied"
+        name = op["operation"] if op else None
+        return receipt(outcome, exc.kind, operation=name, problems=(str(exc),)), f"load_{outcome}"
+    name = op["operation"]
+    if op["state"] != "ready":
+        failed = op["state"] == "failed"
+        reason = f"load_{op['state']}:{op.get('reason')}"
+        return receipt("not_applied" if failed else "unknown", reason, operation=name), reason
+    index = len(op["devices_after"]) - 1
+    try:
+        row = call("tracks")[t.index]
+        if (
+            row["name"] != t.name
+            or [d["class_name"] for d in row["devices"]] != op["devices_after"]
+        ):
+            raise ChainError("the track no longer matches the loaded device")
+        params = call("device_parameters", {"track": t.index, "device": index})
+    except (ChainError, BridgeError, IndexError) as exc:
+        rec = receipt(
+            "applied", "target_changed", operation=name, device_index=index, problems=(str(exc),)
+        )
+        return rec, "target_changed"
+    wanted, problems = [], []
+    for pname, value in st.params.items():
+        try:
+            q = _resolve(params, pname)
+            if not q.get("is_enabled", True):
+                raise ChainError(f"{pname!r} is disabled or controlled elsewhere; not overriding")
+            wanted.append((q, value))
+        except ChainError as exc:
+            problems.append(str(exc))
+    done: list[dict] = []
+    reason = None
+    try:
+        if wanted and not problems:  # an unresolved setting stops the stage before any write
+            done, more = set_parameters(call, {"track": t.index, "device": index}, wanted)
+            problems += more
+    except WriteInterrupted as exc:
+        done, problems = exc.results, problems + exc.problems + [str(exc.cause)]
+        uncertain = isinstance(exc.cause, BridgeError) and exc.cause.may_have_applied
+        reason = "settings_unknown" if uncertain else "settings_refused"
+    results = tuple(ParamResult(**r) for r in done)
+    if reason is None and (problems or not all(r.exact for r in results)):
+        reason = "settings_unresolved" if problems else "off_target"
+    outcome = "unknown" if reason == "settings_unknown" else "applied"
+    rec = receipt(
+        outcome,
+        reason,
+        operation=name,
+        device_index=index,
+        params=results,
+        problems=tuple(problems),
+    )
+    return rec, reason
+
+
+def execute(call, plan: ChainPlan, track_ref: str, sleep=time.sleep, clock=time.monotonic):
+    """Run a plan stage by stage; stop at the first stage that is not fully applied and exact.
+
+    Never retries, deletes, undoes or loads a substitute: a stopped build keeps whatever was
+    applied and says so. Returns a ChainReceipt."""
+    call = checked(call)
+    started = clock()
+    stages: list[StageReceipt] = []
+    completed: list[int] = []
+    stop: tuple[int, str] | None = None
+    previous = None
+    for i in range(len(plan.stages)):
+        if clock() - started > BUILD_DEADLINE:
+            stop = (i, "deadline")
+            break
+        rec, reason = _run_stage(call, plan, i, track_ref, previous, sleep, clock)
+        stages.append(rec)
+        if reason:
+            stop = (i, reason)
+            break
+        completed.append(i)
+        previous = rec.operation
+    for i in range(len(stages), len(plan.stages)):
+        stages.append(
+            StageReceipt(
+                index=i, device=plan.stages[i].device, outcome="not_applied", reason="not_attempted"
+            )
+        )
+    applied = any(r.outcome == "applied" for r in stages)
+    unknown = tuple(f"stage {r.index}: {r.reason}" for r in stages if r.outcome == "unknown")
+    if stop is None:
+        status = "complete"
+    elif applied:
+        status = "partial"
+    elif unknown:
+        status = "pending"
+    else:
+        status = "failed"
+    return ChainReceipt(
+        plan_id=plan.plan_id,
+        status=status,
+        intent_fulfilled=stop is None and plan.intent_complete,
+        target=plan.target,
+        completed=tuple(completed),
+        stopped_at=stop[0] if stop else None,
+        stop_reason=stop[1] if stop else None,
+        omitted=tuple(o for s in plan.stages for o in s.omitted),
+        unknown=unknown,
+        stages=tuple(stages),
+    )

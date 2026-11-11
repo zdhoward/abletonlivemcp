@@ -1,8 +1,9 @@
 """Optional language judgments (sample type, plugin category) behind one small interface.
 
-Two backends: `RuleJudge` (always available, filename/name keywords) and `JevJudge` (TypeSafe's
-Jev model; needs the `jev` extra and TYPESAFE_API_KEY). Code decides from the judgments; a failed
-Jev call raises JudgeError and is never turned into an answer.
+Two backends: `RuleJudge` (the default; local filename/name keywords) and `JevJudge` (TypeSafe's
+Jev model; only when explicitly named, needs the `jev` extra and a key). Code decides from the
+judgments; a failed Jev call raises JudgeError and is never turned into an answer. Nothing in
+the production MCP server imports this package.
 """
 
 from __future__ import annotations
@@ -75,21 +76,17 @@ class Judge(Protocol):
 
 
 def get_judge(prefer: str | None = None) -> Judge:
-    """`prefer`/ABLETONLIVEMCP_JUDGE: 'rules', 'jev' (error if unavailable) or 'auto' (default)."""
+    """Local rules unless 'jev' is asked for by name (`prefer` or ABLETONLIVEMCP_JUDGE).
+
+    'auto' (the default) is local rules: an API key in the environment never selects a network
+    backend, and the Jev module is imported only when 'jev' is explicitly requested."""
     choice = (prefer or os.environ.get("ABLETONLIVEMCP_JUDGE") or "auto").lower()
     if choice not in ("auto", "rules", "jev"):
         raise ValueError("judge must be 'auto', 'rules' or 'jev'")
-    from .rules import RuleJudge
-
-    if choice == "rules":
-        return RuleJudge()
-    have_key = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("TYPESAFE_API_KEY"))
-    if choice == "jev" or have_key:
+    if choice == "jev":
         from .jev import JevJudge
 
-        try:
-            return JevJudge()
-        except JudgeError:
-            if choice == "jev":
-                raise
+        return JevJudge()  # raises JudgeError when unavailable; never falls back silently
+    from .rules import RuleJudge
+
     return RuleJudge()
