@@ -38,7 +38,6 @@ Format: [severity] issue, evidence, suggested fix. Severity: bug / gap / ux / mi
 
 ## Other
 
-11. A grep of `~/.claude_cpamc/.claude.json` showed a live Stripe key in plaintext (unrelated to this MCP).
 
 ## Work done
 

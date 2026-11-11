@@ -6,6 +6,13 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-11
+
+Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live; server and
+script must be the same version.
+
+- `examples/filter_sweep_buildup.py`: a generic buildup on any Set over stdio. The owner-specific
+  demo and restart scripts left this repository.
 - `live_set_device_parameters` with display targets on two or more continuous parameters
   ("100 Hz", "25 %") no longer returns "partial" with "at most 129 display values": sample
   requests are grouped by the Remote Script's value budget.
