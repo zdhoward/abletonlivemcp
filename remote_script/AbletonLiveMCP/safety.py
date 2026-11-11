@@ -24,7 +24,8 @@ write began.
 
 References: ``token_hex(8)`` ids mapped to strong references (so a recycled Python id can never
 validate) in a bounded LRU registry of ``MAX_REFS`` entries; evicted/unknown ids are refused.
-Generation starts at 1 and increases on Song change or ``invalidate()`` (disconnect); the
+Generation starts at a random positive number (a reloaded script never reuses one) and
+increases on Song change or ``invalidate()`` (disconnect); the
 registry and lease are cleared at the same moment. Liveness of Live objects is checked by
 identity-or-equality membership inside try/except; any exception means "not valid".
 
@@ -193,7 +194,9 @@ class Safety:
     def __init__(self, song_supplier, policy=config_read_only, clock=time.monotonic):
         self._supplier, self._policy, self._clock = song_supplier, policy, clock
         self._song = None
-        self.generation = 1
+        # Random start: Live reloads the script on a Set change and a fresh instance must never
+        # share a generation with the previous one, or a stale client's number would match.
+        self.generation = secrets.randbelow(2**30) + 1
         self._refs = collections.OrderedDict()
         self._lease = None  # (token, expires)
 
