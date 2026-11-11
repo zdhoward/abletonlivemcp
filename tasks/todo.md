@@ -89,7 +89,8 @@ Owner answers: stay on Live 12.2 as the floor; after core surface (P1) go to the
 Detailed ticket plan (Opus, 2026-11-11): `docs/plans/v2-detailed-plan.md` (T-001..T-083, 9 waves, 26 probes). Its competitor matrix is from memory; T-081 re-verifies before public release. Real Live is a single shared resource: the orchestrator runs all proofs serially.
 
 - [x] P0 done (704b8b1)
-- [~] Wave 0: T-001 (split hot files + remove Jev) delegated to a worktree agent; then T-002, T-003, T-004 in parallel; T-005 (+P-01); T-006, T-007.
+- [x] T-001 split + Jev removal (real-Live proof: docs/release/v2/T-001.md)
+- [ ] Wave 0 remaining: T-002, T-003, T-004 in parallel; T-005 (+P-01); T-006, T-007.
 
 ## Next step
 
