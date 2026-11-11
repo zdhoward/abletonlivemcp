@@ -92,7 +92,10 @@ def clip_row(clip, detail=False):
         "color_index": _get(clip, "color_index"),
     }
     if _get(clip, "is_arrangement_clip", False):
+        # `length` is the loop/source length; the clip's span on the timeline is start..end.
         row["start"], row["end"] = _get(clip, "start_time"), _get(clip, "end_time")
+        if row["start"] is not None and row["end"] is not None:
+            row["arrangement_length"] = row["end"] - row["start"]
     else:
         row["is_playing"] = _get(clip, "is_playing")
     if detail:
