@@ -157,6 +157,9 @@ def browser_search(ctx, p):
 
 
 def operation(ctx, p):
+    """One record by ``operation`` id, or up to 16 by ``operations`` (a list) in one read."""
+    if p.get("operations") is not None:
+        return ctx.operations.get_many(p.get("operations"))
     return ctx.operations.get(p.get("operation"))
 
 

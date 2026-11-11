@@ -28,7 +28,7 @@ from .dom_common import (  # noqa: F401 - limits re-exported for callers and tes
     _note_specification,
 )
 from .operations import Operations
-from .safety import CLASSIFICATION, CONTROL, HANDLERS, READ, Refused, Safety
+from .safety import CAPABILITIES, CLASSIFICATION, CONTROL, HANDLERS, READ, Refused, Safety
 
 
 def _handlers(song, app, safety, operations=None):
@@ -40,13 +40,16 @@ def _handlers(song, app, safety, operations=None):
         safety=safety,
         operations=operations or Operations(safety),
         probe=lambda: probe(song, app),
+        capabilities=CAPABILITIES,
     )
     return {name: functools.partial(handler, ctx) for name, handler in HANDLERS.items()}
 
 
-# Writes that open their own undo steps and call Song.undo themselves (the P-03 probe); an outer
-# step around them would swallow the very entries they test.
-OWN_UNDO_STEPS = frozenset({"probe_run"})
+# Writes that must not be wrapped in an undo step: the P-03 probe opens its own steps and calls
+# Song.undo itself, and ``undo``/``redo`` (live_undo, batch 2) move through the undo history; an
+# outer step around them would swallow the very entries they revert. Batch 2 names its bridge
+# methods exactly ``undo`` (params ``action: "undo"|"redo"``, ``steps``) and, if split, ``redo``.
+OWN_UNDO_STEPS = frozenset({"probe_run", "undo", "redo"})
 
 
 def _one_undo_step(song, work):

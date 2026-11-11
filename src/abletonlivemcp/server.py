@@ -9,7 +9,9 @@ from the bridge as an error: nothing was written.
 Names and text that come from Live or from a browser are wrapped as untrusted data.
 
 This module holds the shared helpers (registration, toolsets, bridge calls, settling, untrusted
-wrapping); the tools themselves live in ``tools/<domain>.py`` and are re-exported here.
+wrapping, batch preflight, step receipts); the tools themselves live in ``tools/<domain>.py``.
+``server.<tool name>`` (module ``__getattr__``) or ``server.tool(name)`` reaches any registered
+tool; there is no static re-export list. Contract: ``docs/plans/v2-contracts.md``.
 
 Toolsets: a tool belongs to the toolset named by its module (``tools/drums.py`` -> ``drums``;
 the core domains -> ``core``). ``ABLETONLIVEMCP_TOOLSETS`` (comma-separated) or the config key
@@ -434,43 +436,108 @@ def _settled(method: str, params: dict, readback: str, readback_params: dict | N
     return _call(readback, readback_params)
 
 
-# ---- tools: registered by the modules in ``tools/`` (the helpers above must exist first) -----
+# ---- shared tool helpers (v2 batch-1 contract: docs/plans/v2-contracts.md) -------------------
 
+
+def unsupported(what: str, reason: str) -> Refusal:
+    """The bounded host refusal for an ability Live 12.2 lacks: ``refused:unsupported: ...``.
+    Raise it only before any write began."""
+    return Refusal("unsupported", f"{what}: {reason}")
+
+
+def clip_selector(addr) -> dict:
+    """A ClipRef (``{track, scene}`` or ``{track, arrangement[, take_lane]}``) -> a ``ref_issue``
+    selector of kind ``clip`` or ``arr_clip``."""
+    data = addr.model_dump(exclude_none=True) if isinstance(addr, BaseModel) else dict(addr)
+    kind = "arr_clip" if data.get("arrangement") is not None else "clip"
+    return {"kind": kind, **data}
+
+
+def issue_refs(selectors: list[dict]) -> list[dict]:
+    """Batch preflight: references for every selector (``{kind, ...index selectors,
+    expect_name?}``; kinds as in the remote ``reference_nodes``) in as few ``ref_issue`` calls as
+    possible (64 per call), then the exact-name check on every one. Raises (nothing applied)
+    before any write when a selector is invalid or a name differs. Returns ``{kind, ref, name,
+    expect_name}`` rows in input order; pass ``ref`` and ``expect_name`` on to the write, whose
+    gate re-checks both."""
+    from .models import MAX_TARGETS
+
+    if not selectors:
+        raise ValueError("give at least one target")
+    rows: list[dict] = []
+    for start in range(0, len(selectors), MAX_TARGETS):
+        chunk = selectors[start : start + MAX_TARGETS]
+        items = [{k: v for k, v in sel.items() if k != "expect_name"} for sel in chunk]
+        rows += _call("ref_issue", {"targets": items})["refs"]
+    out = []
+    for i, (sel, row) in enumerate(zip(selectors, rows, strict=True)):
+        expected = sel.get("expect_name")
+        if expected is not None and expected != row.get("name"):
+            raise Refusal(
+                "name_mismatch",
+                f"targets[{i}]: expected {expected!r} but the object is named {row.get('name')!r}",
+            )
+        out.append({**row, "expect_name": expected})
+    return out
+
+
+def run_steps(steps: list[tuple[str, Any]]) -> dict:
+    """Run several write calls (``(label, zero-argument callable)``) as one tool call. A failure
+    in the first step propagates (the gate's refusal text is then true). From the first success
+    on, nothing raises: the reply is a receipt with ``status`` complete/partial and per-step
+    ``outcome`` (applied, not_applied for a bridge refusal, unknown for anything that may have
+    applied, not_attempted after a stop). It stops at the first failure; there is no rollback."""
+    done: list[dict] = []
+    stopped, error = None, None
+    for i, (label, step) in enumerate(steps):
+        if stopped is not None:
+            done.append({"index": i, "label": label, "outcome": "not_attempted"})
+            continue
+        try:
+            result = step()
+        except Exception as exc:
+            if not done:
+                raise
+            known = isinstance(exc, ValueError | BridgeError)
+            stopped, error = i, _explain(exc) if known else f"{type(exc).__name__}: {exc}"
+            # A bridge refusal is returned before that call's write; anything else may have
+            # changed Live. _explain's "(not applied)" then describes this step only.
+            refused = isinstance(exc, Refusal) or (
+                isinstance(exc, BridgeError) and not exc.may_have_applied
+            )
+            outcome = "not_applied" if refused else "unknown"
+            done.append({"index": i, "label": label, "outcome": outcome, "error": error})
+            continue
+        partial = isinstance(result, dict) and result.get("status") == "partial"
+        done.append({"index": i, "label": label, "outcome": "applied", "result": result})
+        if partial:
+            stopped, error = i, "a step returned a partial receipt"
+    status = "complete" if stopped is None else "partial"
+    return {"status": status, "items": done, "stopped_at": stopped, "error": error}
+
+
+def tool(name: str):
+    """The registered (guarded) function of tool ``name``; KeyError when it is not registered.
+    Tests and scripts call tools through this (or ``server.<name>``), never through re-exports."""
+    return SPECS[name].fn
+
+
+def __getattr__(name: str):
+    """``server.live_<x>``: any registered tool, by name (no static re-export list to drift)."""
+    spec = SPECS.get(name)
+    if spec is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return spec.fn
+
+
+# ---- tools, resources, prompts: registered by their modules (the helpers above exist first) --
+
+from . import prompts as _prompts  # noqa: E402
+from . import resources as _resources  # noqa: E402
 from . import tools  # noqa: E402, F401 - registers every tool
-from .tools.browser import (  # noqa: E402, F401 - re-exported: tests and scripts call these
-    live_browser_list,
-    live_browser_roots,
-    live_browser_search,
-    live_get_operation,
-    live_load_item,
-)
-from .tools.chain import (  # noqa: E402, F401
-    _preferences,
-    live_build_chain,
-    live_plan_chain,
-    live_vocal_presets,
-)
-from .tools.clips import (  # noqa: E402, F401
-    live_create_clip,
-    live_fire_clip,
-    live_get_clip,
-    live_stop_clip,
-)
-from .tools.devices import live_device_parameters, live_set_device_parameters  # noqa: E402, F401
-from .tools.notes import live_add_notes, live_get_notes  # noqa: E402, F401
-from .tools.scenes import (  # noqa: E402, F401
-    live_create_scene,
-    live_fire_scene,
-    live_list_scenes,
-    live_set_scene_name,
-)
-from .tools.session import (  # noqa: E402, F401
-    live_get_transport,
-    live_hello,
-    live_session_info,
-    live_set_transport,
-)
-from .tools.tracks import live_create_track, live_set_track, live_tracks  # noqa: E402, F401
+
+_resources.register(sys.modules[__name__])
+_prompts.register(sys.modules[__name__])
 
 
 def main() -> None:

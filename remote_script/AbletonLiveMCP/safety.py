@@ -9,9 +9,11 @@ checks for a method classed ``write``:
 2. lease: while a mutation lease is held, the request must carry that lease token;
 3. Set: the *current* Song is fetched from a supplier on every dispatch; a different Song
    object bumps the generation, which drops every reference and any lease;
-4. targets: every target named in ``TARGETS`` must be an opaque reference string issued by a
-   read in the current generation and still a current member of the live object tree, checked
-   level by level from the root (see "Reference kinds" below). A request with no target
+4. targets (then ``expect_name`` on each target, all before the handler): every target named in
+   ``TARGETS`` must be an opaque reference string issued by a read in the current generation and
+   still a current member of the live object tree, checked level by level from the root (see
+   "Reference kinds" below); a list spec ``(param, item, ANY_KIND)`` takes mixed kinds, each item
+   naming its own ``kind``. A request with no target
    (global operation) must carry the expected ``generation``;
 5. only then does the handler run its own value validation and the Live write.
 
@@ -98,6 +100,7 @@ from . import (
 )
 from .core import _HEX, _decode, _windows_private
 from .dom_common import (  # noqa: F401 - re-exported
+    CAPABILITY_STATES,
     CONTROL,
     MIXER_ROLES,
     READ,
@@ -155,6 +158,9 @@ PARENTS = {
     "arr_clip": ("track", "take_lane"),
 }
 REFERENCE_KINDS = tuple(PARENTS)
+# A list target spec ``(list_param, item_param, ANY_KIND)`` takes mixed kinds: each item names its
+# own ``kind`` (one of REFERENCE_KINDS) and ``resolve`` still refuses a reference of another kind.
+ANY_KIND = "any"
 MAX_PATH_NODES = 24  # owner + 6 device levels (device, pad, chain) + leaf, with margin
 
 
@@ -169,7 +175,7 @@ def _valid_spec(spec):
         isinstance(spec, tuple)
         and len(spec) in (2, 3)
         and all(isinstance(s, str) and s for s in spec)
-        and spec[-1] in REFERENCE_KINDS
+        and (spec[-1] in REFERENCE_KINDS or (len(spec) == 3 and spec[-1] == ANY_KIND))
     )
 
 
@@ -206,9 +212,33 @@ def _merge(domains):
     return classification, targets, handlers
 
 
+def _merge_capabilities(domains):
+    """Merge the optional ``CAPABILITIES = {name: (state, reason)}`` tables (dom_common's gate
+    helpers read them through ``ctx.capabilities``). Fails closed like ``_merge``."""
+    merged = {}
+    for module in domains:
+        table = getattr(module, "CAPABILITIES", {})
+        if not isinstance(table, dict):
+            raise DeclarationError(f"{module.__name__}.CAPABILITIES must be a dict")
+        for name, entry in table.items():
+            where = f"capability {name!r} in {module.__name__}"
+            if not isinstance(name, str) or not name or name in merged:
+                raise DeclarationError(f"duplicate or empty {where}")
+            if (
+                not isinstance(entry, tuple)
+                or len(entry) != 2
+                or entry[0] not in CAPABILITY_STATES
+                or not isinstance(entry[1], str)
+            ):
+                raise DeclarationError(f"{where}: entry must be (state, reason)")
+            merged[name] = entry
+    return merged
+
+
 # Every bridge method is classified; a method missing from CLASSIFICATION is refused (fail
 # closed). TARGETS: a write with an empty tuple is a global operation (needs `generation`).
 CLASSIFICATION, TARGETS, HANDLERS = _merge(DOMAINS)
+CAPABILITIES = _merge_capabilities(DOMAINS)
 
 
 def _read_config():
@@ -357,6 +387,9 @@ class Safety:
         self.generation = secrets.randbelow(2**30) + 1
         self._refs = collections.OrderedDict()
         self._lease = None  # (token, expires)
+        # capability -> reason, closed after an unknown outcome (dom_common.quarantine); kept
+        # for the life of this script instance, never reopened by a retry or a Set change.
+        self.quarantined = {}
 
     # ---- Set / generation -------------------------------------------------------------
     def song(self):
@@ -483,7 +516,10 @@ class Safety:
         targets = {}
         for spec in specs:
             if len(spec) == 2:
-                targets[spec[0]] = self.resolve(spec[1], params.get(spec[0]), song)
+                resolved = self.resolve(spec[1], params.get(spec[0]), song)
+                if len(specs) == 1:  # the single target may carry the request's expect_name
+                    _expect_name(resolved, params.get("expect_name"), spec[0])
+                targets[spec[0]] = resolved
             else:
                 items = params.get(spec[0])
                 if (
@@ -492,5 +528,29 @@ class Safety:
                     or not all(isinstance(i, dict) for i in items)
                 ):
                     raise ValueError(f"{spec[0]!r} must be a list of objects")
-                targets[spec[0]] = [self.resolve(spec[2], i.get(spec[1]), song) for i in items]
+                out = []
+                for n, item in enumerate(items):
+                    kind = item.get("kind") if spec[2] == ANY_KIND else spec[2]
+                    if kind not in REFERENCE_KINDS:
+                        raise ValueError(f"{spec[0]}[{n}].kind must be one of {REFERENCE_KINDS}")
+                    resolved = self.resolve(kind, item.get(spec[1]), song)
+                    _expect_name(resolved, item.get("expect_name"), f"{spec[0]}[{n}]")
+                    out.append(resolved)
+                targets[spec[0]] = out
         return targets
+
+
+def _expect_name(resolved, expected, where):
+    """Exact-name check at the gate: every target is checked before the handler (any write)."""
+    if expected is None:
+        return
+    if not isinstance(expected, str):
+        raise ValueError(f"{where}.expect_name must be a string")
+    try:
+        actual = resolved.obj.name
+    except Exception:  # noqa: BLE001
+        actual = None
+    if actual != expected:
+        raise Refused(
+            "name_mismatch", f"{where}: expected {expected!r} but the object is named {actual!r}"
+        )

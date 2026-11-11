@@ -260,11 +260,19 @@ class _Tee:
 # ---- runner -----------------------------------------------------------------------------
 
 
-async def _run(scenario: Scenario, args, chk: Checks, state: dict) -> None:
-    env = {**os.environ}
-    params = StdioServerParameters(
+def server_params(toolsets: str | None = None, extra_env: dict | None = None):
+    """Parameters for launching the real stdio server (``toolsets``: the
+    ``ABLETONLIVEMCP_TOOLSETS`` value, e.g. ``"all"``; None keeps the caller's environment)."""
+    env = {**os.environ, **(extra_env or {})}
+    if toolsets is not None:
+        env["ABLETONLIVEMCP_TOOLSETS"] = toolsets
+    return StdioServerParameters(
         command=sys.executable, args=["-m", "abletonlivemcp.server"], env=env
     )
+
+
+async def _run(scenario: Scenario, args, chk: Checks, state: dict) -> None:
+    params = server_params()
     async with stdio_client(params) as (r, w), ClientSession(r, w) as session:
         await session.initialize()
         h = Harness(session, args.port, args.timeout)

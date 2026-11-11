@@ -62,10 +62,16 @@ class ClipAddr(_Model):
 
 
 class ArrangementClipAddr(_Model):
-    """An arrangement clip: index into ``track.arrangement_clips`` sorted by start."""
+    """An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally
+    in take lane ``take_lane``)."""
 
     track: TrackSel
     arrangement: Index
+    take_lane: Index | None = None
+
+
+ClipRef = ClipAddr | ArrangementClipAddr
+"""Any clip address: ``{track, scene}`` or ``{track, arrangement}`` (one model, every tool)."""
 
 
 class BatchTarget(_Model):
@@ -84,6 +90,35 @@ def check_expect_name(target: BatchTarget, actual: str) -> None:
             "name_mismatch", f"expected {target.expect_name!r} but the object is named {actual!r}"
         )
 
+
+# ---- structural routes (v2 contract: one public facade, fixed per-domain bridge methods) -----
+#
+# live_delete / live_duplicate (batch 2, tools/tracks.py) group their targets by kind and call
+# exactly these bridge methods, children before parents. Each method is a WRITE with the list spec
+# ("targets", "ref", ANY_KIND) or a single kind, takes ``targets: [{kind, ref, expect_name}]`` and
+# returns the dom_common.run_writes receipt. A kind missing from a table is refused:unsupported
+# before any write (device duplication is absent on Live 12.2, P-01).
+
+StructKind = Literal["track", "return", "scene", "clip", "device"]
+DELETE_ROUTES: dict[str, str] = {
+    "clip": "delete_clips",  # batch 3, dom_clips (session clip slots and arrangement clips)
+    "device": "delete_devices",  # batch 4, dom_devices
+    "scene": "delete_scenes",  # batch 2, dom_scenes
+    "track": "delete_tracks",  # batch 2, dom_tracks (regular)
+    "return": "delete_tracks",  # batch 2, dom_tracks (return tracks)
+}
+DUPLICATE_ROUTES: dict[str, str] = {
+    "clip": "duplicate_clips",  # batch 3, dom_clips
+    "scene": "duplicate_scenes",  # batch 2, dom_scenes
+    "track": "duplicate_tracks",  # batch 2, dom_tracks
+}
+ROUTE_ORDER: tuple[str, ...] = ("clip", "device", "scene", "track", "return")
+"""Execution order for a mixed batch: children before parents, so no route invalidates another's
+references."""
+
+# Capability states (remote dom_common): supported runs, unverified runs and says so, disabled and
+# unsupported refuse with ``refused:unsupported`` before any native call.
+CapabilityState = Literal["supported", "unverified", "disabled", "unsupported", "quarantined"]
 
 # ---- reply shapes -----------------------------------------------------------------------------
 
@@ -106,6 +141,31 @@ class WriteReply(_Model):
     generation: int | None = None
     undo_steps: int | None = None
     receipt: dict[str, Any] | None = None
+
+
+ItemOutcome = Literal["applied", "not_applied", "unknown", "not_attempted"]
+
+
+class ItemReceipt(_Model):
+    """One batch item after execution began. ``not_applied`` only for a refusal the bridge
+    returned before that item's write; ``unknown`` when the write may have changed Live."""
+
+    index: int
+    outcome: ItemOutcome
+    result: Any = None
+    error: str | None = None
+
+
+class BatchReceipt(_Model):
+    """The receipt of a batch write once execution began: ``complete`` or ``partial``, never a
+    refusal. No rollback is claimed (undo may revert what applied; see ``undo_steps``)."""
+
+    status: Literal["complete", "partial"]
+    items: tuple[ItemReceipt, ...] = ()
+    stopped_at: int | None = None
+    error: str | None = None
+    undo_steps: int | None = None
+    unverified: tuple[str, ...] = ()  # capabilities used that are not yet Live-proven
 
 
 class RawValue(_Model):

@@ -25,6 +25,13 @@ session (generation). Only ``Safety.invalidate`` (Set change, disconnect) resets
 retry, no rollback and no replay. Ring: ``RING`` records; only ``ready``/``failed`` ones are
 evicted, so a full ring of pending/unknown records refuses new loads (``operations_full``).
 
+Step tasks (v2 contract, docs/plans/v2-contracts.md): ``start_task(kind, step, timeout)`` records
+a bounded multi-tick operation that is not a device load (cue seek/observe/toggle/observe, for
+instance). ``step()`` runs once per tick: it returns None (still pending) or a result dict
+(``ready``); a raise or the timeout makes it ``unknown`` (reason ``error:<Type>`` or
+``timeout``) with ``may_have_applied``. A task never blocks loads, never retries, and reads back
+through the same ``operation`` bridge method as a load (``kind`` tells them apart).
+
 ``tick`` is called from the entry point's ``update_display``; a soft monotonic budget of
 ``TICK_BUDGET`` s per call stops it between operations (a single native call cannot be preempted).
 """
@@ -90,6 +97,34 @@ class Op:
         self.device = self.after = self.devices_after = None  # set when ready
 
 
+class Task:
+    """A bounded step task (see the module docstring)."""
+
+    track = None  # never matches a load target
+
+    def __init__(self, op_id, kind, step, generation, now, timeout):
+        self.id, self.kind, self.step, self.generation = op_id, kind, step, generation
+        self.state, self.reason, self.result = PENDING, None, None
+        self.deadline, self.watch_until = now + timeout, None
+
+    def snapshot(self):
+        state = self.state
+        return {
+            "operation": self.id,
+            "kind": self.kind,
+            "state": state,
+            "reason": self.reason,
+            "applied": True if state == READY else False if state == FAILED else None,
+            "may_have_applied": state in (PENDING, UNKNOWN),
+            "result": self.result,
+            "generation": self.generation,
+        }
+
+
+MAX_TASK_TIMEOUT = 10.0
+MAX_POLL_IDS = 16
+
+
 class Operations:
     def __init__(self, safety, clock=time.monotonic):
         self._safety, self._clock = safety, clock
@@ -102,7 +137,7 @@ class Operations:
         """Refuse before any browser call: one load at a time, never on a quarantined track."""
         generation = self._safety.generation
         for op in self._ring.values():
-            if op.generation != generation:
+            if op.generation != generation or isinstance(op, Task):
                 continue
             if op.state == PENDING:
                 raise Refused(
@@ -150,8 +185,42 @@ class Operations:
             return False
         return same_items(cur, op.before)
 
+    def start_task(self, kind, step, timeout=MAX_TASK_TIMEOUT):
+        """Record a step task (cue protocol etc.); returns its snapshot. Refused when the ring is
+        full of unresolved records."""
+        if not isinstance(kind, str) or not kind or not callable(step):
+            raise ValueError("internal: a task needs a kind and a step callable")
+        for old_id in [i for i, o in self._ring.items() if o.state in (READY, FAILED)]:
+            if len(self._ring) < RING:
+                break
+            del self._ring[old_id]
+        if len(self._ring) >= RING:
+            raise Refused("operations_full", "too many unresolved operations; reset the session")
+        timeout = min(max(float(timeout), 0.1), MAX_TASK_TIMEOUT)
+        task = Task(
+            secrets.token_hex(8), kind, step, self._safety.generation, self._clock(), timeout
+        )
+        self._ring[task.id] = task
+        return task.snapshot()
+
+    def _advance_task(self, task):
+        if task.generation != self._safety.generation:
+            return self._finish(task, UNKNOWN, "set_changed")
+        if self._clock() >= task.deadline:
+            return self._finish(task, UNKNOWN, "timeout")
+        try:
+            out = task.step()
+        except Exception as exc:  # noqa: BLE001 - outcome unknown, never retried
+            return self._finish(task, UNKNOWN, f"error:{type(exc).__name__}")
+        if out is not None:
+            task.result = out if isinstance(out, dict) else {"value": out}
+            self._finish(task, READY, None)
+        return None
+
     # ---- read back --------------------------------------------------------------------
     def snapshot(self, op):
+        if isinstance(op, Task):
+            return op.snapshot()
         state = op.state
         return {
             "operation": op.id,
@@ -173,6 +242,21 @@ class Operations:
             raise Refused("unknown_operation", "unknown or evicted operation id")
         return self.snapshot(op)
 
+    def get_many(self, op_ids):
+        """Up to ``MAX_POLL_IDS`` records in one read (an unknown id reads as ``unknown_operation``
+        in its row, not as a refusal of the whole poll)."""
+        if not isinstance(op_ids, list) or not 1 <= len(op_ids) <= MAX_POLL_IDS:
+            raise ValueError(f"'operations' must be a list of 1..{MAX_POLL_IDS} ids")
+        rows = []
+        for op_id in op_ids:
+            op = self.prior(op_id)
+            rows.append(
+                self.snapshot(op)
+                if op is not None
+                else {"operation": op_id, "state": "unknown_operation"}
+            )
+        return rows
+
     # ---- lifecycle --------------------------------------------------------------------
     def tick(self, budget=TICK_BUDGET):
         """Advance pending/watched operations and expire cursors; returns how many advanced."""
@@ -192,7 +276,10 @@ class Operations:
         for op in active:
             if advanced and self._clock() - started > budget:
                 break  # resume on the next display tick
-            self._advance(op, song)
+            if isinstance(op, Task):
+                self._advance_task(op)
+            else:
+                self._advance(op, song)
             advanced += 1
         return advanced
 

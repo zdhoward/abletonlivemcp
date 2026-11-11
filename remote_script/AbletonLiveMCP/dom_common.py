@@ -378,6 +378,146 @@ def ref_check(ctx, p):
     return {"generation": ctx.safety.generation, "results": results}
 
 
+# ---- shared write helpers (v2 batch-1 contract: docs/plans/v2-contracts.md) ---------------
+#
+# Capabilities. A domain module may export ``CAPABILITIES = {name: (state, reason)}`` next to
+# ``METHODS``; ``safety`` merges them fail-closed into ``safety.CAPABILITIES`` (duplicate names or
+# an unknown state fail the import) and ``ctx.capabilities`` carries the merged table. States:
+#
+# - ``supported``: proven in Live (evidence named in ``reason``); runs.
+# - ``unverified``: implemented defensively, not yet proven; runs, and the reply should say so
+#   (``unverified`` list). The final proof promotes it to ``supported`` or ``disabled``.
+# - ``disabled``: known unsafe on this Live (native crash risk, P-19); refused before any native
+#   call, whatever ``hasattr`` says.
+# - ``unsupported``: the API is absent or read-only (count-in setter, follow actions, ...);
+#   refused before any native call.
+#
+# A runtime quarantine (``quarantine``) closes a capability for the life of the Remote Script
+# after an unknown outcome; it is never reopened by a retry.
+
+SUPPORTED, UNVERIFIED, DISABLED, UNSUPPORTED = "supported", "unverified", "disabled", "unsupported"
+CAPABILITY_STATES = (SUPPORTED, UNVERIFIED, DISABLED, UNSUPPORTED)
+
+
+def unsupported(what, reason):
+    """The bounded refusal for an ability this Live cannot do: ``refused:unsupported``. Raise it
+    only before any write began."""
+    return Refused("unsupported", f"{what}: {reason}")
+
+
+def require(ctx, name, members=()):
+    """Gate one capability before any native call. Returns its state (``supported`` or
+    ``unverified``); raises ``refused:unsupported`` when it is disabled, unsupported, quarantined,
+    undeclared, or when an object in ``members`` (``(obj, attribute)`` pairs) lacks the member.
+    Presence never unlocks a disabled or unsupported capability."""
+    table = getattr(ctx, "capabilities", None) or {}
+    entry = table.get(name)
+    if entry is None:
+        raise unsupported(name, "not a declared capability")
+    state, reason = entry
+    held = getattr(ctx.safety, "quarantined", {}).get(name)
+    if held is not None:
+        raise unsupported(name, f"quarantined after an unknown outcome ({held})")
+    if state not in (SUPPORTED, UNVERIFIED):
+        raise unsupported(name, f"{state} on this Live ({reason})")
+    for obj, attribute in members:
+        if not hasattr(obj, attribute):
+            raise unsupported(name, f"this object has no {attribute!r}")
+    return state
+
+
+def quarantine(ctx, name, why):
+    """Close a capability after an unknown outcome (never retried in this script session)."""
+    held = getattr(ctx.safety, "quarantined", None)
+    if isinstance(held, dict):
+        held.setdefault(name, str(why)[:200])
+
+
+def capability_report(ctx):
+    """``{name: {state, reason}}`` for ``live_hello`` (quarantine overrides the declared state)."""
+    held = getattr(ctx.safety, "quarantined", {})
+    out = {}
+    for name, (state, reason) in sorted((getattr(ctx, "capabilities", None) or {}).items()):
+        if name in held:
+            state, reason = "quarantined", held[name]
+        out[name] = {"state": state, "reason": reason}
+    return out
+
+
+# Two-pass batch writes. Pass 1 validates every item and raises (ValueError or Refused) before any
+# write: the gate then reports "not applied", which is true. Pass 2 writes in order and never
+# raises: from the first write on, the reply is a receipt (complete or partial) whose per-item
+# ``outcome`` is ``applied``, ``unknown`` (the write raised: it may have changed Live) or
+# ``not_attempted``. It stops at the first failure and never rolls back.
+
+APPLIED, UNKNOWN_OUTCOME, NOT_ATTEMPTED = "applied", "unknown", "not_attempted"
+
+
+def run_writes(prepared, write):
+    """Pass 2 over ``prepared`` (pass-1 output, one entry per item): ``write(entry)`` returns a
+    readback row. Returns ``{"status", "applied", "items", "stopped_at", "error"}``."""
+    items, applied, stopped, error = [], [], None, None
+    for i, entry in enumerate(prepared):
+        if stopped is not None:
+            items.append({"index": i, "outcome": NOT_ATTEMPTED})
+            continue
+        try:
+            row = write(entry)
+        except Exception as exc:  # noqa: BLE001 - after writes began, a receipt, never a raise
+            stopped, error = i, f"{type(exc).__name__}: {exc}"[:300]
+            items.append({"index": i, "outcome": UNKNOWN_OUTCOME, "error": error})
+            continue
+        applied.append(row)
+        items.append({"index": i, "outcome": APPLIED, "result": row})
+    status = "complete" if stopped is None else "partial"
+    return {
+        "status": status,
+        "applied": applied,
+        "items": items,
+        "stopped_at": stopped,
+        "error": error,
+    }
+
+
+def two_pass(items, validate, write):
+    """``validate(index, item)`` for every item first (may raise: nothing written), then
+    ``run_writes`` over the validated entries."""
+    prepared = [validate(i, item) for i, item in enumerate(items)]
+    return run_writes(prepared, write)
+
+
+def position_of(seq, obj):
+    """Current index of ``obj`` in ``seq`` by identity/equality (never a stale issued index)."""
+    for i in range(len(seq)):
+        if _same(seq[i], obj):
+            return i
+    raise RuntimeError("object not found in its parent")
+
+
+def for_deletion(resolved):
+    """Order resolved targets for structural deletes: deepest paths first, then the highest issued
+    index first, so no deletion shifts a later target. Delete by identity (``position_of``) at
+    write time, never by the issued index."""
+
+    def key(r):
+        snap = r.path[-1][2]
+        return (-len(r.path), -snap.get("index", snap.get("slot", snap.get("start", 0))))
+
+    return sorted(resolved, key=key)
+
+
+def clip_address_nodes(song, addr):
+    """A clip address -> reference nodes: ``{track, scene}`` (session clip) or
+    ``{track, arrangement[, take_lane]}`` (arrangement clip, sorted by start)."""
+    if not isinstance(addr, dict):
+        raise ValueError("a clip address must be an object")
+    if addr.get("arrangement") is not None:
+        if addr.get("scene") is not None:
+            raise ValueError("a clip address names a 'scene' or an 'arrangement' index, not both")
+        return reference_nodes(song, {**addr, "kind": "arr_clip"})
+    return reference_nodes(song, {**addr, "kind": "clip"})
+
+
 # ---- ref_lab: dev-only structural edits on scratch objects (scripts/live_refs_test.py) -------
 
 _LAB = {"generation": None, "owned": []}  # roots ref_lab created, in the current generation
@@ -406,11 +546,7 @@ def _lab_target(ctx, p, kind_key="kind", ref_key="ref"):
     return resolved
 
 
-def _position(seq, obj):
-    for i in range(len(seq)):
-        if _same(seq[i], obj):
-            return i
-    raise RuntimeError("object not found in its parent")
+_position = position_of
 
 
 def _lab_create_track(ctx, p):
