@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
-from AbletonLiveMCP import handlers  # noqa: E402
+from AbletonLiveMCP import dom_browser, handlers  # noqa: E402
 from AbletonLiveMCP import safety as safety_module  # noqa: E402
 from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
 from AbletonLiveMCP.safety import CLASSIFICATION, READ, WRITE, Safety  # noqa: E402
@@ -149,7 +149,7 @@ def test_browser_search_returns_paths(env):
 
 def test_browser_search_budget_is_bounded(env, monkeypatch):
     _s, _a, d = env
-    monkeypatch.setattr(handlers, "WALK_BUDGET", 2)
+    monkeypatch.setattr(dom_browser, "WALK_BUDGET", 2)
     assert d("browser_search", {"root": "audio_effects", "query": "zzz"})["budget_exhausted"]
 
 

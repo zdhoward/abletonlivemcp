@@ -16,6 +16,7 @@ from abletonlivemcp import chain, server
 from abletonlivemcp.bridge import BridgeError
 from abletonlivemcp.chain_presets import PRESETS
 from abletonlivemcp.server import ToolFailure
+from abletonlivemcp.tools import chain as chain_tools
 
 REMOVED = {
     "als_summary",
@@ -33,8 +34,7 @@ REMOVED = {
 DUMMY_ENV = {
     "ABLETONLIVEMCP_KNOWLEDGE": ".",
     "OPENROUTER_API_KEY": "not-a-real-key",
-    "TYPESAFE_API_KEY": "not-a-real-key",
-    "ABLETONLIVEMCP_JUDGE": "jev",
+    "ABLETONLIVEMCP_JUDGE": "rules",
 }
 
 
@@ -292,7 +292,7 @@ def test_omitted_intent_cannot_become_complete_success(live, monkeypatch):
         stage = {"device": "Compressor", "params": {}}
         return {"stages": [stage], "report": [{"role": "compressor", "notes": ["x: 'a' skipped"]}]}
 
-    monkeypatch.setattr(server, "plan_chain", resolver)
+    monkeypatch.setattr(chain_tools, "plan_chain", resolver)
     plan = _plan({"role": "compressor", "intent": {"a": 1}})
     assert plan["intent_complete"] is False and plan["stages"][0]["omitted"]
     with pytest.raises(ToolFailure, match="omits intent"):

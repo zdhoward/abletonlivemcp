@@ -16,6 +16,15 @@ from .config import ConfigError, checked_path, config_path, ensure_config
 
 SCRIPT = "AbletonLiveMCP"
 MANIFEST = ".abletonlivemcp-install.json"
+# Every module the Remote Script imports (flat files only: a subpackage would not be copied).
+DOMAINS = (
+    "common", "session", "tracks", "scenes", "clips", "notes", "devices", "browser", "drums",
+    "racks", "arrangement", "automation", "recording", "editing", "song", "view", "devx", "labels",
+)  # fmt: skip
+REQUIRED = frozenset(
+    {"__init__.py", "core.py", "handlers.py", "operations.py", "safety.py"}
+    | {f"dom_{name}.py" for name in DOMAINS}
+)
 
 
 class InstallError(ValueError):
@@ -124,7 +133,7 @@ def install(user_library: Path) -> Path:
     if _overlaps(library, package_root) or _overlaps(configuration, package_root):
         raise InstallError("Library, configuration and package resources must not overlap")
     files = source_files()
-    if not {"__init__.py", "core.py", "handlers.py"} <= files.keys():
+    if not REQUIRED <= files.keys():
         raise InstallError("Remote Script resources are incomplete; reinstall the host package")
     expected = {}
     for name, resource in files.items():

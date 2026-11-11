@@ -1,7 +1,9 @@
 """Write-boundary safety for the Remote Script (stdlib only; main thread only).
 
-Dispatch contract (M1b-01). Every bridge method is classified in ``CLASSIFICATION``; a method
-missing from it is refused (fail closed). Order of checks for a method classed ``write``:
+Dispatch contract (M1b-01). Every bridge method is classified in ``CLASSIFICATION``, which is
+merged at import from the ``METHODS`` table of each ``dom_*`` module (a duplicate or malformed
+declaration fails the import); a method missing from it is refused (fail closed). Order of
+checks for a method classed ``write``:
 
 1. policy: ``read_only`` from the shared bridge config (below) must be exactly ``false``;
 2. lease: while a mutation lease is held, the request must carry that lease token;
@@ -51,80 +53,112 @@ import stat
 import time
 from types import SimpleNamespace
 
+from . import (
+    dom_arrangement,
+    dom_automation,
+    dom_browser,
+    dom_clips,
+    dom_common,
+    dom_devices,
+    dom_devx,
+    dom_drums,
+    dom_editing,
+    dom_labels,
+    dom_notes,
+    dom_racks,
+    dom_recording,
+    dom_scenes,
+    dom_session,
+    dom_song,
+    dom_tracks,
+    dom_view,
+)
 from .core import _HEX, _decode, _windows_private
+from .dom_common import CONTROL, READ, WRITE, Refused, _same, same_items  # noqa: F401 - re-exported
 
 MAX_REFS = 1024
 MAX_REF_LEN = 64
 DEFAULT_LEASE_TTL = 30.0
 MAX_LEASE_TTL = 60.0
 
-READ, WRITE, CONTROL = "read", "write", "control"
-
-CLASSIFICATION = {
-    "hello": READ,
-    "session_info": READ,
-    "tracks": READ,
-    "scenes": READ,
-    "clip_slot": READ,
-    "browser_roots": READ,
-    "browser_list": READ,
-    "browser_search": READ,
-    "operation": READ,
-    "device_parameters": READ,
-    "sample_parameter": READ,
-    "sample_parameters": READ,
-    "get_transport": READ,
-    "get_clip": READ,
-    "get_notes": READ,
-    "lease_acquire": CONTROL,
-    "lease_release": CONTROL,
-    "load_item": WRITE,
-    "set_device_parameter": WRITE,
-    "set_device_parameters": WRITE,
-    "create_track": WRITE,
-    "set_track_name": WRITE,
-    "set_track_color": WRITE,
-    "set_tempo": WRITE,
-    "play": WRITE,
-    "stop": WRITE,
-    "create_scene": WRITE,
-    "set_scene_name": WRITE,
-    "fire_scene": WRITE,
-    "create_clip": WRITE,
-    "add_notes": WRITE,
-    "fire_clip": WRITE,
-    "stop_clip": WRITE,
-}
-
-# (param, kind) is a single reference; (list_param, item_param, kind) is a list of objects each
-# carrying a reference. A write with an empty tuple is a global operation (needs `generation`).
-TARGETS = {
-    "load_item": (("track", "track"),),
-    "set_device_parameter": (("parameter", "param"),),
-    "set_device_parameters": (("writes", "parameter", "param"),),
-    "create_track": (),
-    "set_track_name": (("track", "track"),),
-    "set_track_color": (("track", "track"),),
-    "set_tempo": (),
-    "play": (),
-    "stop": (),
-    "create_scene": (),
-    "set_scene_name": (("scene", "scene"),),
-    "fire_scene": (("scene", "scene"),),
-    "create_clip": (("slot", "slot"),),
-    "add_notes": (("clip", "clip"),),
-    "fire_clip": (("clip", "clip"),),
-    "stop_clip": (("clip", "clip"),),
-}
+# The fixed list of domain modules. Every bridge method is declared next to its handler in one of
+# them; later tickets add methods to their own module, never to this list.
+DOMAINS = (
+    dom_common,
+    dom_session,
+    dom_tracks,
+    dom_scenes,
+    dom_clips,
+    dom_notes,
+    dom_devices,
+    dom_browser,
+    dom_drums,
+    dom_racks,
+    dom_arrangement,
+    dom_automation,
+    dom_recording,
+    dom_editing,
+    dom_song,
+    dom_view,
+    dom_devx,
+    dom_labels,
+)
+# Executed by the gate itself (handlers.make_dispatch), never by a domain handler.
+GATE_METHODS = {"lease_acquire": CONTROL, "lease_release": CONTROL}
+REFERENCE_KINDS = ("track", "scene", "slot", "clip", "device", "param")
 
 
-class Refused(Exception):
-    def __init__(self, code, message):
-        super().__init__(message)
-        self.code, self.message = code, message
+class DeclarationError(RuntimeError):
+    """A domain's METHODS table is malformed. Raised at import, so the gate never runs open."""
 
-    def result(self):
-        return {"refused": True, "applied": False, "code": self.code, "message": self.message}
+
+def _valid_spec(spec):
+    """(param, kind) is a single reference; (list_param, item_param, kind) is a list of objects
+    each carrying a reference."""
+    return (
+        isinstance(spec, tuple)
+        and len(spec) in (2, 3)
+        and all(isinstance(s, str) and s for s in spec)
+        and spec[-1] in REFERENCE_KINDS
+    )
+
+
+def _merge(domains):
+    """Build ``(CLASSIFICATION, TARGETS, HANDLERS)`` from the domains' ``METHODS``. Fails closed:
+    a duplicate name, an unknown kind, a missing handler or a malformed target spec raises."""
+    classification, targets, handlers = dict(GATE_METHODS), {}, {}
+    for module in domains:
+        methods = getattr(module, "METHODS", None)
+        if not isinstance(methods, dict):
+            raise DeclarationError(f"{module.__name__} must export a METHODS dict")
+        for name, entry in methods.items():
+            where = f"bridge method {name!r} in {module.__name__}"
+            if not isinstance(name, str) or not name:
+                raise DeclarationError(f"{where}: name must be a non-empty string")
+            if name in classification:
+                raise DeclarationError(f"duplicate {where}")
+            if not isinstance(entry, tuple) or len(entry) != 3:
+                raise DeclarationError(f"{where}: entry must be (handler, kind, targets)")
+            handler, kind, spec = entry
+            if not callable(handler):
+                raise DeclarationError(f"{where}: handler is not callable")
+            if kind == READ:
+                if spec is not None:
+                    raise DeclarationError(f"{where}: a read takes no targets (use None)")
+            elif kind == WRITE:
+                if not isinstance(spec, tuple) or not all(_valid_spec(s) for s in spec):
+                    raise DeclarationError(f"{where}: malformed target spec {spec!r}")
+                targets[name] = spec
+            else:  # CONTROL is reserved for the gate's own lease methods
+                raise DeclarationError(f"unclassified {where}: kind {kind!r}")
+            classification[name] = kind
+            handlers[name] = handler
+    return classification, targets, handlers
+
+
+# Every bridge method is classified; a method missing from CLASSIFICATION is refused (fail
+# closed). TARGETS: a write with an empty tuple is a global operation (needs `generation`).
+CLASSIFICATION, TARGETS, HANDLERS = _merge(DOMAINS)
 
 
 def config_read_only():
@@ -160,20 +194,6 @@ def config_read_only():
         return config.get("read_only") is not False
     except Exception:  # noqa: BLE001 - every failure must fail closed
         return True
-
-
-def _same(a, b):
-    if a is b:
-        return True
-    try:
-        return bool(a == b)
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def same_items(a, b):
-    """Equal length and pairwise identical-or-equal (no ``zip(strict=)``: Python 3.8 safe)."""
-    return len(a) == len(b) and all(_same(a[i], b[i]) for i in range(len(a)))
 
 
 def _at(seq, index, obj):

@@ -47,7 +47,7 @@ def test_rule_plugin_judgments(name, category):
 
 @pytest.fixture
 def no_keys(monkeypatch):
-    for var in ("TYPESAFE_API_KEY", "OPENROUTER_API_KEY", "ABLETONLIVEMCP_JUDGE"):
+    for var in ("OPENROUTER_API_KEY", "ABLETONLIVEMCP_JUDGE"):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -68,11 +68,8 @@ def test_bad_judge_name_is_rejected():
 
 def test_keys_never_select_a_network_backend(no_keys, monkeypatch):
     import socket
-    import sys
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "not-a-real-key")
-    monkeypatch.setenv("TYPESAFE_API_KEY", "not-a-real-key")
-    monkeypatch.delitem(sys.modules, "abletonlivemcp.judge.jev", raising=False)
 
     def no_network(*_a, **_k):
         raise AssertionError("a network call was attempted")
@@ -82,7 +79,6 @@ def test_keys_never_select_a_network_backend(no_keys, monkeypatch):
         j = get_judge(prefer)
         assert j.name == "rules"
         assert j.classify_sample("Kick_01.wav", []).drum_type == "kick"
-    assert "abletonlivemcp.judge.jev" not in sys.modules  # the Jev module was never imported
     assert judge.PLUGIN_CATEGORIES
 
 
