@@ -74,6 +74,15 @@ def _scenario(root):
         install.install(library)
         assert len(list(dest.parent.glob(f".{install.SCRIPT}.backup-*"))) == 1
         restored = config.load_config()
+        # Readers agree: only `secret` is required; duplicate keys and oversize are refused.
+        text = config.config_path().read_text(encoding="utf-8")
+        config.config_path().write_text(json.dumps({"secret": private["secret"]}), "utf-8")
+        assert config.load_config()["secret"] == private["secret"]
+        for bad in (text[:-1] + ', "secret": "x"}', json.dumps({**private, "pad": "x" * 9000})):
+            config.config_path().write_text(bad, encoding="utf-8")
+            with pytest.raises(config.ConfigError):
+                config.load_config()
+        config.config_path().write_text(text, encoding="utf-8")
         secret_same = restored["secret"] == private["secret"]
         policy_same = restored["read_only"] == private["read_only"]
         assert secret_same and policy_same
