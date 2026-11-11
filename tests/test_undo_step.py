@@ -76,9 +76,10 @@ def test_song_without_undo_api_runs_ungrouped():
     assert song.tracks[0].name == "Y"
 
 
-def test_probe_run_manages_its_own_undo_steps():
+def test_probe_run_manages_its_own_undo_steps(monkeypatch):
     song = Song()
     d = dispatcher(song)
+    monkeypatch.setattr(Safety, "dev_probes_enabled", lambda self: False)
     gen = d("session_info", {})["generation"]
     # passes the gate, then the handler refuses (dev probes off); no outer step was opened
     reply = d("probe_run", {"name": "P-03", "generation": gen})

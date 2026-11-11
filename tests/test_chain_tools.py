@@ -326,12 +326,14 @@ def test_unsupported_roots_and_unknown_devices_are_refused_at_plan_time(live):
 
 def test_policy_refusal_and_bridge_refusal_are_errors_that_say_not_applied(live, monkeypatch):
     monkeypatch.undo()  # back to the real policy check, with no readable private config
+    monkeypatch.setattr(server, "load_config", lambda: {"read_only": True})
     monkeypatch.setattr(server._bridge, "call", live.call)
     with pytest.raises(ToolFailure, match=r"read_only: .*\(not applied\)"):
         server.live_create_tracks([NewTrack(kind="audio")])
     assert live.calls == []  # refused before any bridge call
 
     monkeypatch.setattr(server, "_writable", lambda: None)
+    live.script["session_info"] = [{"generation": live.generation}]
     live.script["create_tracks"] = [
         {"refused": True, "applied": False, "code": "stale_generation", "message": "moved"}
     ]
