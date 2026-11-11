@@ -1,4 +1,5 @@
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -218,7 +219,73 @@ def test_browser_bounds_pages_cursors_and_display_cap(env):
             d("sample_parameters", {**loc, "requests": requests})
 
 
-def test_load_state_contract(env, monkeypatch):
+def _append_setup(env):
+    """An audio track holding one ready owned device; returns (song, app, d, audio, base, op)."""
+    song, app, d = env
+    audio = AudioTrack("Audio")
+    song.tracks.append(audio)
+    base = {"track": track_ref(d, 2), "root": "audio_effects", "path": ["Reverb"]}
+    app.browser.hook = lambda item: audio.devices.append(Dev())
+    op = d("load_item", base)
+    d.operations.tick(), d.operations.tick()
+    assert d("operation", {"operation": op["operation"]})["state"] == "ready"
+    audio.view = types.SimpleNamespace(selected_device=None)
+
+    def select(device):
+        audio.view.selected_device = device
+
+    song.view.select_device = select
+    return song, app, d, audio, base, op
+
+
+def test_append_selects_last_device_and_verifies_placement(env):
+    song, app, d, audio, base, op = _append_setup(env)
+    first = audio.devices[0]
+    app.browser.hook = lambda item: audio.devices.insert(
+        audio.devices.index(audio.view.selected_device) + 1, Dev()
+    )
+    second = d("load_item", {**base, "after": op["operation"]})
+    assert second["state"] == "pending" and audio.view.selected_device is first
+    d.operations.tick(), d.operations.tick()
+    done = d("operation", {"operation": second["operation"]})
+    print("\nappend ready:", done["state"], done["devices_after"], "calls", app.browser.calls)
+    assert done["state"] == "ready" and done["devices_after"] == ["Eq8", "Eq8"]
+    assert (
+        audio.devices[0] is first
+        and d.safety.resolve("device", done["device"], song).obj is (audio.devices[1])
+    )
+    # a third append selects the (new) last device
+    third = d("load_item", {**base, "after": second["operation"]})
+    assert audio.view.selected_device is audio.devices[1] and third["state"] == "pending"
+
+
+def test_append_wrong_position_is_unknown_and_quarantined(env):
+    _song, app, d, audio, base, op = _append_setup(env)
+    app.browser.hook = lambda item: audio.devices.insert(0, Dev())  # Live ignored the selection
+    bad = d("load_item", {**base, "after": op["operation"]})
+    d.operations.tick()
+    r = d("operation", {"operation": bad["operation"]})
+    print("\nwrong position:", r["state"], r["reason"], r["device"])
+    assert (r["state"], r["reason"], r["device"]) == ("unknown", "unexpected_placement", None)
+    calls = app.browser.calls
+    assert d("load_item", {**base, "after": op["operation"]})["code"] == "quarantined"
+    assert app.browser.calls == calls and len(audio.devices) == 2  # nothing undone or retried
+
+
+def test_append_without_select_device_refuses_before_browser(env):
+    song, app, d, audio, base, op = _append_setup(env)
+    del song.view.select_device
+    calls = app.browser.calls
+    r = d("load_item", {**base, "after": op["operation"]})
+    print("\nno select_device:", r["code"], "browser calls", app.browser.calls - calls)
+    assert r["code"] == "append_unverified" and r["applied"] is False
+    assert app.browser.calls == calls and len(audio.devices) == 1
+    song.view.select_device = lambda device: None  # selection that is not observed
+    assert d("load_item", {**base, "after": op["operation"]})["code"] == "append_unverified"
+    assert app.browser.calls == calls
+
+
+def test_load_state_contract(env):
     song, app, d = env
     audio, other = AudioTrack("Audio"), AudioTrack("Other")
     full = AudioTrack("Full")
@@ -256,11 +323,10 @@ def test_load_state_contract(env, monkeypatch):
     print("ready:", done["state"], done["devices_after"], "calls", app.browser.calls)
     assert done["state"] == "ready" and done["applied"] is True and done["devices_after"] == ["Eq8"]
     assert d.safety.resolve("device", done["device"], song).obj is audio.devices[0]
-    # occupied now: a fresh load is refused; appending is refused until Live proves placement
+    # occupied now: a fresh load is refused; this fake View has no select_device, so append refuses
     assert d("load_item", {**base, "track": track_ref(d, 2)})["code"] == "target_occupied"
     after = {**base, "after": op["operation"]}
     assert d("load_item", after)["code"] == "append_unverified" and app.browser.calls == 1
-    monkeypatch.setattr(handlers, "APPEND_PLACEMENT_VERIFIED", True)
     audio.devices.append(Dev())  # a user edit: no longer exactly the owned prefix
     assert d("load_item", after)["code"] == "prefix_mismatch" and app.browser.calls == 1
 

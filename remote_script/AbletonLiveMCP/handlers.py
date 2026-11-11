@@ -34,9 +34,10 @@ NOTE_LIMIT = 2000
 SAMPLE_LIMIT = 129  # max display conversions per bridge request (all requests together)
 BATCH_LIMIT = 64
 LOAD_ROOTS = ("audio_effects", "plugins")
-# Appending after existing devices needs Live's insertion point (selected device) to be proven.
-# Until M1b-05 verifies it in real Live, every load onto a non-empty track is refused.
-APPEND_PLACEMENT_VERIFIED = False
+# Documentation only: a browser load inserts after the selected device of the selected track, so an
+# append first selects the track's last device (refused if that cannot be done and observed) and
+# the operation tick verifies per load that the single new device landed last.
+APPEND_PLACEMENT_VERIFIED = True
 _END = object()
 
 
@@ -310,8 +311,20 @@ def _handlers(song, app, safety, operations=None):  # noqa: C901 - flat table of
             or not same_items(prior.after, track.devices)
         ):
             raise Refused("prefix_mismatch", "track is not exactly the ready prefix of 'after'")
-        if not APPEND_PLACEMENT_VERIFIED:
-            raise Refused("append_unverified", "appending after devices is not verified in Live")
+
+    def _select_last_device(track):
+        """Make the track's last device Live's insertion point; refuse unless observed."""
+        last = track.devices[-1]
+        select = getattr(getattr(song, "view", None), "select_device", None)
+        if not callable(select):
+            raise Refused("append_unverified", "song.view.select_device is not available")
+        try:
+            select(last)
+            selected = track.view.selected_device
+        except Exception as exc:  # noqa: BLE001
+            raise Refused("append_unverified", f"cannot select last device: {exc!r}") from exc
+        if not _same(selected, last):
+            raise Refused("append_unverified", "last device selection was not observed")
 
     def load_item(p, t):
         """Start a native load of one supported audio-effect device onto an empty (or owned
@@ -323,7 +336,10 @@ def _handlers(song, app, safety, operations=None):  # noqa: C901 - flat table of
         if not getattr(item, "is_loadable", False) or getattr(item, "is_device", False) is not True:
             raise Refused("unsupported_item", f"{item.name!r} is not a loadable device")
         song.view.selected_track = track
-        op = operations.begin(track, item.name, p["root"])
+        append = p.get("after") is not None
+        if append:
+            _select_last_device(track)
+        op = operations.begin(track, item.name, p["root"], append=append)
         try:
             app.browser.load_item(item)
         except Exception as exc:  # noqa: BLE001 - outcome is established by observation
