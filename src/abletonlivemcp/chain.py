@@ -84,6 +84,23 @@ def _chunks(items, size=CHUNK):
         yield items[i : i + size]
 
 
+SAMPLE_BUDGET = 129  # display conversions per request, all entries together (Remote Script cap)
+
+
+def _sample_groups(solvers):
+    """Solvers grouped so a sample request holds <= CHUNK entries and <= SAMPLE_BUDGET values."""
+    group, used = [], 0
+    for s in solvers:
+        n = len(s.values)
+        if group and (len(group) == CHUNK or used + n > SAMPLE_BUDGET):
+            yield group
+            group, used = [], 0
+        group.append(s)
+        used += n
+    if group:
+        yield group
+
+
 class _Solver:
     """Finds the stored value whose display matches one target, a sampling round at a time."""
 
@@ -182,7 +199,7 @@ def _solve_and_write(call, loc, solvers: list[_Solver], out: dict[int, dict]) ->
     active = [s for s in solvers if s.values is not None]  # raw targets need no sampling
     while active:
         nxt = []
-        for group in _chunks(active):
+        for group in _sample_groups(active):
             requests = [{"parameter": s.param["index"], "values": s.values} for s in group]
             reply = call("sample_parameters", {**loc, "requests": requests})["results"]
             for s, r in zip(group, reply, strict=True):

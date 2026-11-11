@@ -123,6 +123,7 @@ def test_roots_come_from_the_environment(tmp_path, monkeypatch):
         b'<!DOCTYPE x [<!ENTITY a "b">]><Ableton><LiveSet>&a;</LiveSet></Ableton>',
         b'<?xml version="1.0"?>' + b" " * 70000 + b'<!DOCTYPE x [<!ENTITY a "b">]><Ableton/>',
     ],
+    ids=["doctype", "entity", "late-doctype"],  # a 70 KB id overflows Windows env vars
 )
 def test_dtd_and_entities_are_refused(xml):
     with pytest.raises(AlsError):

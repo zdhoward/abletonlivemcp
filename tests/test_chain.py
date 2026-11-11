@@ -95,6 +95,8 @@ class FakeLive:
                 for i, (n, k, lo, hi, q) in enumerate(rows)
             ]
         if method == "sample_parameters":
+            # the Remote Script caps display conversions at 129 per request, all entries together
+            assert sum(len(r["values"]) for r in p["requests"]) <= 129
             return {
                 "results": [
                     self.call(
