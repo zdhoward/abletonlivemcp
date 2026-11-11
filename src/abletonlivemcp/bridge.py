@@ -294,8 +294,31 @@ class BridgeError(Exception):
     def __init__(self, kind: str, message: str, may_have_applied: bool = False):
         super().__init__(f"{kind}: {message}")
         self.kind = kind
+        self.message = message
         self.may_have_applied = may_have_applied
         self.retryable = False
+
+    def __str__(self) -> str:
+        # MCP clients only see this text, so state the outcome explicitly.
+        outcome = (
+            "may have been applied; read back state before retrying"
+            if self.may_have_applied
+            else "not applied"
+        )
+        return f"{self.kind}: {self.message} ({outcome})"
+
+
+_UNSIGNED_KINDS = {"BadFrame", "FrameTooLarge", "FrameTimeout"}
+
+
+def _reject_unsigned_error(frame, transmitted):
+    """The server's unsigned {"type":"error"} frames are diagnostics, never outcomes."""
+    if isinstance(frame, dict) and frame.get("type") == "error" and "mac" not in frame:
+        kind = frame.get("error")
+        if kind == "Busy":
+            raise BridgeError("BridgeBusy", "bridge busy; try again shortly", transmitted)
+        if kind in _UNSIGNED_KINDS:
+            raise BridgeError(kind, "bridge exchange incomplete", transmitted)
 
 
 class BridgeClient:
@@ -319,8 +342,18 @@ class BridgeClient:
 
     def _authenticate(self, wire, secret):
         nonce = secrets.token_hex(32)
-        wire.send({"type": "client_hello", "protocol": 2, "nonce": nonce})
-        hello = _verify(secret, "server_hello", {}, wire.read())
+        try:
+            wire.send({"type": "client_hello", "protocol": 2, "nonce": nonce})
+        except OSError:
+            # A busy server may already have answered and closed; surface its explicit reply.
+            try:
+                _reject_unsigned_error(wire.read(), False)
+            except (OSError, ValueError):
+                pass
+            raise
+        frame = wire.read()
+        _reject_unsigned_error(frame, False)
+        hello = _verify(secret, "server_hello", {}, frame)
         if (
             set(hello) != {"type", "protocol", "context"}
             or hello["type"] != "server_hello"
@@ -355,7 +388,9 @@ class BridgeClient:
         ):
             raise ValueError("incompatible bridge status or capabilities")
         wire.send(_signed(secret, "client_auth", context, {"type": "client_auth", "protocol": 2}))
-        ready = _verify(secret, "authenticated", context, wire.read())
+        frame = wire.read()
+        _reject_unsigned_error(frame, False)
+        ready = _verify(secret, "authenticated", context, frame)
         if ready != {"type": "authenticated", "protocol": 2} or type(ready["protocol"]) is not int:
             raise ValueError("invalid authentication acknowledgement")
         self.status = status
@@ -408,7 +443,9 @@ class BridgeClient:
                 _encode(request)  # validate and bound everything before attempting transmission
                 transmitted = True  # even a failed sendall may have transmitted the entire request
                 wire.send(request)
-                reply = _verify(secret, "response", context, wire.read())
+                frame = wire.read()
+                _reject_unsigned_error(frame, True)
+                reply = _verify(secret, "response", context, frame)
                 if (
                     reply.get("type") != "response"
                     or type(reply.get("protocol")) is not int

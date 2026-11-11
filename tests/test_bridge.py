@@ -555,3 +555,46 @@ def test_client_rejects_impersonation_spoofed_and_unbounded_replies(private_conf
         "reply line/partial >1048576=FrameTooLarge; idle-reply=FrameTimeout; "
         "post-transmit errors may_have_applied=True retryable=False; compatible-patch=ok"
     )
+
+
+def test_review_fixes_outcome_text_refusals_auth_deadline_and_busy(private_config, monkeypatch):
+    applied = str(bridge.BridgeError("ExchangeTimeout", "bridge deadline expired", True))
+    refused = str(bridge.BridgeError("Busy", "x", False))
+    assert applied.endswith("(may have been applied; read back state before retrying)")
+    assert refused.endswith("(not applied)")
+
+    def dispatch(method, params):
+        if method == "refuse":
+            raise ValueError("'scene' must be an integer")
+        raise RuntimeError("secret-token-123")
+
+    with running(dispatch) as server:
+        with pytest.raises(bridge.BridgeError) as error:
+            bridge.BridgeClient(port=server.port).call("refuse")
+        assert error.value.kind == "ValueError" and not error.value.may_have_applied
+        assert "'scene' must be an integer" in str(error.value)
+        with pytest.raises(bridge.BridgeError) as error:
+            bridge.BridgeClient(port=server.port).call("boom")
+        assert error.value.kind == "HandlerError" and error.value.may_have_applied
+        assert "secret-token-123" not in str(error.value)
+    monkeypatch.setattr(core, "AUTH_TIMEOUT", 0.3)
+    with running(lambda m, p: None, pump=False) as server:
+        with dial(server) as conn:
+            began = time.monotonic()
+            assert closed(conn) == b""  # keyless peer is dropped at the auth deadline
+            assert 0.2 <= time.monotonic() - began < 1.5
+    with running(lambda m, p: None, pump=False) as server:
+        peers = [dial(server) for _ in range(core.MAX_CONNECTIONS)]
+        try:
+            eventually(lambda: len(server._connections) == core.MAX_CONNECTIONS)
+            with pytest.raises(bridge.BridgeError) as error:
+                bridge.BridgeClient(port=server.port).call("busy")
+            assert error.value.kind == "BridgeBusy" and not error.value.may_have_applied
+            assert "bridge busy; try again shortly" in str(error.value)
+        finally:
+            for peer in peers:
+                peer.close()
+    print(
+        "review: str() carries outcome; ValueError readable/not applied; other=HandlerError "
+        "no text; auth deadline 0.3s; unsigned Busy=BridgeBusy not applied"
+    )

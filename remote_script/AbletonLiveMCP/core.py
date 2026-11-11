@@ -23,6 +23,7 @@ MAX_NODES = 16384
 FRAME_TIMEOUT = 5.0  # absolute frame deadline: trickling bytes does not reset it
 EXCHANGE_TIMEOUT = 15.0  # includes authentication, queueing, execution and sending
 REQUEST_TIMEOUT = 10.0  # additionally bounds the wait for drain()
+AUTH_TIMEOUT = 2.0  # accept -> verified client_auth; a keyless peer cannot hold a slot longer
 CAPABILITIES = {
     "authenticated_envelopes": True,
     "bounded_io": True,
@@ -287,13 +288,17 @@ class _Wire:
         self.conn.sendall(raw + b"\n")
 
 
-def _err(rid, kind, may_have_applied=False):
+def _err(rid, kind, may_have_applied=False, message=None):
     return {
         "type": "response",
         "protocol": 2,
         "id": rid,
         "ok": False,
-        "error": {"type": kind, "message": kind, "may_have_applied": may_have_applied},
+        "error": {
+            "type": kind,
+            "message": kind if message is None else message,
+            "may_have_applied": may_have_applied,
+        },
     }
 
 
@@ -412,8 +417,11 @@ class BridgeServer:
                 "ok": True,
                 "result": result,
             }
-        except Exception:
-            # Handler exceptions can contain credentials or user input. Do not echo them.
+        except Exception as exc:
+            # Only deliberate argument refusals (plain ValueError, raised before any change)
+            # are readable. Every other exception can hold credentials or user input: not echoed.
+            if type(exc) is ValueError and len(exc.args) == 1 and isinstance(exc.args[0], str):
+                return _err(req["id"], "ValueError", False, exc.args[0])
             return _err(req["id"], "HandlerError", True)
 
     def _accept_loop(self):
@@ -440,12 +448,19 @@ class BridgeServer:
                     _Wire(conn, time.monotonic() + 0.05).send(
                         {"type": "error", "protocol": 2, "error": "Busy"}
                     )
+                    # Consume the peer's hello so close() sends FIN, not an RST that
+                    # could discard the Busy frame before the client reads it.
+                    conn.shutdown(socket.SHUT_WR)
+                    conn.settimeout(0.05)
+                    conn.recv(4096)
                 except (OSError, ValueError):
                     pass
                 conn.close()
 
     def _client_loop(self, conn):
-        wire = _Wire(conn, time.monotonic() + EXCHANGE_TIMEOUT)
+        started = time.monotonic()
+        wire = _Wire(conn, started + min(AUTH_TIMEOUT, EXCHANGE_TIMEOUT))
+        full_deadline = started + EXCHANGE_TIMEOUT
         context = None
         try:
             hello = wire.read()
@@ -475,6 +490,7 @@ class BridgeServer:
             auth = _verify(self._secret, "client_auth", context, wire.read())
             if auth != {"type": "client_auth", "protocol": 2} or type(auth["protocol"]) is not int:
                 return
+            wire.deadline = full_deadline  # authenticated: normal exchange deadlines apply
             wire.send(
                 _signed(
                     self._secret, "authenticated", context, {"type": "authenticated", "protocol": 2}
