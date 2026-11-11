@@ -1,5 +1,16 @@
 # Lessons
 
+## 2026-11-11 - Final proof review and inherited workers
+- Before using the shared Live process, inspect remaining T3 workers as well as Git worktrees;
+  a settled parent can leave a child mutating the same fixture. Coordinate a stop before proofs.
+- An MCP timeout cancels the await, not necessarily the native mutation. Abort subsequent writes,
+  retain ownership immediately and write evidence in finally. Never accept transport errors as an
+  expected feature refusal; match the specific code and message for negative checks.
+- Apply-mode safety restoration must enclose discovery as well as writes. Verify the resulting
+  policy and fresh object inventory after partial/unknown cleanup; never retry a mutation blindly.
+- Check the actual device tree/path implementation before declaring a path-format gap. The 505
+  kit's nested Simpler is reachable with existing alternating device/chain steps.
+
 ## Wording must match what actually happened (2026-11-10)
 - Mistake: said "I'll start on the M1 bridge now" in a turn with no tool calls; the owner later
   asked why no agents were running. Future-tense wording implied work in progress that wasn't.

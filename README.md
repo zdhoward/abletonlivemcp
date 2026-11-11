@@ -5,7 +5,7 @@
 An MCP server that lets Claude (or any MCP-capable LLM) assist you inside Ableton Live, with control
 as close to native as possible. Not an autonomous producer: you stay in charge, the LLM does the tedious parts.
 
-> **Status: pre-alpha, private development.** The core bridge works in Live 12.2 on Windows; nothing else is supported yet. Roadmap in [`tasks/todo.md`](tasks/todo.md).
+> **Status: pre-alpha, private development (0.0.1).** Tested paths and explicit refusals on Live 12.2/Windows are recorded in the [proof evidence](docs/release/v2-fast-track.md). Current work is in [`tasks/todo.md`](tasks/todo.md). No public release has been approved.
 
 ## Install and upgrade
 
@@ -40,7 +40,7 @@ line saying so at startup.
 - Cover what the other Ableton MCP servers do (sessions, tracks, clips, mixer, devices, browser loading) and go
   further, with verified writes (every change is read back and reported as stored), read-only by default, and
   fewer, batched calls. Parity is tracked in [`docs/plans/v2-detailed-plan.md`](docs/plans/v2-detailed-plan.md) as it lands;
-  today's surface is a subset (no arrangement, mixer or note-edit tools yet).
+  the current surface includes mixer/routing, extended note edits and bounded arrangement operations.
 - Build drum racks in a standard layout from the one-shots you actually use in recent projects.
 - Set up scenes and plugin stacks; replicate a described vocal chain with the plugins you own.
 - Group an FX chain into a rack and label/map macros from a plain-language spec.
@@ -49,12 +49,30 @@ line saying so at startup.
 ## Knowledge base
 
 [`knowledge/`](knowledge/INDEX.md) holds sourced notes on FX chains (vocals, drums, busses, guitar/bass,
-keys/synths, mastering). It is a development resource and is **not shipped** in the package. In a
-checkout it is read by the development tooling only; the production server does not expose it as tools.
+keys/synths, mastering). It is **not shipped** in the package. Enable the `library` toolset and
+set `ABLETONLIVEMCP_KNOWLEDGE` to a local knowledge directory to use `live_knowledge` and knowledge resources.
 Anyone can add a Markdown page there; see the index for the two-line convention.
 
 See [`docs/vision.md`](docs/vision.md) for details and [`docs/original-prompt.md`](docs/original-prompt.md)
 for the verbatim founding prompt.
+
+## Toolsets and limits
+
+The default `core` toolset has 30 tools: session/transport/undo, tracks/mixer/scenes, clips/notes,
+device parameters/order, browser/load operations, chain planning/building and confirmed delete/duplicate.
+Set `ABLETONLIVEMCP_TOOLSETS` to a comma-separated list (including `core`) or `all` for 57 tools.
+Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `arrangement`, `automation`, `recording`,
+`editing`, `view`, `devices-advanced`, `files`. Resources and ten workflow prompts supplement tools.
+
+Live 12.2 cannot insert rack chains or map macros automatically. Custom drum-pad loading and pad
+copy refuse unsupported; stock kits, pad reads/mute and rack macro values are available. Unsafe
+arrangement split/move/take-lane edits and arrangement automation refuse unsupported. Capabilities
+vary by object; `live_hello` explains support and refusals. See [final proof](docs/release/v2-fast-track.md)
+for tested paths and limitations; a listed tool does not imply every action is supported.
+
+Offline scans use `ABLETONLIVEMCP_ALS_ROOTS`; MIDI files use `ABLETONLIVEMCP_FILE_ROOTS`
+(both separated with the platform path separator). Global labels use `ABLETONLIVEMCP_DATA_DIR`.
+Writes remain off by default and destructive tools require client form elicitation.
 
 ## Development
 

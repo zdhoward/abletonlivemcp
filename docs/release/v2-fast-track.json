@@ -1,7 +1,7 @@
 {
- "date": "2026-11-11 10:06",
+ "date": "2026-11-11 10:24",
  "live_version": "12.2.0",
- "exit": 1,
+ "exit": 0,
  "coverage_gaps": [],
  "results": [
   {
@@ -10,7 +10,7 @@
    "status": "pass",
    "checks": 3,
    "failures": [],
-   "seconds": 4.26
+   "seconds": 4.42
   },
   {
    "id": "clips-fixture",
@@ -18,7 +18,7 @@
    "status": "pass",
    "checks": 1,
    "failures": [],
-   "seconds": 4.45
+   "seconds": 5.31
   },
   {
    "id": "control-fixture",
@@ -26,7 +26,7 @@
    "status": "pass",
    "checks": 10,
    "failures": [],
-   "seconds": 16.33
+   "seconds": 17.2
   },
   {
    "id": "dev-fixture",
@@ -34,7 +34,7 @@
    "status": "pass",
    "checks": 4,
    "failures": [],
-   "seconds": 17.2
+   "seconds": 17.73
   },
   {
    "id": "dev-browser",
@@ -98,7 +98,7 @@
    "status": "pass",
    "checks": 5,
    "failures": [],
-   "seconds": 6.22
+   "seconds": 6.4
   },
   {
    "id": "clips-create-set-get",
@@ -106,7 +106,7 @@
    "status": "pass",
    "checks": 7,
    "failures": [],
-   "seconds": 14.1
+   "seconds": 14.0
   },
   {
    "id": "midi-file-round-trip",
@@ -114,7 +114,7 @@
    "status": "pass",
    "checks": 3,
    "failures": [],
-   "seconds": 8.46
+   "seconds": 7.84
   },
   {
    "id": "notes-read-edit",
@@ -122,17 +122,15 @@
    "status": "pass",
    "checks": 9,
    "failures": [],
-   "seconds": 13.0
+   "seconds": 12.73
   },
   {
    "id": "control-tracks-mixer",
    "phase": "assembly",
-   "status": "fail",
-   "checks": 2,
-   "failures": [
-    "control-tracks-mixer#1 live_set_tracks: unexpected refusal ValueError: Error executing tool live_set_tracks: ValueError: targets[0]: output routing type must be one of ['Hats', 'Core', 'PAD', 'MainBass', 'ALMCP-FINAL 1111-094749 clips-midi', 'ALMCP-FINAL 1111-094749 dev-drums', 'No Output'] (not applied)"
-   ],
-   "seconds": 7.74
+   "status": "pass",
+   "checks": 7,
+   "failures": [],
+   "seconds": 14.96
   },
   {
    "id": "dev-chain",
@@ -161,12 +159,10 @@
   {
    "id": "dev-drums",
    "phase": "assembly",
-   "status": "fail",
-   "checks": 6,
-   "failures": [
-    "dev-drums#7 live_set_drum_pads: unexpected refusal target_occupied: Error executing tool live_set_drum_pads: refused:target_occupied: the destination pad is not empty; clear it first (not applied)"
-   ],
-   "seconds": 25.39
+   "status": "unsupported",
+   "checks": 18,
+   "failures": [],
+   "seconds": 50.41
   },
   {
    "id": "dev-fx-rack",
@@ -190,7 +186,7 @@
    "status": "pass",
    "checks": 8,
    "failures": [],
-   "seconds": 17.81
+   "seconds": 19.65
   },
   {
    "id": "arrangement-cues",
@@ -198,7 +194,7 @@
    "status": "pass",
    "checks": 3,
    "failures": [],
-   "seconds": 8.28
+   "seconds": 8.5
   },
   {
    "id": "audio-clip-edit",
@@ -206,7 +202,7 @@
    "status": "pass",
    "checks": 1,
    "failures": [],
-   "seconds": 4.42
+   "seconds": 4.31
   },
   {
    "id": "control-record-view",
@@ -214,7 +210,7 @@
    "status": "pass",
    "checks": 6,
    "failures": [],
-   "seconds": 20.65
+   "seconds": 21.95
   },
   {
    "id": "control-session-transport",
@@ -222,37 +218,31 @@
    "status": "pass",
    "checks": 13,
    "failures": [],
-   "seconds": 45.81
+   "seconds": 46.04
   },
   {
    "id": "clips-duplicate-delete",
    "phase": "safety_destructive",
-   "status": "fail",
-   "checks": 1,
-   "failures": [
-    "clips-duplicate-delete#1 live_delete: unexpected refusal not_confirmed: Error executing tool live_delete: refused:not_confirmed: the human did not confirm live_delete (decline) (not applied)"
-   ],
-   "seconds": 4.14
+   "status": "pass",
+   "checks": 2,
+   "failures": [],
+   "seconds": 8.61
   },
   {
    "id": "control-duplicate-delete",
    "phase": "safety_destructive",
-   "status": "blocked",
-   "checks": 0,
-   "failures": [
-    "needs ['control-undo']"
-   ],
-   "seconds": 0
+   "status": "pass",
+   "checks": 7,
+   "failures": [],
+   "seconds": 23.1
   },
   {
    "id": "control-undo",
    "phase": "safety_destructive",
-   "status": "blocked",
-   "checks": 0,
-   "failures": [
-    "needs ['control-tracks-mixer']"
-   ],
-   "seconds": 0
+   "status": "pass",
+   "checks": 5,
+   "failures": [],
+   "seconds": 10.58
   },
   {
    "id": "dev-delete-device",

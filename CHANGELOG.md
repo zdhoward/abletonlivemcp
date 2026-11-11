@@ -7,6 +7,10 @@ minor version once the first public release is tagged.
 ## [Unreleased]
 
 ### Added
+- 57 tools across core (30) and opt-in toolsets: mixer/routing, notes, clips, arrangement,
+  automation, recording/view, racks/drums/Simpler, MIDI files, offline usage and labels.
+- Optional local knowledge access, resources and ten workflow prompts; compact core schemas.
+- One serial final Live scenario runner with scratch ownership and confirmation checks.
 - Protocol 2 mutually authenticated, bounded bridge; transactional installer; private config file.
 - Safety layer: object references with a generation counter, read-only policy (default), bounded mutation lease.
 - Bounded browser paging/search and a verified device-load state machine (`pending/ready/failed/unknown`).

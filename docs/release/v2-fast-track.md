@@ -1,7 +1,7 @@
-# v2 fast-track final proof (2026-11-11 10:06)
+# v2 fast-track final proof (2026-11-11 10:24)
 
 - Live version: 12.2.0
-- Result: exit 1
+- Result: exit 0
 - Coverage gaps: none
 - Log.txt: C:\Users\ZECHS\AppData\Roaming\Ableton\Live 12.2\Preferences\Log.txt
 - Ledger: docs/release/v2-fast-track-ledger.json
@@ -23,11 +23,11 @@
 | clips-create-set-get | musical_edits | pass | 7 |  |
 | midi-file-round-trip | musical_edits | pass | 3 |  |
 | notes-read-edit | musical_edits | pass | 9 |  |
-| control-tracks-mixer | assembly | fail | 2 | control-tracks-mixer#1 live_set_tracks: unexpected refusal ValueError: Error executing tool live_set_tracks: ValueError: targets[0]: output routing type must be |
+| control-tracks-mixer | assembly | pass | 7 |  |
 | dev-chain | assembly | pass | 5 |  |
 | dev-chain-on-return | assembly | pass | 1 |  |
 | dev-convert | assembly | pass | 1 |  |
-| dev-drums | assembly | fail | 6 | dev-drums#7 live_set_drum_pads: unexpected refusal target_occupied: Error executing tool live_set_drum_pads: refused:target_occupied: the destination pad is not |
+| dev-drums | assembly | unsupported | 18 |  |
 | dev-fx-rack | assembly | unsupported | 0 |  |
 | dev-rack | assembly | pass | 6 |  |
 | arrangement-clips | arrangement_control | pass | 8 |  |
@@ -35,9 +35,9 @@
 | audio-clip-edit | arrangement_control | pass | 1 |  |
 | control-record-view | arrangement_control | pass | 6 |  |
 | control-session-transport | arrangement_control | pass | 13 |  |
-| clips-duplicate-delete | safety_destructive | fail | 1 | clips-duplicate-delete#1 live_delete: unexpected refusal not_confirmed: Error executing tool live_delete: refused:not_confirmed: the human did not confirm live_ |
-| control-duplicate-delete | safety_destructive | blocked | 0 | needs ['control-undo'] |
-| control-undo | safety_destructive | blocked | 0 | needs ['control-tracks-mixer'] |
+| clips-duplicate-delete | safety_destructive | pass | 2 |  |
+| control-duplicate-delete | safety_destructive | pass | 7 |  |
+| control-undo | safety_destructive | pass | 5 |  |
 | dev-delete-device | safety_destructive | pass | 3 |  |
 | als-path-escape-refused | offline_mcp | pass | 1 |  |
 | als-scan-usage | offline_mcp | pass | 5 |  |
@@ -105,65 +105,7 @@ PASS dev-fixture#1 live_create_tracks
 PASS dev-fixture#2 live_create_tracks
 PASS dev-fixture#3 live_create_tracks
 
-### phase 3/9: browser_devices
-
-== dev-browser (browser_devices)
-PASS dev-browser#0 live_browser_list
-PASS dev-browser#0 live_browser_list complete == True: True
-PASS dev-browser#1 live_browser_list
-PASS dev-browser#2 live_browser_search
-
-== dev-load-audio (browser_devices)
-PASS dev-load-audio#0 live_load_item
-PASS dev-load-audio#1 live_get_operation
-PASS dev-load-audio#2 live_get_operation
-PASS dev-load-audio#2 live_get_operation operations.0.state == 'ready': 'ready'
-
-== dev-params (browser_devices)
-PASS dev-params#0 live_get_device_parameters
-PASS dev-params#1 live_get_device_parameters
-PASS dev-params#2 live_get_device_parameters
-PASS dev-params#3 live_set_device_parameters
-PASS dev-params#3 live_set_device_parameters status == 'complete': 'complete'
-PASS dev-params#4 live_set_device_parameters
-
-== dev-set-devices (browser_devices)
-PASS dev-set-devices#0 live_set_devices
-PASS dev-set-devices#0 live_set_devices status == 'complete': 'complete'
-PASS dev-set-devices#1 live_set_devices
-
-== dev-load-return (browser_devices)
-PASS dev-load-return#0 live_load_item
-
-== dev-move (browser_devices)
-PASS dev-move#0 live_move_device: refused unsupported as expected
-PASS dev-move#1 live_move_device
-PASS dev-move#1 live_move_device position == 0: 0
-
-== dev-extras (browser_devices)
-PASS dev-extras#0 live_get_device_extras
-info dev-extras#1 live_set_device_extras: supported refusal: unsupported: Error executing tool live_set_device_extras: refused:unsupported: devx.preset_select: this object has no 'selected_preset_index' (not applied)
-
 ### phase 5/9: assembly
-
-== dev-chain (assembly)
-PASS dev-chain#0 live_plan_chain
-PASS dev-chain#1 live_build_chain
-PASS dev-chain#1 live_build_chain status == 'complete': 'complete'
-PASS dev-chain#2 live_build_chain
-PASS dev-chain#2 live_build_chain already_built == True: True
-
-== dev-fx-rack (assembly)
-info dev-fx-rack#0 live_plan_chain: supported refusal: unsupported: Error executing tool live_plan_chain: refused:unsupported: rack.insert_chain is unsupported: this Live has no insert_chain (not applied)
-info dev-fx-rack#1 live_build_chain: skipped: its input came from a supported refusal
-
-== dev-rack (assembly)
-PASS dev-rack#0 live_load_item
-PASS dev-rack#1 live_get_operation
-PASS dev-rack#2 live_get_operation
-PASS dev-rack#2 live_get_operation state == 'ready': 'ready'
-PASS dev-rack#3 live_get_rack
-PASS dev-rack#4 live_set_rack
 
 == dev-drums (assembly)
 info dev-drums#0 live_plan_drum_rack: supported refusal: unsupported: Error executing tool live_plan_drum_rack: refused:unsupported: load.drum_pad is quarantined: load aa7d96dfb3cd0ecf had an unknown outcome (not applied)
@@ -173,84 +115,18 @@ PASS dev-drums#3 live_get_operation
 PASS dev-drums#4 live_get_operation
 PASS dev-drums#4 live_get_operation state == 'ready': 'ready'
 PASS dev-drums#5 live_get_drum_rack
+PASS dev-drums#5 live_get_drum_rack pads.0.chains == 0: 0
 PASS dev-drums#6 live_set_drum_pads
-FAIL dev-drums#7 live_set_drum_pads: unexpected refusal target_occupied: Error executing tool live_set_drum_pads: refused:target_occupied: the destination pad is not empty; clear it first (not applied)
-
-== dev-convert (assembly)
-PASS dev-convert#0 live_convert
-
-== dev-chain-on-return (assembly)
-PASS dev-chain-on-return#0 live_plan_chain
-
-### phase 7/9: safety_destructive
-
-== dev-delete-device (safety_destructive)
-PASS dev-delete-device#0 live_set_devices
-PASS dev-delete-device#1 live_delete
-PASS dev-delete-device#1 live_delete status == 'complete': 'complete'
-
-### phase 8/9: offline_mcp
-
-== library-knowledge (offline_mcp)
-PASS library-knowledge#0 live_knowledge
-PASS library-knowledge#0 live_knowledge action == 'search': 'search'
-PASS library-knowledge#1 live_knowledge
-PASS library-knowledge#1 live_knowledge provenance == 'knowledge_base_reference_data': 'knowledge_base_reference_data'
-PASS library-knowledge#2 live_knowledge: refused invalid_request as expected
-PASS library-knowledge#3 live_knowledge: refused invalid_request as expected
-
-== als-path-escape-refused (offline_mcp)
-PASS als-path-escape-refused#0 live_scan_projects: refused invalid_request as expected
-
-== als-scan-usage (offline_mcp)
-PASS als-scan-usage#0 live_scan_projects
-PASS als-scan-usage#0 live_scan_projects truncated == False: False
-PASS als-scan-usage#1 live_usage_report
-PASS als-scan-usage#2 live_usage_report
-PASS als-scan-usage#3 live_usage_report
-
-== mcp-prompts-list-get (offline_mcp)
-PASS prompts/list has every prompt: missing []
-PASS prompts/get arrange_sections
-PASS prompts/get build_drum_rack
-PASS prompts/get diagnose_connection
-PASS prompts/get explain_chain
-PASS prompts/get macro_fx_rack
-PASS prompts/get mix_check
-PASS prompts/get organize_session
-PASS prompts/get safe_tweak
-PASS prompts/get setup_scene
-PASS prompts/get vocal_chain
-
-== mcp-resources-read (offline_mcp)
-PASS resources/list has docs://conventions/units
-PASS resources/list has docs://safety
-PASS resources/list has docs://limits
-PASS resources/list has live://session
-PASS resources/list has live://tracks
-PASS resources/list has knowledge://index
-PASS resources/read docs://conventions/units: # Units and conventions
-- Indices are 0-based (tracks, scenes, devices, clips, p
-PASS resources/read docs://safety: # Safety
-- read_only is the default. Writes need "read_only": false in the local
-PASS resources/read docs://limits: # Known Live 12.2 limits
-- No native macro-mapping API: map macros by hand (righ
-PASS resources/read knowledge://index: [{"page":"acoustic-midi-fx","title":"Acoustic MIDI FX and Programming Techniques
-PASS resources/read live://session: {"provenance":"live_object_text_untrusted","data":{"can_redo":false,"can_undo":t
-PASS resources/read live://tracks: {"provenance":"live_object_text_untrusted","data":{"generation":403555315,"retur
-PASS resources/read live://track/0: {"error":"live_get_tracks() got an unexpected keyword argument 'response_format'
-PASS resources/read live://capabilities: {"build_id":"Live 12.2 Build: 2025-05-20_1c7a2c5dac","capabilities":{"Live.Clip.
-
-### phase 9/9: persistence_finish
-
-== organize-labels-roundtrip (persistence_finish)
-PASS organize-labels-roundtrip#0 live_set_labels
-PASS organize-labels-roundtrip#0 live_set_labels status == 'complete': 'complete'
-PASS organize-labels-roundtrip#1 live_get_labels
-PASS organize-labels-roundtrip#1 live_get_labels set.0.kind == 'song': 'song'
-PASS organize-labels-roundtrip#1 live_get_labels global.0.key == 'almcp-final:plugin': 'almcp-final:plugin'
-PASS organize-labels-roundtrip#2 live_set_labels
-PASS organize-labels-roundtrip#2 live_set_labels status == 'complete': 'complete'
-PASS organize-labels-roundtrip#3 live_set_labels: refused name_mismatch as expected
-RESULT: FAIL (exit 1): 37 scenarios, 5 failed/blocked, 0 coverage gaps
+PASS dev-drums#7 live_set_drum_pads: refused unsupported as expected
+PASS dev-drums#8 live_get_simpler: expected error text 'that device is a InstrumentGroupDevice, not Simpler': ValueError: Error executing tool live_get_simpler: ValueError: that device is a InstrumentGroupDevice, not Simpler (not applied)
+PASS dev-drums#8 live_get_simpler: refused ValueError as expected
+PASS dev-drums#9 live_set_simpler: expected error text "'device' must be a Simpler": ValueError: Error executing tool live_set_simpler: ValueError: 'device' must be a Simpler (not applied)
+PASS dev-drums#9 live_set_simpler: refused ValueError as expected
+PASS dev-drums#10 live_get_simpler
+PASS dev-drums#11 live_set_simpler
+PASS dev-drums#11 live_set_simpler status == 'complete': 'complete'
+PASS dev-drums#12 live_get_simpler
+PASS dev-drums#12 live_get_simpler device.retrigger == True: True
+PASS dev-drums#13 live_set_simpler
+RESULT: PASS (exit 0): 37 scenarios, 0 failed/blocked, 0 coverage gaps
 ```

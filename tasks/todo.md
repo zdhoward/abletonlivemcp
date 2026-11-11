@@ -1,3 +1,45 @@
+# Catchup ledger — 2026-11-11
+
+This ledger and HANDOFF.md supersede the historical checklist below. The six-batch fast-track plan supersedes the v1 milestone outlines and v2 nine-wave execution plan.
+
+## Current plan
+
+- [x] Inventory: one worktree, only main/origin/main, initially clean at 19423fd; no open GitHub issues or code TODO/FIXME markers. Decisions: docs/vision.md and docs/plans/v2-fast-track.md. No PROJECT_LOG.md or DECISIONS.md.
+- [x] Resolve recorded Live failures and offline test/config isolation defects.
+- [x] Align documentation/metadata, clean scratch objects and restore safety defaults.
+- [x] Re-sweep, final suite and serial Live proof, integrated review. Commit/push recorded below.
+
+| Item | Tag / state | Source / acceptance |
+|---|---|---|
+| Control routing/mixer, undo, duplicate/delete | auto, DONE | Serial focused proof passed with actual routing names. |
+| Clip confirmation ownership | auto, DONE | clips-duplicate-delete passed; existing checkpoint fix sufficient. |
+| Drum checkpoint fixes | auto, DONE | Exact wrong-device rejections, pad-copy refusal, nested Simpler write/readback/restore passed; no path-format gap. |
+| Two offline failures; bridge flake | auto, DONE | Config-isolated tests; 385-test suite passed including bridge test. Three new host safety tests also passed (23 affected tests). |
+| Restore config and remove scratch leftovers | auto, DONE | Cleanup removed 9 tracks, 3 returns, 1 cue, 6 MIDI exports; fresh empty inventory and safe config readback. |
+| Saved Set / label persistence | blocked | Actual save_document request rejected as unknown/unclassified; no desktop control capability. Once available, save/reopen isolated labeled Set and compare labels. In-session proof is not persistence evidence. |
+| Real sample schema | auto, DONE | Read-only real audio Set parse: 23 references with absolute/relative paths and recorded sizes. |
+| README, CHANGELOG, version and package validation | auto, DONE | Accurate 57-tool surface, optional knowledge and limits; 0.0.1 consistent, wheel built with 49 remote modules. Release version remains owner-gated. |
+| Cue, hello env/toolsets, destructive safety, resources, core byte cap | auto, DONE | Existing final scenarios and tests cover these; cue proof passed, bogus toolset startup test passed, listing 38,238 bytes. |
+| Public visibility, release/tag/version approval, registry names/accounts | owner | Fast-track owner list: execute approved publication scope after decision. |
+| Ongoing writes to real working Sets | owner | Fast-track owner list: enable only after consent; scratch authorization is settled. |
+| Generated ADG/macros, simulator/evals, WAV analysis, competitor publication | owner, deferred scope | Fast-track explicit T-052/T-080/T-081/T-083 deferrals: reopen only in approved later scope; competitor claims verified before publication. |
+| Absent/unsafe Live 12.2 APIs | product limits, closed | Fast-track cuts and device fix evidence: explicit unsupported refusals, no speculative probe campaign. |
+
+## Assumptions and verification
+
+No frontload questions needed. Scratch lifecycle, bundled fixtures and cleanup are authorized agent work. Keep 0.0.1 until release/version approval; no tag or publication. The free delegate failed with a usage limit; catchup permits inline completion. Tests deferred during implementation and run at request-end verification.
+
+## Catchup results
+
+Merged proof: 34 pass, 3 unsupported, 0 failed/blocked scenarios. All current auto items closed;
+the separate save/reopen requirement above remains genuinely blocked. No deferred catchup tests.
+Review findings fixed and verified with host boundary tests; details in docs/release/catchup-2026-11-11.md.
+Re-sweep found no new auto item, no additional worktree/branch, and no GitHub issue/PR.
+Commits: fa82ebd (policy test isolation), 40f0673 (proof/cleanup safeguards and precise scenarios).
+Evidence, handoff and documentation are committed separately; verified work is pushed to private origin/main.
+
+## Historical checklist (superseded; retained for provenance)
+
 # Plan (owner approved 2026-11-10; target Live 12.2+, see `docs/vision.md` decision log)
 
 Source of intent: `docs/original-prompt.md`. Requirements: `docs/vision.md`.
