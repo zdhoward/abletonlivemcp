@@ -1,37 +1,54 @@
-# Handoff (2026-11-10, end of catchup)
+# Handoff (2026-11-10, end of study & knowledge base sprint)
 
 Repo: `zdhoward/abletonlivemcp` (PRIVATE until the owner is happy with v1). Branch `main`.
 
 ## State
-- **Bridge (M1)**: Remote Script `remote_script/AbletonLiveMCP/` (loopback `127.0.0.1:9877`, newline-framed JSON, main-thread queue via `update_display`) + MCP server `src/abletonlivemcp/server.py` (27 tools) + installer `python -m abletonlivemcp.install "<User Library>"`.
+- **Bridge (M1)**: Remote Script `remote_script/AbletonLiveMCP/` (loopback `127.0.0.1:9877`, newline-framed JSON, main-thread queue via `update_display`) + MCP server `src/abletonlivemcp/server.py` (35 core tools + 3 conditional knowledge tools = 38 tools total) + installer `python -m abletonlivemcp.install "<User Library>"`.
 - **Offline `.als` (M2)**: reader, sample extraction, `scan_projects`, tools `als_summary`, `als_usage_index` (`src/abletonlivemcp/als/`).
-- **Owner's Live is 12.2.0** (NOT 12.4; earlier notes were wrong, corrected in `docs/vision.md`). 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) are unavailable; load devices through the browser (`load_item`).
-- Owner folders: sandbox projects `S:\AbletonMCP\projects` (never touch anything else); User Library `D:\Beatz\DAWs\Ableton 12\User Library` (script installed in `Remote Scripts\AbletonLiveMCP`).
+- **Knowledge Base (M6/M3/M5)**: Comprehensive 31-page knowledge base in `knowledge/` backed by 20 raw collector research files in `research/raw/`. All pages use evidence tags (`**FACT**`, `**CONVENTION**`, `**OPINION**`) and are dynamically indexed and queried via `knowledge_list`, `knowledge_search`, and `knowledge_read` MCP tools (`src/abletonlivemcp/knowledge.py`).
+- **Target Environment**: Owner's Live is **12.2.0** (on Windows; 12.3+ APIs like `insert_device` and `DrumChain.in_note` are unavailable; devices load through the browser route `load_item`). Sandbox folder: `S:\AbletonMCP\projects`; User Library: `D:\Beatz\DAWs\Ableton 12\User Library`.
 
-## Verified in REAL Live 12.2 (2026-11-10)
-Handshake, browser roots/list/search, `load_item` (Compressor to a new track), device parameter read/write with readback (also on VST3 Nexus), track create/rename/color, tempo, range and index guards. MCP server launched over real stdio and called tools (`scripts/stdio_smoke.py`).
+## Comprehensive Knowledge Base Inventory (31 Pages)
+1. **Core Instruments & Stages**: `vocals.md`, `drums.md`, `busses-mixing.md`, `guitar-bass.md`, `keys-synths.md`, `mastering.md`
+2. **Genre-Specific FX Chains**: `rock.md`, `hip-hop.md`, `pop.md`, `acoustic.md`, `edm.md`
+3. **Genre Songwriting, Melody & Production**: `rock-songwriting-production.md`, `hip-hop-songwriting-production.md`, `pop-songwriting-production.md`, `acoustic-songwriting-production.md`, `edm-songwriting-production.md`
+4. **Genre MIDI FX & Programming**: `rock-midi-fx.md`, `hip-hop-midi-fx.md`, `pop-midi-fx.md`, `acoustic-midi-fx.md`, `edm-midi-fx.md`
+5. **Drum Machines, Patterns, Fills & Cymbals**: `drum-machines.md`, `drum-patterns.md`, `drum-fills-cymbals.md`
+6. **Studio Organization & Engineering Habits**: `studio-organization-templates.md`, `producer-engineer-habits.md`
+7. **Mixing Troubleshooting & Diagnostic Frameworks**: `mixing-troubleshooting.md`, `mixing-diagnostics-decision-tree.md`
+8. **VST Processors, Instruments & Stock Translation**: `vst-processors.md`, `vst-instruments-stock-mappings.md`
 
-Also verified later the same day (`scripts/live_clip_test.py`): play/stop/get_transport, create/rename/fire scene, create MIDI clip, occupied-slot guard, write and read back 3 notes, fire/stop clip, bad-index and bad-pitch guards. Live applies play/stop/launch a tick late, so the MCP server waits 0.3 s and re-reads (`server._settled`).
-Jev (optional judge layer, `src/abletonlivemcp/judge/`): default transport is OpenRouter (`OPENROUTER_API_KEY`, model `typesafe/jev-1.14`, stdlib only); `typesafe-sdk` stays as an alternative for `TYPESAFE_API_KEY`. 40 real calls on synthetic names (`scripts/jev_eval.py`): Jev beat the rules on one-shot vs loop (19/25 vs 14/25) and did not beat them on plugin category from the name alone (10/15 vs 11/15). Not yet built: rules-first, Jev-for-the-rest.
+## Verified in Real Live 12.2 (2026-11-10)
+- Remote Script handshake, browser roots/list/search, `load_item` (Compressor to a new track), device parameter read/write with readback (tested on native devices and VST3 Nexus), track create/rename/color, tempo, range and index guards. Real stdio smoke test passed (`scripts/stdio_smoke.py`).
+- Real clip and transport checks (`scripts/live_clip_test.py`): play/stop/get_transport, create/rename/fire scene, create MIDI clip, write/read 3 notes, fire/stop clip, bad-index and bad-pitch guards, settled transport checks.
+- Jev judge layer evaluated (`src/abletonlivemcp/judge/`) across 40 real OpenRouter calls on synthetic names.
+- Real project scan (`scan_projects`) verified on `S:\AbletonMCP\projects` (1 Set, 11 device instances including 4 VST3 Nexus instances, 0 sample references).
 
-## NOT verified in real Live
-Loading from `plugins`, drum kits, racks. Sample extraction from a real Set (only synthetic; `Basic.als` has no samples). The test Set contains an unsaved track `ALMCP clip test` and scene `ALMCP test`.
+## Pre-Release Audits Completed
+- `docs/plans/audits/hardening.md`: Local bridge authentication, request timeouts, and device indexing safety.
+- `docs/plans/audits/reusability.md`: Packaging, wheel self-containment, and stranger onboarding.
+- `docs/plans/audits/scope.md`: Scoping v1 to stock-first chain building and Session View assistant.
 
-## Knowledge base (added 2026-11-10, after this handoff was written)
-`knowledge/` holds sourced FX-chain notes (see `knowledge/INDEX.md`); raw collector notes are in `research/raw/`. Other threads (e.g. a Gemini thread) add pages there concurrently. Query it with the MCP tools `knowledge_list` / `knowledge_search` / `knowledge_read` (`src/abletonlivemcp/knowledge.py`): the folder is rescanned on every call, pages need only a `# Title`, and nothing is registered by hand. Treat numbers tagged `UNCONFIRMED-NUMBER` / `UNVERIFIED` / `SECOND-HAND` / `LOW CONFIDENCE` as leads, not settings. The rest of this handoff predates the chain builder, role-based chains (`adapters.py`, `resolve.py`) and the knowledge base; run `/wrapup` to refresh it.
+## Validation Status
+- **pytest**: 332 passed in 2.47s (100% pass rate).
+- **ruff**: clean (0 lint errors).
+- **knowledge stdio smoke test**: verified tool execution (`scripts/knowledge_stdio_smoke.py`).
+- **knowledge page parsing**: all 31 pages parsed with valid section counts and line numbers.
 
-## Next steps
-1. Tagged `v0.1.0` after the clip checks. Next: M6 vocal chain via the browser route (no samples needed), then the rules-first Jev combination.
-2. M3 drum rack builder and M4 macro mapping need sample files (list: `docs/research-deep-review.md` section 8). M6 vocal-chain building needs no samples and can start now via the browser route.
-3. Add `delete_track`/`delete_clip` only with an explicit design (currently none by choice).
+## Next Steps
+1. **M6 Chain Builder / Browser Loading**: Connect the curated knowledge base and role adapters (`adapters.py`, `resolve.py`) to browser-based device loading (`load_item`) in real Live 12.2.
+2. **Rules-first Jev Combination**: Implement rules-first classification with Jev fallback for ambiguous plugin names and sample roles.
+3. **M3 Drum Rack Builder**: Build standard 16-pad drum rack generator when audio samples are provided.
+4. **M4 Rack Grouping & Macro Mapping**: Implement parameter macro mapping within Live 12.2 capabilities.
 
-## Owner-only
-- Remove the unsaved `ALMCP test` track in the open `Basic` Set (Ctrl+Z, or close without saving; `Basic.als` on disk was never modified).
-- Provide a Set with audio clips plus sample files for M3/M4.
-- Make repo public / releases.
+## Owner-Only Actions
+- Remove unsaved `ALMCP test` track/scene in open `Basic` Set if desired.
+- Provide audio clip sample sets for M3/M4 drum rack testing.
+- Public release and version publishing decisions.
 
-## Validation
-`pytest` 244 passed, `ruff check .` clean (local, Windows, Python 3.13 in `.venv/`). CI: see latest run after push.
-
-## Key files
-`docs/vision.md` (decision log), `tasks/todo.md` (plan + catchup ledger), `tasks/lessons.md`, `docs/research-deep-review.md`, `remote_script/AbletonLiveMCP/`, `src/abletonlivemcp/`, `scripts/`.
+## Key Files
+- Knowledge index: `knowledge/INDEX.md`
+- Task tracking & plan: `tasks/todo.md`
+- Lessons learned: `tasks/lessons.md`
+- Architecture & decisions: `docs/vision.md`, `docs/research-deep-review.md`
+- Audits: `docs/plans/audits/`
