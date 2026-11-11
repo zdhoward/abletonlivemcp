@@ -1,18 +1,63 @@
+"""Knowledge reader contract, against a tiny synthetic page. Never reads the repo's knowledge/."""
+
 import pytest
 
-from abletonlivemcp import server
+from abletonlivemcp import knowledge
+
+PAGE = """# Synthetic Page
+
+Intro line about widgets.
+
+## Alpha targets
+
+Set the widget to 7 units. UNVERIFIED note.
+
+### Detail
+
+Fine print about gadgets.
+
+## Beta
+
+Nothing about the first topic here.
+"""
 
 
-def test_knowledge_tools_find_and_read_the_real_pages():
-    """Runs against the repo's real knowledge/ folder, not a fixture."""
-    pages = {p["page"]: p for p in server.knowledge_list()["pages"]}
-    assert {"vocals", "drums", "mastering"} <= set(pages)
+@pytest.fixture
+def kb(tmp_path, monkeypatch):
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "synthetic.md").write_text(PAGE, encoding="utf8")
+    monkeypatch.setenv("ABLETONLIVEMCP_KNOWLEDGE", str(tmp_path))
+    return tmp_path
 
-    top = server.knowledge_search("spotify loudness true peak", 3)["results"][0]
-    assert top["page"] == "mastering" and top["all_words"]
 
-    text = server.knowledge_read("mastering", "Loudness and delivery targets")["text"]
-    assert "-14 LUFS" in text
+def test_list_search_and_read_use_only_the_configured_folder(kb):
+    assert knowledge.knowledge_root() == kb and knowledge.available()
+    (page,) = knowledge.list_pages()
+    assert page["page"] == "sub/synthetic" and page["title"] == "Synthetic Page"
+    assert page["sections"] == 4 and page["unconfirmed_tags"] == 1
 
-    with pytest.raises(ValueError):
-        server.knowledge_read("../pyproject")
+    top = knowledge.search("widget units", 3)["results"][0]
+    assert top["page"] == "sub/synthetic" and top["section"].endswith("Alpha targets")
+    assert top["all_words"]
+
+    section = knowledge.read_page("sub/synthetic", "Alpha targets")
+    assert "7 units" in section["text"] and "gadgets" in section["text"]  # sub-section included
+    assert "Nothing about" not in section["text"]
+
+
+def test_bad_requests_are_refused(kb):
+    with pytest.raises(knowledge.KnowledgeError):
+        knowledge.read_page("../pyproject")
+    with pytest.raises(knowledge.KnowledgeError, match="no section"):
+        knowledge.read_page("sub/synthetic", "Missing")
+    with pytest.raises(knowledge.KnowledgeError):
+        knowledge.search("a")  # no word of 2+ characters
+    with pytest.raises(knowledge.KnowledgeError, match="limit"):
+        knowledge.search("widget", 0)
+
+
+def test_missing_folder_is_reported(tmp_path, monkeypatch):
+    monkeypatch.setenv("ABLETONLIVEMCP_KNOWLEDGE", str(tmp_path / "absent"))
+    assert not knowledge.available()
+    with pytest.raises(knowledge.KnowledgeError, match="not found"):
+        knowledge.list_pages()

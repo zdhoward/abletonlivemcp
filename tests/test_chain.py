@@ -2,9 +2,14 @@ import math
 
 import pytest
 
+from abletonlivemcp.bridge import BridgeError
 from abletonlivemcp.chain import (
     ChainError,
-    build_chain,
+    Refusal,
+    WriteInterrupted,
+    _resolve,
+    checked,
+    make_plan,
     parse_display,
     set_parameters,
     set_to_display,
@@ -79,6 +84,7 @@ class FakeLive:
             return [
                 {
                     "index": i,
+                    "ref": f"{p['device']}:{i}",
                     "name": n,
                     "value": self.vals[p["device"]][k],
                     "min": lo,
@@ -99,23 +105,18 @@ class FakeLive:
             }
         if method == "set_device_parameters":
             self.writes.append([w["parameter"] for w in p["writes"]])
-            return {
-                "results": [
-                    self.call(
-                        "set_device_parameter",
-                        {**p, "parameter": w["parameter"], "value": w["value"]},
-                    )
-                    for w in p["writes"]
-                ]
-            }
+            return {"results": [self._write(w["parameter"], w["value"]) for w in p["writes"]]}
         if method == "sample_parameter":
             n = ["On", "Threshold", "Frequency", "Ratio", "Type"][p["parameter"]]
             return {"name": n, "displays": [self._display(n, v) for v in p["values"]]}
-        if method == "set_device_parameter":
-            n = ["On", "Threshold", "Frequency", "Ratio", "Type"][p["parameter"]]
-            self.vals[p["device"]][n] = p["value"]
-            return {"name": n, "value": p["value"], "display": self._display(n, p["value"])}
         raise AssertionError(method)
+
+    def _write(self, ref, value):
+        """Writes name a parameter by the reference its read issued ('device:index')."""
+        device, index = (int(x) for x in ref.split(":"))
+        n = ["On", "Threshold", "Frequency", "Ratio", "Type"][index]
+        self.vals[device][n] = value
+        return {"name": n, "value": value, "display": self._display(n, value)}
 
     def _display(self, name, v):
         if name == "Threshold":
@@ -176,94 +177,13 @@ def test_bad_targets_are_refused(name, target, message):
         set_to_display(live.call, {"track": 0, "device": 0}, _param(live, name), target)
 
 
-def test_build_chain_loads_in_order_and_reports_actual_values():
-    live = FakeLive()
-    out = build_chain(
-        live.call,
-        0,
-        [
-            {"device": "eq eight", "params": {"Type": "High Pass 12dB", "frequency": "80 Hz"}},
-            {"device": "Compressor", "params": {"Threshold": "-18 dB", "Ratio": 4}},
-        ],
-    )
-    assert out["ok"] and live.devices == ["EQ Eight", "Compressor"]
-    assert [s["index"] for s in out["stages"]] == [0, 1]
-    assert all(p["exact"] for s in out["stages"] for p in s["params"])
-
-
-def test_a_stage_costs_a_handful_of_bridge_calls_not_one_per_parameter():
-    live = FakeLive()
-    params = {"Type": "Bell", "Frequency": "1 kHz", "Threshold": "-18 dB", "Ratio": 4}
-    out = build_chain(live.call, 0, [{"device": "Compressor", "params": params}])
-    assert out["ok"]
-    # the fake's batch calls reuse its single-parameter ones; count only what crossed the bridge
-    outer = [c for c in live.calls if c not in ("sample_parameter", "set_device_parameter")]
-    # browser_list, load_item, device_parameters, then sampling and writing in batches
-    assert len(outer) <= 9, outer
-    assert outer.count("set_device_parameters") == 2  # options wave, then numbers wave
-
-
-def test_options_are_written_before_numeric_parameters():
-    live = FakeLive()
-    build_chain(
-        live.call,
-        0,
-        [
-            {
-                "device": "Compressor",
-                "params": {"Frequency": "1 kHz", "Type": "Bell", "Device On": True},
-            }
-        ],
-    )
-    first, second = live.writes
-    assert set(first) == {0, 4} and second == [2]  # Device On and Type, then Frequency
-
-
-def test_off_target_value_makes_the_chain_not_ok():
-    live = FakeLive()
-
-    def clamping_call(method, p=None):
-        reply = live.call(method, p)
-        if method == "set_device_parameters":  # Live reads back something far from the target
-            for r in reply["results"]:
-                r["display"] = "9.00 : 1"
-        return reply
-
-    out = build_chain(clamping_call, 0, [{"device": "Compressor", "params": {"Ratio": 4}}])
-    assert out["ok"] is False and out["stages"][0]["params"][0]["exact"] is False
-
-
-def test_unknown_device_fails_before_anything_is_loaded():
-    live = FakeLive()
-    with pytest.raises(ChainError, match="not in Live"):
-        build_chain(live.call, 0, [{"device": "Compressor"}, {"device": "Pultec"}])
-    assert "load_item" not in live.calls and live.devices == []
-
-
-def test_unknown_parameter_is_reported_not_fatal_and_marks_chain_not_ok():
-    live = FakeLive()
-    out = build_chain(live.call, 0, [{"device": "Compressor", "params": {"Threshhold": "-18 dB"}}])
-    assert out["ok"] is False
-    assert "Threshold" in out["stages"][0]["problems"][0]
-
-
-@pytest.mark.parametrize(
-    "stages", [[], "Compressor", [{"params": {}}], [{"device": "x", "params": 3}]]
-)
-def test_bad_stage_shapes_are_refused(stages):
-    with pytest.raises(ChainError):
-        build_chain(FakeLive().call, 0, stages)
-    with pytest.raises(ChainError):
-        build_chain(FakeLive().call, 0, [{"device": "Compressor"}] * 13)
-
-
 class StubPlugin:
     """A plugin whose `Style` is words reported as a continuous parameter, and `Mix` a bare 0..1."""
 
     STYLES = ["Clean", "Classic", "Opto", "Vocal"]
     PARAMS = [
-        {"index": 0, "name": "Style", "min": 0.0, "max": 1.0, "is_quantized": False},
-        {"index": 1, "name": "Mix", "min": 0.0, "max": 1.0, "is_quantized": False},
+        {"index": 0, "ref": "r0", "name": "Style", "min": 0.0, "max": 1.0, "is_quantized": False},
+        {"index": 1, "ref": "r1", "name": "Mix", "min": 0.0, "max": 1.0, "is_quantized": False},
     ]
 
     def __init__(self):
@@ -285,7 +205,10 @@ class StubPlugin:
         assert method == "set_device_parameters"
         self.writes.append([w["parameter"] for w in p["writes"]])
         return {
-            "results": [{"display": self._display(w["parameter"], w["value"])} for w in p["writes"]]
+            "results": [
+                {"display": self._display(int(w["parameter"][1:]), w["value"]), "value": w["value"]}
+                for w in p["writes"]
+            ]
         }
 
 
@@ -307,27 +230,119 @@ def test_raw_targets_are_written_as_given_without_sampling():
         assert "raw value must be a number" in problems[0]
 
 
-def test_text_options_are_written_before_numbers():
-    stub = StubPlugin()
-    set_parameters(
-        stub.call, {}, [(StubPlugin.PARAMS[1], {"raw": 0.5}), (StubPlugin.PARAMS[0], "Opto")]
-    )
-    assert stub.writes == [[0], [1]]
-
-
-def test_stage_with_explicit_path_loads_by_path_and_skips_the_stock_listing():
+def _loaded(*names):
     live = FakeLive()
-    loads = []
+    for n in names:
+        live.call("load_item", {"path": [n]})
+    return live
 
-    def spy(method, p=None):
-        if method == "load_item":
-            loads.append(p)
+
+def test_options_are_written_before_numbers_in_few_bridge_calls():
+    """The one authoritative ordering/cost check (writes name parameters by reference)."""
+    live = _loaded("Compressor")
+    loc = {"track": 0, "device": 0}
+    items = [
+        (_param(live, "Frequency"), "1 kHz"),
+        (_param(live, "Type"), "Bell"),
+        (_param(live, "Device On"), True),
+        (_param(live, "Threshold"), "-18 dB"),
+    ]
+    results, problems = set_parameters(live.call, loc, items)
+    assert not problems and all(r["exact"] for r in results)
+    assert [r["name"] for r in results] == ["Frequency", "Type", "Device On", "Threshold"]
+    first, second = live.writes
+    assert set(first) == {"0:0", "0:4"} and set(second) == {"0:2", "0:1"}  # options, then numbers
+    assert live.calls.count("set_device_parameters") == 2
+    assert live.calls.count("sample_parameters") <= 6  # batched rounds, not one per parameter
+
+
+def test_off_target_readback_is_reported_not_claimed_exact():
+    live = _loaded("Compressor")
+
+    def clamping(method, p=None):
+        reply = live.call(method, p)
+        if method == "set_device_parameters":  # Live reads back something far from the target
+            for r in reply["results"]:
+                r["display"] = "9.00 : 1"
+        return reply
+
+    (r,), problems = set_parameters(
+        clamping, {"track": 0, "device": 0}, [(_param(live, "Ratio"), 4)]
+    )
+    assert not problems and (r["exact"], r["off_target"], r["actual"]) == (False, True, "9.00 : 1")
+    assert r["original"] == {"value": 0.1, "display": "1.19 : 1"}  # what it was before
+
+
+@pytest.mark.parametrize(
+    "cause,check",
+    [
+        ({"refused": True, "applied": False, "code": "read_only", "message": "off"}, "refusal"),
+        (BridgeError("Timeout", "lost", may_have_applied=True), "unknown"),
+    ],
+)
+def test_interrupted_write_keeps_what_was_applied_and_does_not_retry(cause, check):
+    live = _loaded("Compressor")
+    sent = []
+
+    def flaky(method, p=None):
+        if method == "set_device_parameters":
+            sent.append(method)
+            if len(sent) == 2:  # the numbers wave fails after the options wave landed
+                if isinstance(cause, Exception):
+                    raise cause
+                return cause
+        return live.call(method, p)
+
+    items = [(_param(live, "Type"), "Bell"), (_param(live, "Frequency"), "1 kHz")]
+    with pytest.raises(WriteInterrupted) as stop:
+        set_parameters(checked(flaky), {"track": 0, "device": 0}, items)
+    done = stop.value.results
+    assert [r["name"] for r in done] == ["Type"] and done[0]["exact"]  # applied, kept, reported
+    if check == "refusal":
+        assert isinstance(stop.value.cause, Refusal) and stop.value.cause.code == "read_only"
+    else:
+        assert stop.value.cause.may_have_applied is True
+    assert len(sent) == 2  # no retry and no substitute write
+    assert live.vals[0]["Frequency"] == 0.3  # the refused numeric write never landed
+
+
+@pytest.mark.parametrize(
+    "stages", [[], "Compressor", [{"params": {}}], [{"device": "x", "params": 3}]]
+)
+def test_bad_stage_shapes_are_refused_before_any_bridge_call(stages):
+    def never(*_a):
+        pytest.fail("the bridge must not be called for an invalid plan")
+
+    with pytest.raises(ChainError):
+        make_plan(never, stages, 0, {}, None)
+    with pytest.raises(ChainError):
+        make_plan(never, [{"device": "Compressor"}] * 13, 0, {}, None)
+
+
+def test_plan_with_explicit_path_skips_the_stock_listing_and_checks_the_path():
+    live = FakeLive()
+    calls = []
+
+    def call(method, p=None):
+        calls.append(method)
+        if method == "session_info":
+            return {"generation": 3}
+        if method == "tracks":
+            return [{"index": 0, "ref": "t", "name": "Vox", "has_midi_input": False, "devices": []}]
         return live.call(method, p)
 
     stage = {"device": "Pro-C 2", "root": "plugins", "path": ["Compressor"], "params": {"Ratio": 4}}
-    out = build_chain(spy, 0, [stage])
-    assert out["ok"] and "browser_list" not in live.calls
-    assert loads == [{"track": 0, "root": "plugins", "path": ["Compressor"]}]
+    plan = make_plan(call, [stage], 0, {}, None)
+    assert "browser_list" not in calls and "load_item" not in calls  # planning loads nothing
+    assert (plan.stages[0].root, plan.stages[0].path) == ("plugins", ("Compressor",))
+    assert plan.target.generation == 3 and plan.target.name == "Vox"
     for bad in ["x", [], None]:
         with pytest.raises(ChainError, match="path"):
-            build_chain(live.call, 0, [{**stage, "path": bad}])
+            make_plan(call, [{**stage, "path": bad}], 0, {}, None)
+
+
+def test_parameter_names_resolve_uniquely_and_typos_are_reported_with_suggestions():
+    params = _loaded("Compressor").call("device_parameters", {"device": 0})
+    assert _resolve(params, "threshold")["name"] == "Threshold"
+    with pytest.raises(ChainError, match="Threshold"):
+        _resolve(params, "Threshhold")
