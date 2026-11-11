@@ -1,1 +1,144 @@
-[]
+[
+  {
+    "id": "control-hello",
+    "phase": "connection",
+    "tools": ["live_hello", "live_get_session"],
+    "steps": [
+      {"tool": "live_hello", "save": "hello",
+       "assert": [{"path": "capability_report.song.count_in.state", "equals": "unsupported"}]},
+      {"tool": "live_get_session", "save": "sess"}
+    ]
+  },
+  {
+    "id": "control-fixture",
+    "phase": "shared_fixture",
+    "tools": ["live_create_tracks", "live_create_scenes", "live_get_tracks", "live_get_scenes"],
+    "needs": ["control-hello"],
+    "steps": [
+      {"tool": "live_create_tracks", "own": {"label": "ctl-trk", "kind": "track"}, "save": "trk",
+       "args": {"tracks": [{"kind": "midi", "name": "${ledger:ctl-trk}", "color_index": 3}]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_create_tracks", "own": {"label": "ctl-ret", "kind": "return"}, "save": "ret",
+       "args": {"tracks": [{"kind": "return", "name": "${ledger:ctl-ret}"}]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_create_scenes", "own": {"label": "ctl-scn", "kind": "scene"}, "save": "scn",
+       "args": {"scenes": [{"name": "${ledger:ctl-scn}", "tempo": 100}]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_get_tracks",
+       "args": {"tracks": ["${trk.applied.0.track}", "${ret.applied.0.track}"],
+                "include": ["mixer", "routing", "groups"]},
+       "assert": [
+                  {"path": "tracks.0.color_index", "equals": 3}]},
+      {"tool": "live_get_scenes", "args": {"scenes": ["${scn.applied.0.scene}"]},
+       "assert": [{"path": "scenes.0.tempo", "approx": 100, "tol": 0.01}]}
+    ]
+  },
+  {
+    "id": "control-tracks-mixer",
+    "phase": "assembly",
+    "tools": ["live_set_tracks", "live_set_mixer"],
+    "needs": ["control-fixture"],
+    "steps": [
+      {"tool": "live_set_tracks",
+       "args": {"targets": [{"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
+                             "color_index": 12, "mute": true, "monitoring": "off"}]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_set_tracks", "expect": "ok_or_unsupported",
+       "args": {"targets": [{"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
+                             "output_routing": {"type": "Master"}}]}},
+      {"tool": "live_set_mixer",
+       "args": {"targets": [
+         {"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
+          "volume_db": -6, "pan": -0.25, "sends": [{"send": 0, "db": -12}], "crossfade": "A"},
+         {"track": "${ret.applied.0.track}", "expect_name": "${ledger:ctl-ret}", "volume_db": -3}]},
+       "assert": [{"path": "status", "equals": "complete"}, {"path": "mismatched", "equals": []}]}
+    ]
+  },
+  {
+    "id": "control-session-transport",
+    "phase": "arrangement_control",
+    "tools": ["live_set_session", "live_transport", "live_launch", "live_set_scenes"],
+    "needs": ["control-fixture"],
+    "steps": [
+      {"tool": "live_set_session",
+       "args": {"tempo": 123, "loop": {"start": 0, "length": 8, "punch_in": false},
+                "quantization": {"clip_trigger": 4}},
+       "assert": [{"path": "status", "equals": "complete"}, {"path": "mismatched", "equals": []}]},
+      {"tool": "live_set_session", "expect": "refused:unsupported", "args": {"count_in": 1}},
+      {"tool": "live_set_session",
+       "args": {"tempo": "${sess.tempo}",
+                "loop": {"start": "${sess.loop.start}", "length": "${sess.loop.length}"}}},
+      {"tool": "live_set_scenes",
+       "args": {"targets": [{"scene": "${scn.applied.0.scene}", "expect_name": "${ledger:ctl-scn}",
+                             "tempo": "off", "color_index": 5}]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_launch", "save": "fired",
+       "args": {"action": "fire", "targets": [{"kind": "scene", "scene": "${scn.applied.0.scene}"}]}},
+      {"tool": "live_launch",
+       "args": {"action": "stop", "targets": [{"kind": "track", "track": "${trk.applied.0.track}"}]}},
+      {"tool": "live_transport", "args": {"action": "stop"},
+       "assert": [{"path": "settled.is_playing", "equals": false}]},
+      {"tool": "live_transport", "args": {"action": "jump_to", "beats": 0}},
+      {"tool": "live_transport", "expect": "ok_or_unsupported", "args": {"action": "back_to_arranger"}}
+    ]
+  },
+  {
+    "id": "control-record-view",
+    "phase": "arrangement_control",
+    "tools": ["live_record", "live_view"],
+    "needs": ["control-fixture"],
+    "steps": [
+      {"tool": "live_record", "expect": "ok_or_unsupported",
+       "args": {"action": "session_record", "value": true, "length": 1}},
+      {"tool": "live_record", "expect": "refused",
+       "args": {"action": "arrangement_record", "value": true}},
+      {"tool": "live_view", "expect": "ok_or_unsupported", "args": {"action": "show", "view": "Session"}},
+      {"tool": "live_view",
+       "args": {"action": "select", "target": {"kind": "track", "track": "${trk.applied.0.track}"}},
+       "assert": [{"path": "selected", "equals": true}]},
+      {"tool": "live_view", "expect": "ok_or_unsupported", "args": {"action": "stop_audition"}}
+    ]
+  },
+  {
+    "id": "control-undo",
+    "phase": "safety_destructive",
+    "tools": ["live_undo"],
+    "needs": ["control-tracks-mixer"],
+    "steps": [
+      {"tool": "live_set_tracks",
+       "args": {"targets": [{"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
+                             "color_index": 20}]}},
+      {"tool": "live_undo", "args": {"action": "undo", "steps": 1},
+       "assert": [{"path": "done", "equals": 1}]},
+      {"tool": "live_get_tracks", "args": {"tracks": ["${trk.applied.0.track}"]},
+       "assert": [{"path": "tracks.0.color_index", "equals": 12}]}
+    ]
+  },
+  {
+    "id": "control-duplicate-delete",
+    "phase": "safety_destructive",
+    "tools": ["live_duplicate", "live_delete"],
+    "needs": ["control-fixture", "control-undo"],
+    "steps": [
+      {"tool": "live_duplicate", "save": "dup",
+       "args": {"targets": [{"kind": "scene", "scene": "${scn.applied.0.scene}", "expect_name": "${ledger:ctl-scn}"},
+                            {"kind": "track", "track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}"}]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_set_scenes", "own": {"label": "ctl-scn-copy", "kind": "scene"},
+       "args": {"targets": [{"scene": "${dup.items.0.result.applied.0.scene}", "name": "${ledger:ctl-scn-copy}"}]}},
+      {"tool": "live_set_tracks", "own": {"label": "ctl-trk-copy", "kind": "track"},
+       "args": {"targets": [{"track": "${dup.items.1.result.applied.0.track}", "name": "${ledger:ctl-trk-copy}"}]}},
+      {"tool": "live_delete", "confirm": "decline", "expect": "refused:not_confirmed",
+       "args": {"targets": [{"kind": "scene", "scene": "${dup.items.0.result.applied.0.scene}",
+                             "expect_name": "${ledger:ctl-scn-copy}"}]}},
+      {"tool": "live_delete", "confirm": "accept",
+       "args": {"targets": [
+         {"kind": "track", "track": "${dup.items.1.result.applied.0.track}", "expect_name": "${ledger:ctl-trk-copy}"},
+         {"kind": "track", "track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}"},
+         {"kind": "return", "track": "${ret.applied.0.track}", "expect_name": "${ledger:ctl-ret}"},
+         {"kind": "scene", "scene": "${dup.items.0.result.applied.0.scene}", "expect_name": "${ledger:ctl-scn-copy}"},
+         {"kind": "scene", "scene": "${scn.applied.0.scene}", "expect_name": "${ledger:ctl-scn}"}]},
+       "assert": [{"path": "status", "equals": "complete"}]}
+    ]
+  }
+]

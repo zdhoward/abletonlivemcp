@@ -1,0 +1,61 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Recording controls (unverified on Live 12.2). session_record / arrangement_record /\noverdub take `value`; turning one on needs `length` (beats, <= 8 s) and returns an\noperation that restores the switches and play state. trigger_session_record (optional\n`length`), capture_midi (`destination` 0 auto, 1 session, 2 arrangement),\ncapture_and_insert_scene.",
+  "inputSchema": {
+   "properties": {
+    "action": {
+     "enum": [
+      "session_record",
+      "arrangement_record",
+      "overdub",
+      "trigger_session_record",
+      "capture_midi",
+      "capture_and_insert_scene"
+     ],
+     "title": "Action",
+     "type": "string"
+    },
+    "destination": {
+     "default": null,
+     "enum": [
+      0,
+      1,
+      2
+     ],
+     "title": "Destination",
+     "type": "integer"
+    },
+    "length": {
+     "default": null,
+     "exclusiveMinimum": 0,
+     "maximum": 1024,
+     "title": "Length",
+     "type": "number"
+    },
+    "value": {
+     "default": null,
+     "title": "Value",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "action"
+   ],
+   "title": "live_recordArguments",
+   "type": "object"
+  },
+  "name": "live_record",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_recordDictOutput",
+   "type": "object"
+  },
+  "title": "Record"
+ }
+]
