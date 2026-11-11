@@ -95,7 +95,9 @@ def _steps(item, param, length, where):
         w = f"{where}.steps[{i}]"
         if not isinstance(s, dict):
             raise ValueError(f"{w} must be an object")
-        t = float(_number(s.get("time"), f"{w}.time", 0, length, True))
+        t = float(_number(s.get("time"), f"{w}.time", 0, length))
+        if t >= length:
+            raise ValueError(f"{w}.time must be before the clip end")
         d = float(_number(s.get("length"), f"{w}.length", 0, length, True))
         out.append((t, min(d, length - t), float(_number(s.get("value"), f"{w}.value", lo, hi))))
     for i, r in enumerate(item.get("ramps") or []):
