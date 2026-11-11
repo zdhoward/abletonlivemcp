@@ -251,6 +251,7 @@ def test_hello_reports_build_variant_and_capabilities(live):
     _s, _a, d, _g = live
     out = d("hello", {})
     assert out["build_id"] == "abc123" and out["variant"] == "Suite"
+    assert out["read_only"] is False and out["dev_probes"] is False
     assert out["capability_report"]["song.count_in"]["state"] == "unsupported"
     assert out["capability_report"]["track.routing"]["state"] == "unverified"
 

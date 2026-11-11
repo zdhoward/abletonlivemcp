@@ -75,6 +75,9 @@ def hello(ctx, _p):
         "variant": _app_call(app, "get_variant"),
         "build_id": _app_call(app, "get_build_id"),
         "generation": ctx.safety.generation,
+        # the bridge re-reads its config on every call: an edit applies without a restart
+        "read_only": ctx.safety.read_only(),
+        "dev_probes": ctx.safety.dev_probes_enabled(),
         "diagnostics": {
             f: _get(app, f)
             for f in (
