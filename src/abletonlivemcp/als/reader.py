@@ -4,6 +4,11 @@ An .als file is gzip-compressed XML. The structure here is reverse engineered, n
 official schema (see docs/research-deep-review.md), so everything is defensive: unknown
 nodes are ignored, missing fields become None, and nothing is ever written back.
 
+The XML is parsed incrementally with expat, never with an entity-expanding parser: a DOCTYPE or
+ENTITY declaration is refused by the parser itself, and the compressed size, decompressed size,
+node count and nesting depth are all capped (a Set that exceeds a cap is reported as unreadable,
+not truncated). Text content is dropped; the reader only needs tags and attributes.
+
 Samples found in a Set are *references*, not proof of audible use (see UsageLevel in
 docs/research-deep-review.md section 5).
 """
@@ -13,11 +18,20 @@ from __future__ import annotations
 import gzip
 import xml.etree.ElementTree as ET
 import zlib
+from collections.abc import Iterator, Sequence
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+from xml.parsers import expat
 
-MAX_XML_BYTES = 512 * 1024 * 1024  # decompression bomb guard
+from .paths import PathEscape, open_confined
+
+MAX_GZIP_BYTES = 50 * 1024 * 1024  # compressed file size
+MAX_XML_BYTES = 256 * 1024 * 1024  # decompression bomb guard
+MAX_NODES = 3_000_000  # elements in one Set (the parsed tree stays in memory)
+MAX_DEPTH = 128  # element nesting; the walk below is recursive
+_CHUNK = 1024 * 1024
 
 TRACK_TAGS = {"MidiTrack", "AudioTrack", "ReturnTrack", "GroupTrack", "MainTrack", "PreHearTrack"}
 
@@ -81,18 +95,63 @@ def _plugin_info(device: ET.Element) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _parse_chunks(chunks: Iterator[bytes]) -> ET.Element:
+    """Build the element tree (tags and attributes only) from byte chunks under the caps."""
+    parser = expat.ParserCreate()
+    stack: list[ET.Element] = []
+    seen = {"nodes": 0}
+    root: list[ET.Element] = []
+
+    def start(tag: str, attrs: dict) -> None:
+        seen["nodes"] += 1
+        if seen["nodes"] > MAX_NODES:
+            raise AlsError(f"Set has more than {MAX_NODES} XML elements")
+        if len(stack) >= MAX_DEPTH:
+            raise AlsError(f"Set nests XML elements deeper than {MAX_DEPTH}")
+        element = ET.Element(tag, attrs)
+        if stack:
+            stack[-1].append(element)
+        elif not root:
+            root.append(element)
+        stack.append(element)
+
+    def end(_tag: str) -> None:
+        stack.pop()
+
+    def refuse(*_args) -> None:
+        raise AlsError("DTD/entity declarations are not allowed in Live Sets")
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.StartDoctypeDeclHandler = refuse
+    parser.EntityDeclHandler = refuse
+    parser.ExternalEntityRefHandler = refuse
+    try:
+        for chunk in chunks:
+            parser.Parse(chunk, False)
+        parser.Parse(b"", True)
+    except expat.ExpatError as exc:
+        raise AlsError(f"invalid XML: {exc}") from exc
+    return root[0]
+
+
+def _bytes_in(chunks: Iterator[bytes]) -> Iterator[bytes]:
+    total = 0
+    for chunk in chunks:
+        total += len(chunk)
+        if total > MAX_XML_BYTES:
+            raise AlsError(f"Set decompresses to more than {MAX_XML_BYTES} bytes")
+        yield chunk
+
+
 def parse_xml_bytes(data: bytes, path: Path | None = None) -> SetSummary:
     """Parse already-decompressed Set XML. Rejects DTDs/entities outright."""
-    head = data[:4096].lower()
-    if b"<!doctype" in head or b"<!entity" in data[:65536].lower():
-        raise AlsError("DTD/entity declarations are not allowed in Live Sets")
-    try:
-        root = ET.fromstring(data)
-    except ET.ParseError as exc:
-        raise AlsError(f"invalid XML: {exc}") from exc
+    return _summarize(_parse_chunks(_bytes_in(iter([data]))), path)
+
+
+def _summarize(root: ET.Element, path: Path | None) -> SetSummary:
     if root.tag != "Ableton":
         raise AlsError(f"not a Live Set (root element is {root.tag!r})")
-
     summary = SetSummary(
         path=path or Path("<memory>"),
         creator=root.get("Creator"),
@@ -102,7 +161,6 @@ def parse_xml_bytes(data: bytes, path: Path | None = None) -> SetSummary:
     live_set = root.find("LiveSet")
     if live_set is None:
         raise AlsError("Set has no LiveSet element")
-
     _walk(live_set, summary, track=None, device_class=None)
     return summary
 
@@ -211,14 +269,28 @@ def _walk(
         _walk(child, out, track, device_class, midi_notes, evidence)
 
 
-def read_set(path: str | Path) -> SetSummary:
-    """Read and summarize one .als file."""
+def read_set(path: str | Path, roots: Sequence[str | Path] | None = None) -> SetSummary:
+    """Read and summarize one .als file.
+
+    With ``roots`` the path must lie under one of them (absolute, no ``..``, no symlink, junction
+    or reparse point, opened once and checked); the tools always pass them. Without ``roots``
+    the caller vouches for the path (tests, trusted local use)."""
     p = Path(path)
     try:
-        with gzip.open(p, "rb") as fh:
-            data = fh.read(MAX_XML_BYTES + 1)
+        with ExitStack() as stack:
+            if roots is None:
+                if p.stat().st_size > MAX_GZIP_BYTES:
+                    raise AlsError(f"{p.name} is larger than {MAX_GZIP_BYTES} bytes")
+                fh = stack.enter_context(gzip.open(p, "rb"))
+            else:
+                raw, info = open_confined(p, roots)
+                stack.enter_context(raw)
+                if info.st_size > MAX_GZIP_BYTES:
+                    raise AlsError(f"{p.name} is larger than {MAX_GZIP_BYTES} bytes")
+                fh = stack.enter_context(gzip.GzipFile(fileobj=raw, mode="rb"))
+            chunks = iter(lambda: fh.read(_CHUNK), b"")
+            return _summarize(_parse_chunks(_bytes_in(chunks)), p)
+    except PathEscape as exc:
+        raise AlsError(f"refused {p.name}: {exc}") from exc
     except (OSError, EOFError, zlib.error) as exc:
         raise AlsError(f"cannot read {p.name}: {exc}") from exc
-    if len(data) > MAX_XML_BYTES:
-        raise AlsError(f"{p.name} decompresses to more than {MAX_XML_BYTES} bytes")
-    return parse_xml_bytes(data, p)

@@ -18,7 +18,11 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .als.paths import plain_entries
+
 TOP = "(top of page)"
+MAX_PAGE_BYTES = 1024 * 1024
+MAX_PAGES = 2000
 MAX_READ_CHARS = 60_000
 SNIPPET_CHARS = 220
 _HEADING = re.compile(r"^(#{1,4})\s+(.+?)\s*#*\s*$")
@@ -55,9 +59,31 @@ class Section:
 
 
 def _pages(root: Path) -> list[Path]:
+    """Markdown files under root, found by walking plain entries only: a symlink, junction or
+    other reparse point is never followed or listed, so a page cannot point outside the folder.
+    Pages over MAX_PAGE_BYTES and pages beyond MAX_PAGES are left out."""
     if not root.is_dir():
         raise KnowledgeError(f"knowledge directory not found: {root}")
-    return sorted(p for p in root.rglob("*.md") if p.is_file())
+    found: list[Path] = []
+    stack = [root]
+    while stack and len(found) < MAX_PAGES:
+        try:
+            entries = list(plain_entries(stack.pop()))
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(Path(entry.path))
+                elif (
+                    entry.name.lower().endswith(".md")
+                    and entry.is_file(follow_symlinks=False)
+                    and entry.stat(follow_symlinks=False).st_size <= MAX_PAGE_BYTES
+                ):
+                    found.append(Path(entry.path))
+            except OSError:
+                continue
+    return sorted(found)[:MAX_PAGES]
 
 
 def _page_id(root: Path, path: Path) -> str:

@@ -1,0 +1,189 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Your labels. `scope` set (Song, tracks, returns, from the open Set), global (plugins,\ndevices, samples, from the sidecar) or both; `kind` and `label` filter. Text is untrusted.",
+  "inputSchema": {
+   "properties": {
+    "kind": {
+     "anyOf": [
+      {
+       "enum": [
+        "song",
+        "track",
+        "return_track",
+        "plugin",
+        "device",
+        "sample"
+       ],
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kind"
+    },
+    "label": {
+     "anyOf": [
+      {
+       "maxLength": 40,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Label"
+    },
+    "scope": {
+     "default": "both",
+     "enum": [
+      "set",
+      "global",
+      "both"
+     ],
+     "title": "Scope",
+     "type": "string"
+    }
+   },
+   "title": "live_get_labelsArguments",
+   "type": "object"
+  },
+  "name": "live_get_labels",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_labelsDictOutput",
+   "type": "object"
+  },
+  "title": "Get labels"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Set labels in one call. Items: `song` (no key), `track`/`return_track` (key = index,\noptional expect_name), `plugin`/`device`/`sample` (key = usage key). `mode` replace (empty\nlabels and no category clear it), add or remove. Set labels are written first, the sidecar\nlast; later failures return a receipt, with no rollback.",
+  "inputSchema": {
+   "$defs": {
+    "LabelItem": {
+     "additionalProperties": false,
+     "description": "One thing's labels. With ``mode: replace`` empty ``labels`` and no ``category`` clear the\nentry; ``add`` and ``remove`` change only the listed labels (``remove`` with ``category: \"\"``\ndrops the category too).",
+     "properties": {
+      "category": {
+       "anyOf": [
+        {
+         "maxLength": 40,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Category"
+      },
+      "expect_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Track kinds: refuse unless named exactly so",
+       "title": "Expect Name"
+      },
+      "key": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Track/return index; usage key for plugin/device/sample; none for song",
+       "title": "Key"
+      },
+      "kind": {
+       "enum": [
+        "song",
+        "track",
+        "return_track",
+        "plugin",
+        "device",
+        "sample"
+       ],
+       "title": "Kind",
+       "type": "string"
+      },
+      "labels": {
+       "items": {
+        "maxLength": 40,
+        "minLength": 1,
+        "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+        "type": "string"
+       },
+       "maxItems": 16,
+       "title": "Labels",
+       "type": "array"
+      }
+     },
+     "required": [
+      "kind"
+     ],
+     "title": "LabelItem",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "items": {
+     "items": {
+      "$ref": "#/$defs/LabelItem"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "title": "Items",
+     "type": "array"
+    },
+    "mode": {
+     "default": "replace",
+     "enum": [
+      "replace",
+      "add",
+      "remove"
+     ],
+     "title": "Mode",
+     "type": "string"
+    }
+   },
+   "required": [
+    "items"
+   ],
+   "title": "live_set_labelsArguments",
+   "type": "object"
+  },
+  "name": "live_set_labels",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_labelsDictOutput",
+   "type": "object"
+  },
+  "title": "Set labels"
+ }
+]
