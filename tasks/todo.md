@@ -90,7 +90,9 @@ Detailed ticket plan (Opus, 2026-11-11): `docs/plans/v2-detailed-plan.md` (T-001
 
 - [x] P0 done (704b8b1)
 - [x] T-001 split + Jev removal (real-Live proof: docs/release/v2/T-001.md)
-- [ ] Wave 0 remaining: T-002, T-003, T-004 in parallel; T-005 (+P-01); T-006, T-007.
+- [x] Wave 0 done: T-002/T-003/T-004 (merged, real-Live smoke + P-01), T-005 (real-Live proof PASS 58 checks; unproved list in docs/release/v2/T-005-unproved.md), P-03 undo probe = go, T-006 (merged; live_undo_test needs T-010/T-011), T-007 (merged; real-Live acceptance waits on T-017).
+- [ ] Open: test_bridge flake (test_bounds_deadlines_shutdown_and_atomic_cancellation, passed 3x on rerun); cue lab two-call design; live_hello toolsets + bogus-env checks.
+- [ ] Next: Wave 1 probes P-02, P-04..P-29 (serial, real Live), then Wave 2 core surface (T-010+).
 
 ## Next step
 

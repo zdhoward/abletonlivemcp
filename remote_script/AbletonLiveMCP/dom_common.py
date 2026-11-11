@@ -485,6 +485,8 @@ def _lab_create_cue(ctx, p):
         song.current_song_time = previous
     cue = _lab_new(before, song.cue_points, "cue point")
     _lab_owned(ctx).append(cue)
+    if abs(cue.time - time_) > 1e-6:  # Live clamps the playhead to the song length
+        raise ValueError(f"cue landed at {cue.time}, not {time_}: use a time inside the song")
     ordered = sorted(song.cue_points, key=lambda c: c.time)
     return {"time": cue.time, "cue": _position(ordered, cue)}
 
@@ -559,7 +561,17 @@ def _lab_move_device(ctx, p):
     return {"moved": True, "position": position}
 
 
+def _lab_cue_times(ctx, _p):
+    cues = list(ctx.song.cue_points)
+    return {
+        "times": [c.time for c in cues],
+        "eq": [[bool(a == b) for b in cues] for a in cues],
+        "is_same": [[a is b for b in cues] for a in cues],
+    }
+
+
 LAB_ACTIONS = {
+    "cue_times": _lab_cue_times,
     "create_track": _lab_create_track,
     "create_return": _lab_create_return,
     "create_scene": _lab_create_scene,
@@ -581,7 +593,12 @@ def ref_lab(ctx, p, _t):
     run = LAB_ACTIONS.get(action) if isinstance(action, str) else None
     if run is None:
         raise ValueError(f"'action' must be one of {sorted(LAB_ACTIONS)}")
-    out = run(ctx, p)
+    try:
+        out = run(ctx, p)
+    except (Refused, ValueError):
+        raise
+    except Exception as exc:  # dev-only lab (dev_probes + lease): make the failure readable
+        raise ValueError(f"{action} failed: {type(exc).__name__}: {exc}"[:300]) from exc
     out["generation"] = ctx.safety.generation
     return out
 

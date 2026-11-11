@@ -20,6 +20,9 @@ MCP best practices, to maintain and release publicly.
 - To test with writes: temporarily set `read_only:false` in `~/.abletonlivemcp/bridge.json`, restore `true` after (it is `true` now).
 - Use `.venv\Scripts\python` (system python lacks `mcp`). In Git Bash `/tmp` is not visible to Windows Python; use repo-local temp files.
 
+## 2026-11-11 late: Wave 0 complete
+T-002..T-007 merged, P-01 and P-03 done, T-005 proof PASS. **Restart Live only via `scripts/live_restart.ps1 [-Reinstall]`** (clears crash files so there is no recovery dialog; memory live-restart-no-recovery-dialog). Run proofs with `read_only:false` + `dev_probes:true` temporarily in bridge.json, restore after. Open items: `tasks/todo.md`.
+
 ## Next steps (in order; see `tasks/todo.md` and the detailed plan section 3)
 1. Wave 0 remainder: T-002 (toolset registry, annotations, outputSchema, response_format, selectors, auto-lease, snapshot test), T-003 (fixed-table
    probe runner), T-004 (proof harness `scripts/live_harness.py`) in parallel (disjoint files); then T-005 (reference kinds, needs P-01) , T-006 (undo step, needs P-03), T-007 (elicitation for destructive).

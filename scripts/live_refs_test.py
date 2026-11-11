@@ -120,19 +120,35 @@ async def _run(h, a, chk, lab):
         lab.act("create_arr_clip", **own["t1"], start=start, length=4.0)
     lane0 = lab.issue(x={"kind": "take_lane", "track": t1, "take_lane": 0})["x"]
     lab.act("create_arr_clip", **lane0, start=16.0, length=4.0)
-    c0 = lab.act("create_cue", time=a.cue_time)["cue"]
-    c1 = lab.act("create_cue", time=a.cue_time + 8)["cue"]
+    c0 = lab.act("create_cue", time=a.cue_time)["cue"] if a.with_cues else None
+    c1 = lab.act("create_cue", time=a.cue_time + 8)["cue"] if a.with_cues else None
     kit = lab.act("load_kit", **own["t3"], **({"kit": a.kit} if a.kit else {}))["kit"]
     chk.info("kit", f"loading {kit!r} onto track {t3}")
     rack = {"kind": "device", "track": t3, "path": [0]}
     chk.require(wait_for(lambda: lab.issue(x=rack), a.load_timeout), "drum kit loaded", fatal=True)
-    pads = []
-    for note in range(36, 52):  # first two pads holding a device in their first chain
-        sel = {"kind": "device", "track": t3, "path": [0, f"pad:{note}", 0]}
-        if wait_for(lambda s=sel: lab.issue(x=s), 0):
-            pads.append(note)
-            if len(pads) == 2:
-                break
+
+    def has(base, note):
+        sel = {"kind": "device", "track": t3, "path": [*base, f"pad:{note}", 0]}
+        try:
+            lab.issue(x=sel)
+        except (Refused, BridgeError, ValueError, KeyError):
+            return False
+        return True
+
+    def two_pads():
+        # the kit may be a Drum Rack itself or an Instrument Rack wrapping one at [0, 0, 0]
+        base = next((b for b in ([0], [0, 0, 0]) if has(b, 36)), None)
+        if base is None:
+            return None
+        found = []
+        for note in range(36, 100):  # first two pads holding a device in their first chain
+            if has(base, note):
+                found.append(note)
+                if len(found) == 2:
+                    return base, found
+        return None
+
+    rb, pads = wait_for(two_pads, a.load_timeout, every=2.0) or ([0], [])
     chk.require(len(pads) == 2, "kit has two pads with a device", str(pads), fatal=True)
     pa, pb = (f"pad:{n}" for n in pads)
 
@@ -151,16 +167,19 @@ async def _run(h, a, chk, lab):
         arr0={"kind": "arr_clip", "track": t1, "arrangement": 0},
         arr1={"kind": "arr_clip", "track": t1, "arrangement": 1},
         lane_arr={"kind": "arr_clip", "track": t1, "take_lane": 0, "arrangement": 0},
-        cue0={"kind": "cue", "cue": c0},
-        cue1={"kind": "cue", "cue": c1},
+        **(
+            {"cue0": {"kind": "cue", "cue": c0}, "cue1": {"kind": "cue", "cue": c1}}
+            if a.with_cues
+            else {}
+        ),
         rack=rack,
         chain0={"kind": "chain", "track": t3, "path": [0, 0]},
         chain_vol={"kind": "mixer_param", "track": t3, "path": [0, 0], "role": "volume"},
-        pad_a={"kind": "drum_pad", "track": t3, "path": [0, pa]},
-        pad_b={"kind": "drum_pad", "track": t3, "path": [0, pb]},
-        dev_a={"kind": "device", "track": t3, "path": [0, pa, 0]},
-        dev_b={"kind": "device", "track": t3, "path": [0, pb, 0]},
-        param_a={"kind": "param", "track": t3, "path": [0, pa, 0], "parameter": 0},
+        pad_a={"kind": "drum_pad", "track": t3, "path": [*rb, pa]},
+        pad_b={"kind": "drum_pad", "track": t3, "path": [*rb, pb]},
+        dev_a={"kind": "device", "track": t3, "path": [*rb, pa, 0]},
+        dev_b={"kind": "device", "track": t3, "path": [*rb, pb, 0]},
+        param_a={"kind": "param", "track": t3, "path": [*rb, pa, 0], "parameter": 0},
     )
     every = lab.check(refs)
     for name, (valid, code) in every.items():
@@ -186,7 +205,7 @@ async def _run(h, a, chk, lab):
             ("pad_a", "pad_b", "rack"),
             "device moved in front of another pad's device (moved + reordered)",
         )
-        victim = lab.issue(x={"kind": "device", "track": t3, "path": [0, pa, 1]})["x"]
+        victim = lab.issue(x={"kind": "device", "track": t3, "path": [*rb, pa, 1]})["x"]
     except (Refused, BridgeError) as exc:
         chk.info("nested reorder not possible in this kit (device-level reorder unproven)", exc)
         t2_track = lab.issue(x={"kind": "track", "track": t2})["x"]["ref"]
@@ -211,8 +230,9 @@ async def _run(h, a, chk, lab):
 
     lab.act("delete", **refs["arr0"])
     expect(chk, lab, refs, ("arr0",), ("arr1", "lane_arr"), "arrangement clip deleted")
-    lab.act("delete", **refs["cue0"])
-    expect(chk, lab, refs, ("cue0",), ("cue1",), "cue deleted")
+    if a.with_cues:
+        lab.act("delete", **refs["cue0"])
+        expect(chk, lab, refs, ("cue0",), ("cue1",), "cue deleted")
     s1_ref = lab.issue(x={"kind": "scene", "scene": s1})["x"]
     lab.act("delete", **s1_ref)
     expect(chk, lab, refs, ("s2",), (), "earlier scene deleted (s2 reordered)")
@@ -245,15 +265,16 @@ async def _run(h, a, chk, lab):
     t2_ref = lab.issue(x={"kind": "track", "track": t2})["x"]
     lab.act("create_take_lane", **t2_ref)
     lab.act("create_arr_clip", **t2_ref, start=0.0, length=4.0)
+    cue_ref = {"cue": {"kind": "cue", "cue": c1 - 1}} if a.with_cues else {}
     last = lab.issue(
+        **cue_ref,
         track={"kind": "track", "track": t3},
         return_track={"kind": "return_track", "track": f"return:{r}"},
         master={"kind": "master", "track": "master"},
         scene={"kind": "scene", "scene": 0},
-        cue={"kind": "cue", "cue": c1 - 1},
         device={"kind": "device", "track": t2, "path": [0]},
         chain={"kind": "chain", "track": t2, "path": [0, 0]},
-        drum_pad={"kind": "drum_pad", "track": t2, "path": [0, pb]},
+        drum_pad={"kind": "drum_pad", "track": t2, "path": [*rb, pb]},
         mixer_param={"kind": "mixer_param", "track": "master", "role": "volume"},
         take_lane={"kind": "take_lane", "track": t2, "take_lane": 0},
         arr_clip={"kind": "arr_clip", "track": t2, "arrangement": 0},
@@ -262,7 +283,7 @@ async def _run(h, a, chk, lab):
     chk.require(all(v for v, _ in state.values()), "fresh refs of every kind validate", str(state))
     if a.set_change_wait <= 0:
         chk.info("Set change", "skipped (no --set-change-wait); deleting scratch objects")
-        for name in ("track", "return_track", "cue"):
+        for name in ("track", "return_track", *cue_ref):
             lab.act("delete", **last[name])
         lab.act("delete", **t2_ref)
         return
@@ -282,7 +303,12 @@ def build_parser():
     p = base_parser(__doc__)
     p.add_argument("--allow-writes", action="store_true", help="required: this script WRITES")
     p.add_argument("--kit", help="exact drum kit preset name (default: the first .adg found)")
-    p.add_argument("--cue-time", type=float, default=4000.0, help="beat of the first scratch cue")
+    p.add_argument(
+        "--with-cues",
+        action="store_true",
+        help="also prove cues (UNPROVEN: Live applies the playhead move late)",
+    )
+    p.add_argument("--cue-time", type=float, default=4.0, help="beat of the first scratch cue")
     p.add_argument("--load-timeout", type=float, default=30.0, help="seconds to wait for the kit")
     p.add_argument(
         "--set-change-wait", type=float, default=0.0, help="seconds to wait for a Set change"
