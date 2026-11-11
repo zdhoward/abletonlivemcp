@@ -8,6 +8,7 @@ no longer register tools). Review the diff either way.
 """
 
 import asyncio
+import inspect
 import json
 import os
 import subprocess
@@ -65,8 +66,16 @@ def test_tool_surface_snapshots_per_module():
     _update_snapshots(by_module, os.environ.get(UPDATE_ENV, ""))
     stored = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in SNAPSHOTS.glob("*.json")}
     assert sorted(stored) == sorted(by_module), "a module gained or lost its tools"
+
+    def canonical(tools):
+        # Python 3.13 strips docstring indentation at compile time; earlier versions do not.
+        # Compare the same prose while keeping schemas, annotations and byte-budget checks exact.
+        return [{**t, "description": inspect.cleandoc(t["description"])} for t in tools]
+
     for module, tools in by_module.items():
-        assert stored[module] == sorted(tools, key=lambda t: t["name"]), f"{module} surface changed"
+        assert canonical(stored[module]) == canonical(sorted(tools, key=lambda t: t["name"])), (
+            f"{module} surface changed"
+        )
 
 
 def _utf8_size(listing) -> int:
