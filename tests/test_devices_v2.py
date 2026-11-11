@@ -310,21 +310,13 @@ def test_sources_refuse_audio_and_occupied_targets_before_loading(env):
     assert refused(occupied, "target_occupied") and app.browser.calls == 0
 
 
-def test_load_onto_a_drum_pad_selects_the_pad_first(env):
+def test_load_onto_a_drum_pad_is_refused_unsupported(env):
+    # Live 12.2 (final proof): selected_drum_pad + load_item ended unknown, so it is closed.
     song, app, d = env
-    pad = Pad(36, "Kick")
-    rack = D("Drum Rack", kind=1, pads=[pad])
+    rack = D("Drum Rack", kind=1, pads=[Pad(36, "Kick")])
     song.tracks[1].devices.append(rack)
-
-    def land(item):
-        assert rack.view.selected_drum_pad is pad
-        pad.chains.append(Ch("Kick", [D(item.name, kind=1)]))
-
-    app.browser.hook = land
     op = _load(d, "drum_pad", 1, "samples", "Kick.wav", [0, "pad:36"])
-    d.operations.tick(), d.operations.tick()
-    assert d("operation", {"operation": op["operation"]})["state"] == "ready"
-    assert op["unverified"] == ["load.drum_pad"]
+    assert refused(op, "unsupported") and app.browser.calls == 0
 
 
 # ---- remote: drums, racks, extras ------------------------------------------------------------

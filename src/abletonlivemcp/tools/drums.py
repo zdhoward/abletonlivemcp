@@ -11,7 +11,7 @@ from typing import Literal
 from .. import chain, server
 from ..models import DevicePath, TrackSel
 from ..models_devices import ConvertTarget, DrumRole, PadCopy, PadEdit, SliceEdit
-from ..server import _call, _create, _overwrite, _read, _untrusted, issue_refs
+from ..server import _call, _create, _overwrite, _read, _untrusted, issue_refs, unsupported
 from .chain import run_plan
 from .devices import at_device, device_ref, loc
 
@@ -45,8 +45,11 @@ def live_set_drum_pads(
     if bool(pads) == (copy is not None):
         raise ValueError("give 'pads' (1..64 edits) or 'copy', not both")
     if copy is not None:
-        params = {"device": device_ref(track, rack), **copy.model_dump()}
-        return {**_call("copy_drum_pad", params), "provenance": UNTRUSTED}
+        raise unsupported(
+            "drum pad copy",
+            "the final Live 12.2 proof did not establish copying into an empty pad; "
+            "disabled pending real-Live verification",
+        )
     if len(pads) > 64:
         raise ValueError("'pads' must hold at most 64 edits")
     selectors = []

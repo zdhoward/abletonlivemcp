@@ -105,7 +105,9 @@ def register(server) -> None:
 
     @resource("live://track/{track}", "Track", "One track by 0-based index (detailed).")
     def track(track: int) -> str:
-        text = _call_tool(server, "live_get_tracks", response_format="detailed")
+        text = _call_tool(
+            server, "live_get_tracks", include=["mixer", "devices", "slots", "routing", "groups"]
+        )
         rows = _rows(json.loads(text))
         if rows is None:
             return text  # unavailable/error note, or an unexpected shape: pass it through
@@ -119,7 +121,7 @@ def register(server) -> None:
         "Parameters of one device (0-based track and top-level device index).",
     )
     def device_parameters(track: int, device: int) -> str:
-        return _call_tool(server, "live_get_device_parameters", track=track, device=device)
+        return _call_tool(server, "live_get_device_parameters", track=track, path=[device])
 
     @resource("live://operation/{operation}", "Operation", "State of a pending device load.")
     def operation(operation: str) -> str:

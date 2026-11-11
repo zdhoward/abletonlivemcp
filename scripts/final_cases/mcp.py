@@ -3,6 +3,8 @@ final session's MCP client (read-only; no writes)."""
 
 from __future__ import annotations
 
+import json
+
 PROMPTS = {
     "vocal_chain", "organize_session", "setup_scene", "mix_check", "explain_chain",
     "diagnose_connection", "safe_tweak", "build_drum_rack", "macro_fx_rack", "arrange_sections",
@@ -34,6 +36,20 @@ async def check_resources(run, case, chk):
     listed = {str(r.uri) for r in (await session.list_resources()).resources}
     for uri in (*STATIC_DOCS, *LIVE_READS[:2], "knowledge://index"):
         chk.require(uri in listed, f"resources/list has {uri}")
-    for uri in (*STATIC_DOCS, "knowledge://index", *LIVE_READS):
+    uris = [*STATIC_DOCS, "knowledge://index", *LIVE_READS]
+    tracks = await run.h.tool("live_get_tracks", {"include": ["devices"]})
+    for track in tracks["tracks"]:
+        if isinstance(track["track"], int) and track.get("devices"):
+            uris.append(f"live://track/{track['track']}/device/0/parameters")
+            break
+    for uri in uris:
         text = _text(await session.read_resource(uri))
         chk.require(bool(text.strip()), f"resources/read {uri}", text[:80])
+        if uri.startswith(("live://", "knowledge://")):
+            data = json.loads(text)
+            chk.require(
+                not isinstance(data, dict) or not ({"error", "unavailable"} & data.keys()),
+                f"resources/read {uri} has usable data", text[:200],
+            )
+            if uri == "live://track/0":
+                chk.require(data.get("track") == 0, "track resource selects track 0", text[:200])

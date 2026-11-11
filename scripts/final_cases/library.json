@@ -29,11 +29,11 @@
     "tools": ["live_scan_projects", "live_usage_report"],
     "steps": [
       {"tool": "live_scan_projects", "args": {"limit": 50}, "save": "scan",
-       "assert": [{"path": "data.truncated", "equals": false}]},
-      {"tool": "live_usage_report", "args": {"kind": "devices", "scan_id": "${scan.data.scan_id}"}},
+       "assert": [{"path": "truncated", "equals": false}]},
+      {"tool": "live_usage_report", "args": {"kind": "devices", "scan_id": "${scan.scan_id}"}},
       {"tool": "live_usage_report",
-       "args": {"kind": "plugins", "scan_id": "${scan.data.scan_id}", "sort": "recent"}},
-      {"tool": "live_usage_report", "args": {"kind": "samples", "scan_id": "${scan.data.scan_id}", "top": 5}}
+       "args": {"kind": "plugins", "scan_id": "${scan.scan_id}", "sort": "recent"}},
+      {"tool": "live_usage_report", "args": {"kind": "samples", "scan_id": "${scan.scan_id}", "top": 5}}
     ]
   },
   {
@@ -48,8 +48,8 @@
        ]},
        "assert": [{"path": "status", "equals": "complete"}]},
       {"tool": "live_get_labels", "args": {"label": "almcp-final"},
-       "assert": [{"path": "data.set.0.kind", "equals": "song"},
-                  {"path": "data.global.0.key", "equals": "almcp-final:plugin"}]},
+       "assert": [{"path": "set.0.kind", "equals": "song"},
+                  {"path": "global.0.key", "equals": "almcp-final:plugin"}]},
       {"tool": "live_set_labels",
        "args": {"mode": "remove", "items": [
          {"kind": "song", "labels": ["almcp-final"], "category": ""},

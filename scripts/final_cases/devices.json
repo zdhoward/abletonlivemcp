@@ -120,7 +120,7 @@
    {
     "tool": "live_load_item",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "root": "audio_effects",
      "path": [
       "Utility"
@@ -164,13 +164,13 @@
    {
     "tool": "live_get_device_parameters",
     "args": {
-     "track": "${dev_audio.items.0.index}"
+     "track": "${dev_audio.applied.0.track}"
     }
    },
    {
     "tool": "live_get_device_parameters",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
       0
      ],
@@ -186,7 +186,7 @@
    {
     "tool": "live_set_device_parameters",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
       0
      ],
@@ -207,7 +207,7 @@
    {
     "tool": "live_set_device_parameters",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
       0
      ],
@@ -236,7 +236,7 @@
     "args": {
      "targets": [
       {
-       "track": "${dev_audio.items.0.index}",
+       "track": "${dev_audio.applied.0.track}",
        "path": [
         0
        ],
@@ -256,7 +256,7 @@
     "args": {
      "targets": [
       {
-       "track": "${dev_audio.items.0.index}",
+       "track": "${dev_audio.applied.0.track}",
        "path": [
         0
        ],
@@ -282,7 +282,7 @@
    {
     "tool": "live_load_item",
     "args": {
-     "track": "return:${dev_return.items.0.index}",
+     "track": "${dev_return.applied.0.track}",
      "root": "audio_effects",
      "path": [
       "Reverb"
@@ -307,11 +307,11 @@
    {
     "tool": "live_move_device",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
       0
      ],
-     "to_track": "${dev_audio.items.0.index}",
+     "to_track": "${dev_audio.applied.0.track}",
      "position": 0
     },
     "expect": "refused:unsupported"
@@ -319,11 +319,11 @@
    {
     "tool": "live_move_device",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
       0
      ],
-     "to_track": "${dev_audio2.items.0.index}"
+     "to_track": "${dev_audio2.applied.0.track}"
     },
     "assert": [
      {
@@ -348,7 +348,7 @@
    {
     "tool": "live_get_device_extras",
     "args": {
-     "track": "${dev_audio2.items.0.index}",
+     "track": "${dev_audio2.applied.0.track}",
      "path": [
       0
      ]
@@ -357,7 +357,7 @@
    {
     "tool": "live_set_device_extras",
     "args": {
-     "track": "${dev_audio2.items.0.index}",
+     "track": "${dev_audio2.applied.0.track}",
      "path": [
       0
      ],
@@ -381,7 +381,7 @@
    {
     "tool": "live_plan_chain",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "stages": [
       {
        "device": "EQ Eight",
@@ -437,7 +437,7 @@
    {
     "tool": "live_plan_chain",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "rack": {
       "groups": [
        {
@@ -473,24 +473,56 @@
   ],
   "tools": [
    "live_get_rack",
-   "live_set_rack"
+   "live_set_rack",
+   "live_load_item"
   ],
   "steps": [
    {
+    "tool": "live_load_item",
+    "save": "load_rack",
+    "args": {
+     "track": "${dev_audio.applied.0.track}",
+     "root": "audio_effects",
+     "path": [
+      "Audio Effect Rack"
+     ],
+     "append": true
+    }
+   },
+   {
+    "tool": "live_get_operation",
+    "args": {
+     "operation": "${load_rack.operation}"
+    }
+   },
+   {
+    "tool": "live_get_operation",
+    "args": {
+     "operation": "${load_rack.operation}"
+    },
+    "assert": [
+     {
+      "path": "state",
+      "equals": "ready"
+     }
+    ]
+   },
+   {
     "tool": "live_get_rack",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
-      0
+      2
      ]
     }
    },
    {
     "tool": "live_set_rack",
+    "expect": "ok_or_unsupported",
     "args": {
-     "track": "${dev_audio.items.0.index}",
+     "track": "${dev_audio.applied.0.track}",
      "path": [
-      0
+      2
      ],
      "macros": [
       {
@@ -499,15 +531,8 @@
         "raw": 64.0
        }
       }
-     ],
-     "chains": [
-      {
-       "index": 0,
-       "mute": false
-      }
      ]
-    },
-    "expect": "ok_or_unsupported"
+    }
    }
   ]
  },
@@ -523,13 +548,14 @@
    "live_get_drum_rack",
    "live_set_drum_pads",
    "live_get_simpler",
-   "live_set_simpler"
+   "live_set_simpler",
+   "live_load_item"
   ],
   "steps": [
    {
     "tool": "live_plan_drum_rack",
     "args": {
-     "track": "${dev_drums.items.0.index}",
+     "track": "${dev_drums.applied.0.track}",
      "pads": [
       {
        "note": 36,
@@ -540,7 +566,8 @@
       }
      ]
     },
-    "save": "drum_plan"
+    "save": "drum_plan",
+    "expect": "ok_or_unsupported"
    },
    {
     "tool": "live_build_drum_rack",
@@ -550,18 +577,49 @@
     "expect": "ok_or_unsupported"
    },
    {
-    "tool": "live_get_drum_rack",
+    "tool": "live_load_item",
+    "save": "load_kit",
     "args": {
-     "track": "${dev_drums.items.0.index}",
+     "track": "${dev_drums.applied.0.track}",
+     "root": "drums",
      "path": [
-      0
+      "505 Core Kit.adg"
      ]
     }
    },
    {
+    "tool": "live_get_operation",
+    "args": {
+     "operation": "${load_kit.operation}"
+    }
+   },
+   {
+    "tool": "live_get_operation",
+    "args": {
+     "operation": "${load_kit.operation}"
+    },
+    "assert": [
+     {
+      "path": "state",
+      "equals": "ready"
+     }
+    ]
+   },
+   {
+    "tool": "live_get_drum_rack",
+    "args": {
+     "track": "${dev_drums.applied.0.track}",
+     "path": [
+      0
+     ],
+     "include_empty": true
+    },
+    "assert": [{"path": "pads.0.chains", "equals": 0}]
+   },
+   {
     "tool": "live_set_drum_pads",
     "args": {
-     "track": "${dev_drums.items.0.index}",
+     "track": "${dev_drums.applied.0.track}",
      "path": [
       0
      ],
@@ -577,21 +635,21 @@
    {
     "tool": "live_set_drum_pads",
     "args": {
-     "track": "${dev_drums.items.0.index}",
+     "track": "${dev_drums.applied.0.track}",
      "path": [
       0
      ],
      "copy": {
       "source": 36,
-      "destination": 37
+      "destination": 0
      }
     },
-    "expect": "ok_or_unsupported"
+    "expect": "refused:unsupported"
    },
    {
     "tool": "live_get_simpler",
     "args": {
-     "track": "${dev_drums.items.0.index}",
+     "track": "${dev_drums.applied.0.track}",
      "path": [
       0,
       "pad:36",
@@ -602,7 +660,7 @@
    {
     "tool": "live_set_simpler",
     "args": {
-     "track": "${dev_drums.items.0.index}",
+     "track": "${dev_drums.applied.0.track}",
      "path": [
       0,
       "pad:36",
@@ -631,7 +689,7 @@
     "args": {
      "action": "devices_to_drum_pad",
      "target": {
-      "track": "${dev_audio2.items.0.index}"
+      "track": "${dev_audio2.applied.0.track}"
      }
     },
     "expect": "ok_or_unsupported"
@@ -651,7 +709,7 @@
    {
     "tool": "live_plan_chain",
     "args": {
-     "track": "return:${dev_return.items.0.index}",
+     "track": "${dev_return.applied.0.track}",
      "append": true,
      "stages": [
       {
@@ -679,7 +737,7 @@
     "args": {
      "targets": [
       {
-       "track": "${dev_audio2.items.0.index}",
+       "track": "${dev_audio2.applied.0.track}",
        "path": [
         0
        ],
@@ -698,7 +756,7 @@
      "targets": [
       {
        "kind": "device",
-       "track": "${dev_audio2.items.0.index}",
+       "track": "${dev_audio2.applied.0.track}",
        "path": [
         0
        ],

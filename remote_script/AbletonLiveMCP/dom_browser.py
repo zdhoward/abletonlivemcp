@@ -21,6 +21,7 @@ from .dom_common import (
     READ,
     SEARCH_LIMIT,
     SUPPORTED,
+    UNSUPPORTED,
     UNVERIFIED,
     WALK_BUDGET,
     WRITE,
@@ -71,7 +72,11 @@ CAPABILITIES = {
     "load.return": (UNVERIFIED, "P-14 unrun: loads onto a return track"),
     "load.master": (UNVERIFIED, "P-14 unrun: loads onto the master track"),
     "load.chain": (UNVERIFIED, "P-14 unrun: selected_chain then load_item"),
-    "load.drum_pad": (UNVERIFIED, "P-14 unrun: selected_drum_pad then load_item"),
+    "load.drum_pad": (
+        UNSUPPORTED,
+        "final proof 2026-11-11: selected_drum_pad then load_item ended unknown "
+        "(ArgumentError) on Live 12.2; load a kit from the drums root instead",
+    ),
 }
 
 
