@@ -397,7 +397,9 @@ class BridgeServer:
             "component_version": "0.0.1",
             "build": "source-protocol-2",
             "session": secrets.token_hex(32),
-            "methods": [],
+            "methods": [
+                m for m in getattr(self._dispatch, "methods", ()) if _METHOD.fullmatch(m)
+            ],
             "capabilities": dict(CAPABILITIES),
         }
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

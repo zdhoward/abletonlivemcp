@@ -42,11 +42,10 @@ medium for builds, Opus 5.5 for the security review; Codex hit its quota mid-run
 
 ## Remaining work (ordered)
 1. Optional Sol review of `safety.py`, `operations.py`, chain receipts and the host/Remote Script seam (owner said wait).
-2. Fix: a missing handler parameter (e.g. `set_tempo` without `bpm`) returns a generic "may have been applied" error
-   instead of a readable refusal (`core.py` maps only `ValueError`; handlers raise `KeyError`/`TypeError` on missing args).
+2. DONE (catchup): missing handler params now give a readable refusal (`_Params` in `handlers.py`); the handshake advertises `dispatch.methods`. Both verified in real Live.
 3. Unproved items listed in `docs/release/m1b-live-evidence.md` (target reorder, second-process lease, responsiveness,
    non-stock loads, one unexplained "connection lost" shortly after Live launched, OneDrive reparse points).
-4. Handshake `methods: []` is still advertised by `core.py`; wire `dispatch.methods` in.
+4. (done, see 2)
 5. Remaining plan milestones after M1b (M2+ stock discovery, docs/release, packaging, tagging, public release): owner decisions.
 6. Reconnect the knowledge/als tools later behind their own milestone (they were unregistered for v1).
 7. Register `abletonlivemcp` from the `main` checkout in the owner's MCP client (no client config references it today).

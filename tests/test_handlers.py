@@ -468,6 +468,9 @@ def test_create_track_name_color_tempo(env):
     assert d("set_tempo", {"bpm": 128, **gen})["tempo"] == 128
     with pytest.raises(ValueError):
         d("set_tempo", {"bpm": 5, **gen})
+    with pytest.raises(ValueError, match="missing required parameter 'bpm'"):
+        d("set_tempo", dict(gen))
+    assert d.methods and "set_tempo" in d.methods
 
 
 class Clip:

@@ -35,6 +35,12 @@ Observed: the four devices are direct children of the `audio_effects` root, so e
 1. `ctypes` missing in Live's Python made the script fail to load (Live then reset the control-surface slot to None). Fixed by lazy imports and a documented fallback (`89804c2`).
 2. A reloaded script restarted `generation` at 1, so a stale client's generation could match a different Set. Fixed: the generation now starts at a random positive number (`af51473`). Verified: a generation-1 write after the fix is refused `stale_generation` and tempo stayed 136.
 
+## Follow-up fixes verified in real Live (2026-11-10, after the table above)
+
+- Missing handler parameter: `set_tempo` without `bpm` now returns `ValueError: missing required parameter 'bpm' (not applied)`.
+- Handshake advertises `dispatch.methods` (host accepted it; connection and reads work).
+- Reinstalled and relaunched Live 12.2.0; `live_write_test` and `live_chain_test` (EQ Eight, Compressor, Saturator, Reverb) pass again. `read_only` restored to `true`.
+
 ## Unproved or not run (do not treat as passed)
 
 - Target reorder refusal and a Live-object identity/equality check beyond the above observations.
@@ -42,6 +48,5 @@ Observed: the four devices are direct children of the `audio_effects` root, so e
 - A UI/log observation of responsiveness during a load (no hang was seen, but it was not measured).
 - Loading from `plugins`, drum kits or racks, and any device not in the four above.
 - One `live_write_test` run aborted with "connection lost" a few seconds after Live launched; it did not recur in 3 reruns and the log showed no new error. Cause not established.
-- A missing parameter (for example `set_tempo` without `bpm`) returns a generic "may have been applied" `HandlerError` instead of a readable refusal.
 - Only Windows and Live 12.2.0 were exercised; the OneDrive reparse-point case (review finding 13) is untested.
 - Python version inside Live was not recorded.

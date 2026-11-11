@@ -674,6 +674,13 @@ def _handlers(song, app, safety, operations=None):  # noqa: C901 - flat table of
     }
 
 
+class _Params(dict):
+    """Request params; a missing required key is a readable refusal, not a handler crash."""
+
+    def __missing__(self, key):
+        raise ValueError(f"missing required parameter {key!r}")
+
+
 def make_dispatch(song_supplier, app, safety=None):
     """Build the bridge dispatcher. ``song_supplier`` is a callable returning the *current* Song
     (a bare Song is accepted for tests and wrapped). Returns ``dispatch(method, params)``; the
@@ -697,6 +704,7 @@ def make_dispatch(song_supplier, app, safety=None):
             raise ValueError(f"unknown or unclassified method: {method}")
         if not isinstance(params, dict):
             raise ValueError("params must be an object")
+        params = _Params(params)
         try:
             if kind == CONTROL:
                 if safety.read_only():
