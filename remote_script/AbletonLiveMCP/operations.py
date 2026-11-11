@@ -13,7 +13,9 @@ Load operation states (``pending`` is the only non-terminal state besides watche
 * ``failed``   ``browser.load_item`` raised and the device list was observed unchanged.
 * ``unknown``  outcome not established: ``timeout`` (``LOAD_TIMEOUT`` s without a new device),
                ``set_changed``, ``track_gone``, ``layout_changed`` (existing devices changed),
-               ``ambiguous_change`` (more than one new device), ``no_song``, ``session_ended``.
+               ``ambiguous_change`` (more than one new device), ``unexpected_placement`` (an
+               append whose single new device is not the track's last), ``no_song``,
+               ``session_ended``. An append is only ``ready`` when the new device is last.
                A timeout is never "absent": only ``timeout`` stays watched for ``WATCH_TTL`` s
                and becomes ``ready`` if a single new device later appears.
 
@@ -78,8 +80,9 @@ class Cursors:
 
 
 class Op:
-    def __init__(self, op_id, track, before, item, root, generation, now):
+    def __init__(self, op_id, track, before, item, root, generation, now, append=False):
         self.id, self.track, self.before = op_id, track, tuple(before)
+        self.append = append  # append: the one new device must be last (index len(before))
         self.item, self.root, self.generation = item, root, generation
         self.state, self.reason = PENDING, None
         self.started, self.watch_until = now, None
@@ -115,7 +118,7 @@ class Operations:
     def prior(self, op_id):
         return self._ring.get(op_id) if isinstance(op_id, str) else None
 
-    def begin(self, track, item, root):
+    def begin(self, track, item, root, append=False):
         """Record a load about to start. The caller has already run ``check_can_load``."""
         for old_id in [i for i, o in self._ring.items() if o.state in (READY, FAILED)]:
             if len(self._ring) < RING:
@@ -129,6 +132,7 @@ class Operations:
             root,
             self._safety.generation,
             self._clock(),
+            append,
         )
         self._ring[op.id] = op
         return op
@@ -205,6 +209,15 @@ class Operations:
         op.state, op.reason = state, reason
         op.watch_until = (self._clock() + WATCH_TTL) if watch else None
 
+    @staticmethod
+    def _one_inserted(cur, before):
+        """True when ``cur`` is ``before`` (same order, same objects) plus one device elsewhere."""
+        for i in range(len(cur)):
+            rest = cur[:i] + cur[i + 1 :]
+            if same_items(rest, before):
+                return True
+        return False
+
     def _advance(self, op, song):
         now = self._clock()
         if op.generation != self._safety.generation:
@@ -224,6 +237,8 @@ class Operations:
             return self._finish(op, UNKNOWN, "track_unreadable")
         n = len(op.before)
         if len(cur) < n or not same_items(cur[:n], op.before):
+            if op.append and len(cur) == n + 1 and self._one_inserted(cur, op.before):
+                return self._finish(op, UNKNOWN, "unexpected_placement")
             return self._finish(op, UNKNOWN, "layout_changed")
         extra = cur[n:]
         if not extra:
