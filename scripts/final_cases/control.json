@@ -43,9 +43,11 @@
        "args": {"targets": [{"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
                              "color_index": 12, "mute": true, "monitoring": "off"}]},
        "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_get_tracks", "save": "routing",
+       "args": {"tracks": ["${trk.applied.0.track}"], "include": ["routing"]}},
       {"tool": "live_set_tracks", "expect": "ok_or_unsupported",
        "args": {"targets": [{"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
-                             "output_routing": {"type": "No Output"}}]}},
+                             "output_routing": {"type": "${routing.tracks.0.output_routing.type}"}}]}},
       {"tool": "live_set_mixer",
        "args": {"targets": [
          {"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",

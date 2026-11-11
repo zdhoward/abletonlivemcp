@@ -52,8 +52,9 @@ import io
 import json
 import re
 import sys
+import tempfile
 import time
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -75,6 +76,7 @@ from mcp import ClientSession
 from mcp.client.stdio import stdio_client
 
 from abletonlivemcp.bridge import BridgeError
+from abletonlivemcp.config import config_path
 from abletonlivemcp.proof_contract import PHASES
 
 CASES_DIR = Path(__file__).resolve().parent / "final_cases"
@@ -82,7 +84,7 @@ EVIDENCE_MD = REPO / "docs" / "release" / "v2-fast-track.md"
 EVIDENCE_JSON = REPO / "docs" / "release" / "v2-fast-track.json"
 LEDGER_JSON = REPO / "docs" / "release" / "v2-fast-track-ledger.json"
 SCRATCH_PREFIX = "ALMCP-FINAL"
-EXPECTS = re.compile(r"^(ok|refused|refused:[a-z_]+|ok_or_unsupported)$")
+EXPECTS = re.compile(r"^(ok|refused|refused:[A-Za-z_]+|ok_or_unsupported)$")
 TEMPLATE = re.compile(r"\$\{([^}]+)\}")
 RETURN_PREFIX = re.compile(r"^[A-Z]{1,2}-")
 
@@ -267,7 +269,7 @@ async def _call_waiting_for_lease(run: Run, tool: str, args: dict):
     deadline = time.monotonic() + LEASE_WAIT
     while True:
         try:
-            return await run.h.tool(tool, args)
+            return await asyncio.wait_for(run.h.tool(tool, args), timeout=45)
         except Refused as exc:
             if exc.code != "lease_held" or time.monotonic() >= deadline:
                 raise
@@ -295,8 +297,15 @@ async def run_step(run: Run, chk: Checks, case: dict, n: int, step: dict) -> str
     try:
         result = await _call_waiting_for_lease(run, step["tool"], args)
     except Refused as exc:
+        if exc.code in ("Timeout", "FrameTimeout", "Unreachable", "ReplyTooLarge") or (
+            "may have been applied" in str(exc) or "outcome unknown" in str(exc)
+        ):
+            raise Abort(f"{label}: outcome unknown; stopping all writes: {exc}") from None
         transient = exc.code in ("lease_held", "lease_expired")  # never the refusal under test
         if (expect == "refused" and not transient) or expect == f"refused:{exc.code}":
+            if step.get("expect_message"):
+                chk.require(step["expect_message"] in str(exc), label,
+                            f"expected error text {step['expect_message']!r}: {exc}", fatal=True)
             chk.require(True, label, f"refused {exc.code} as expected")
             return "ok"
         if expect == "ok_or_unsupported" and exc.code == "unsupported":
@@ -305,6 +314,11 @@ async def run_step(run: Run, chk: Checks, case: dict, n: int, step: dict) -> str
                 run.unsupported.add(step["save"])
             return "unsupported"
         chk.require(False, label, f"unexpected refusal {exc}", fatal=True)
+    if isinstance(result, dict) and (
+        result.get("state") == "unknown" or result.get("status") == "unknown"
+        or result.get("unknown")
+    ):
+        raise Abort(f"{label}: unknown operation outcome; stopping all writes")
     if expect.startswith("refused"):
         chk.require(False, label, f"expected {expect} but the call succeeded", fatal=True)
     chk.require(True, label)
@@ -341,8 +355,10 @@ async def run_case(run: Run, case: dict) -> dict:
             chk.require(False, case["id"], str(exc.args[0]))
     except Refused as exc:
         chk.require(False, case["id"], f"unexpected refusal {exc}")
+    except TimeoutError:
+        raise Abort(f"{case['id']}: tool timed out; outcome unknown, stopping all writes") from None
     except BridgeError as exc:
-        if exc.kind in ("Unreachable", "ConfigError"):
+        if exc.may_have_applied or exc.kind in ("Unreachable", "ConfigError"):
             raise Abort(f"bridge unusable: {exc}") from None
         chk.require(False, case["id"], f"bridge error {exc}")
     if chk.failures:
@@ -375,6 +391,11 @@ async def run_all(cases: list[dict], args, state: dict) -> list[dict]:
         h = Harness(session, args.port, args.timeout)
         h.tool_names = [t.name for t in (await session.list_tools()).tools]
         run = holder["run"] = Run(h=h, run_id=run_id)
+        # Store live containers immediately: aborts must retain ownership and completed checks.
+        state["ledger"], state["confirmations"], state["results"] = (
+            run.ledger, run.confirmations, results
+        )
+        run.saved["scratch_dir"] = tempfile.gettempdir().replace("\\", "/")
         state["listed"] = h.tool_names
         hello = await h.tool("live_hello")
         version = hello.get("live_version")
@@ -508,6 +529,7 @@ def execute(args, state: dict) -> int:
         print(f"RESULT: {'FAIL' if code else 'PASS'} (exit {code}): offline manifest check")
         return code
     prior = _prior() if args.only else []
+    state["gaps"] = gaps
     state["prior_status"] = {r["id"]: r["status"] for r in prior}
     try:
         try:
@@ -516,6 +538,8 @@ def execute(args, state: dict) -> int:
             raise _flatten(exc) from None
     except Abort as exc:
         print(f"RESULT: ABORT (exit 2): {exc}")
+        if "results" in state:
+            state["results"] = _merge(prior, state["results"])
         return 2
     except BridgeError as exc:
         print(f"RESULT: ABORT (exit 2): bridge unusable: {exc}")
@@ -535,18 +559,47 @@ def execute(args, state: dict) -> int:
     return code
 
 
+@contextmanager
+def scratch_policy(enabled):
+    """Enable authorized disposable proof writes, always leave safe defaults afterward."""
+    if not enabled:
+        yield
+        return
+    path = config_path()
+    config = json.loads(path.read_text(encoding="utf-8"))
+
+    def write(writable):
+        config["read_only"] = not writable
+        config.pop("dev_probes", None)
+        path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+    try:
+        write(True)
+        yield
+    finally:
+        write(False)
+
+
 def main(argv=None) -> int:
     p: argparse.ArgumentParser = base_parser(__doc__.split("\n\n")[0])
     p.add_argument("--only", help="comma-separated scenario ids to rerun (results are merged)")
     p.add_argument("--check", action="store_true", help="offline: manifest + coverage only")
+    p.add_argument("--scratch-writes", action="store_true",
+                   help="temporarily enable disposable proof writes; restore safe defaults")
     args = p.parse_args(argv)
     buf = io.StringIO()
     state: dict = {}
-    with redirect_stdout(_Tee(sys.stdout, buf)):
-        code = execute(args, state)
-    if "results" in state and not args.no_evidence:
-        write_evidence(state["results"], state["gaps"], state, code, buf.getvalue())
-        print(f"evidence: {EVIDENCE_MD}")
+    code = 2
+    try:
+        with (
+            scratch_policy(args.scratch_writes and not args.check),
+            redirect_stdout(_Tee(sys.stdout, buf)),
+        ):
+            code = execute(args, state)
+    finally:
+        if "results" in state and not args.no_evidence:
+            write_evidence(state["results"], state["gaps"], state, code, buf.getvalue())
+            print(f"evidence: {EVIDENCE_MD}")
     return code
 
 

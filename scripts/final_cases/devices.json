@@ -614,7 +614,12 @@
      ],
      "include_empty": true
     },
-    "assert": [{"path": "pads.0.chains", "equals": 0}]
+    "assert": [
+     {
+      "path": "pads.0.chains",
+      "equals": 0
+     }
+    ]
    },
    {
     "tool": "live_set_drum_pads",
@@ -655,7 +660,9 @@
       "pad:36",
       0
      ]
-    }
+    },
+    "expect": "refused:ValueError",
+    "expect_message": "that device is a InstrumentGroupDevice, not Simpler"
    },
    {
     "tool": "live_set_simpler",
@@ -670,7 +677,29 @@
       "retrigger": true
      }
     },
-    "expect": "ok_or_unsupported"
+    "expect": "refused:ValueError",
+    "expect_message": "'device' must be a Simpler"
+   },
+   {
+    "tool": "live_get_simpler",
+    "args": {"track": "${dev_drums.applied.0.track}", "path": [0, "pad:36", 0, 0, 0]},
+    "save": "nested_simpler"
+   },
+   {
+    "tool": "live_set_simpler",
+    "args": {"track": "${dev_drums.applied.0.track}", "path": [0, "pad:36", 0, 0, 0],
+             "device_fields": {"retrigger": true}},
+    "assert": [{"path": "status", "equals": "complete"}]
+   },
+   {
+    "tool": "live_get_simpler",
+    "args": {"track": "${dev_drums.applied.0.track}", "path": [0, "pad:36", 0, 0, 0]},
+    "assert": [{"path": "device.retrigger", "equals": true}]
+   },
+   {
+    "tool": "live_set_simpler",
+    "args": {"track": "${dev_drums.applied.0.track}", "path": [0, "pad:36", 0, 0, 0],
+             "device_fields": {"retrigger": "${nested_simpler.device.retrigger}"}}
    }
   ]
  },

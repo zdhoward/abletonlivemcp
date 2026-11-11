@@ -79,7 +79,7 @@
     "tools": ["live_export_midi", "live_import_midi"],
     "steps": [
       {"tool": "live_export_midi", "save": "mid",
-       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "file": "C:/Users/ZECHS/AppData/Local/Temp/${ledger:clips-midi}.mid"}},
+       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "file": "${scratch_dir}/${ledger:clips-midi}.mid"}},
       {"tool": "live_import_midi", "own": {"label": "clips-import", "kind": "clip"},
        "args": {"file": "${mid.file}", "track": "${fx.applied.0.track}", "scene": 1,
                 "name": "${ledger:clips-import}"},
