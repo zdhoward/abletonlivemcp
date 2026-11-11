@@ -29,7 +29,7 @@ PREFIX = "ALMCP undo"
 
 
 async def names(h, indices):
-    rows = await h.tool("live_tracks")
+    rows = (await h.tool("live_get_tracks"))["tracks"]
     return [rows[i]["name"] for i in indices]
 
 
@@ -45,7 +45,7 @@ async def scenario(h, a, chk):
 
     scratch = [await h.scratch_track("midi", PREFIX) for _ in range(3)]
     idx = [t.index for t in scratch]
-    count = (await h.tool("live_session_info"))["track_count"]
+    count = (await h.tool("live_get_session"))["track_count"]
     original = await names(h, idx)
     chk.info("scratch", f"tracks {idx} named {original}")
 
@@ -73,7 +73,7 @@ async def scenario(h, a, chk):
     after = await names(h, idx)
     reverted = sum(1 for got, old in zip(after, original, strict=True) if got == old)
     chk.require(reverted == 3, "one Song.undo reverted all 3 renames", f"{reverted}/3: {after}")
-    now = (await h.tool("live_session_info"))["track_count"]
+    now = (await h.tool("live_get_session"))["track_count"]
     chk.require(now == count, "scratch tracks still exist (no merge with creations)", f"{now}")
 
 

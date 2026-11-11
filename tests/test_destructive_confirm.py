@@ -120,4 +120,5 @@ def test_destructive_tool_may_not_declare_its_own_confirm():
 def test_no_registered_tool_uses_the_destructive_preset_yet():
     """Today's write tools are OVERWRITE/CREATE/CONTROL; DESTRUCTIVE waits for live_delete and
     live_undo. When one arrives this list grows and the tool is confirmed automatically."""
-    assert [n for n, s in server.SPECS.items() if s.annotations == server.DESTRUCTIVE] == []
+    names = {n for n, s in server.SPECS.items() if s.annotations == server.DESTRUCTIVE}
+    assert names == {"live_delete"}

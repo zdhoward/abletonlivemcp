@@ -83,7 +83,7 @@ def test_duplicate_across_two_new_modules_fails_closed():
 def test_domain_modules_use_relative_imports_and_the_stdlib_only():
     """Live's embedded Python loads the script as a package with no ctypes and no site-packages;
     domain modules also must not import ``safety`` (it imports them)."""
-    allowed = {"math", "itertools", "json", "Live"}
+    allowed = {"math", "itertools", "json", "Live", "os", "re", "time"}
     paths = sorted(SCRIPT_DIR.glob("dom_*.py")) + sorted(SCRIPT_DIR.glob("probe_p*.py"))
     for path in paths:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -92,8 +92,13 @@ def test_domain_modules_use_relative_imports_and_the_stdlib_only():
             elif isinstance(node, ast.ImportFrom):
                 if node.level == 0:
                     assert node.module.split(".")[0] in allowed, path.name
-                elif node.module is None and path.name == "dom_probe.py":
+                elif node.module is None and path.name != "dom_probe.py":
+                    assert all(a.name.startswith("dom_") for a in node.names), path.name
+                elif node.module is None:
                     # the fixed probe table: only the flat probe_pNN modules
                     assert all(re.fullmatch(r"probe_p\d\d", a.name) for a in node.names)
                 else:
-                    assert node.module in ("core", "dom_common"), (path.name, node.module)
+                    ok = node.module in ("core", "dom_common") or (
+                        node.module.startswith("dom_") and node.module != "dom_probe"
+                    )
+                    assert ok, (path.name, node.module)

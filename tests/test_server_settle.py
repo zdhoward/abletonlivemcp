@@ -28,21 +28,13 @@ def test_transport_and_clip_launches_read_back_after_settling(monkeypatch):
         "tempo": None,
     }
     assert "settled" in server.live_transport("stop")
-    assert server.live_fire_clip(2, 3) == {"method": "get_clip"}
-    assert server.live_stop_clip(2, 3) == {"method": "get_clip"}
 
     assert [m for m, _ in fake.calls if m not in ("session_info", "clip_slot")] == [
         "transport",
         "get_session",
         "transport",
         "get_session",
-        "fire_clip",
-        "get_clip",
-        "stop_clip",
-        "get_clip",
     ]
     by_method = {m: p for m, p in fake.calls}
     assert by_method["transport"] == {"action": "stop", "generation": 5}  # global: generation
-    assert by_method["fire_clip"] == {"clip": "C"}  # clip writes carry a reference, not indices
-    assert by_method["get_clip"] == {"track": 2, "scene": 3}  # reads still use indices
-    assert slept == [server.SETTLE_SECONDS] * 4
+    assert slept == [server.SETTLE_SECONDS] * 2

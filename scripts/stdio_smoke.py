@@ -10,7 +10,7 @@ import sys
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-READS = ["live_hello", "live_session_info", "live_tracks", "live_get_transport"]
+READS = ["live_hello", "live_get_session", "live_get_tracks"]
 
 
 async def main() -> int:

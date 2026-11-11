@@ -81,16 +81,7 @@ OWNER: dict[str, int] = {
 }  # fmt: skip
 
 # Pre-v2 names (module -> names) that stay registered until the owning batch replaces them.
-LEGACY_TOOLS: dict[str, tuple[str, ...]] = {
-    "session": ("live_session_info", "live_get_transport", "live_set_transport"),
-    "tracks": ("live_tracks", "live_create_track", "live_set_track"),
-    "scenes": ("live_list_scenes", "live_create_scene", "live_set_scene_name", "live_fire_scene"),
-    "clips": ("live_get_clip", "live_create_clip", "live_fire_clip", "live_stop_clip"),
-    "notes": ("live_add_notes",),
-    "devices": ("live_device_parameters",),
-    "browser": ("live_browser_roots",),
-    "chain": ("live_vocal_presets",),
-}
+LEGACY_TOOLS: dict[str, tuple[str, ...]] = {}  # every batch has landed; none remain
 
 CORE_LIMIT = 30
 ALL_LIMIT = 58

@@ -176,9 +176,9 @@ class Harness:
     async def scratch_track(self, kind: str = "audio", prefix: str = "ALMCP") -> Scratch:
         """Create one new track at the end through the MCP tool; it is the only track the proof
         may modify. Raises Stop if the track did not appear."""
-        before = (await self.tool("live_session_info"))["track_count"]
-        await self.tool("live_create_track", {"kind": kind, "index": -1})
-        after = (await self.tool("live_session_info"))["track_count"]
+        before = (await self.tool("live_get_session"))["track_count"]
+        await self.tool("live_create_tracks", {"tracks": [{"kind": kind, "index": -1}]})
+        after = (await self.tool("live_get_session"))["track_count"]
         if after != before + 1:
             print(f"FAIL scratch {kind} track created: count {before} -> {after}")
             raise Stop

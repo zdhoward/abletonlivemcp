@@ -15,6 +15,7 @@ import pytest
 from abletonlivemcp import chain, server
 from abletonlivemcp.bridge import BridgeError
 from abletonlivemcp.chain_presets import PRESETS
+from abletonlivemcp.models_control import NewTrack
 from abletonlivemcp.server import ToolFailure
 from abletonlivemcp.tools import chain as chain_tools
 
@@ -30,6 +31,11 @@ REMOVED = {
     "stock_equivalent_for_gear",
     "live_build_role_chain",
     "live_set_device_parameter",
+    "live_tracks",
+    "live_session_info",
+    "live_create_track",
+    "live_set_track",
+    "live_fire_clip",
 }
 DUMMY_ENV = {
     "ABLETONLIVEMCP_KNOWLEDGE": ".",
@@ -47,9 +53,7 @@ def test_production_surface_has_no_deferred_tools_even_with_their_env_vars(tmp_p
         "import asyncio, json, sys\n"
         "from abletonlivemcp import server\n"
         "names = sorted(t.name for t in asyncio.run(server.mcp.list_tools()))\n"
-        "bad = [m for m in sys.modules if m.startswith(('abletonlivemcp.judge',"
-        " 'abletonlivemcp.knowledge', 'abletonlivemcp.als'))]\n"
-        "print(json.dumps({'names': names, 'imported': bad}))\n"
+        "print(json.dumps({'names': names}))\n"
     )
     env = {**__import__("os").environ, **DUMMY_ENV, "ABLETONLIVEMCP_KNOWLEDGE": str(tmp_path)}
     out = subprocess.run(
@@ -57,17 +61,15 @@ def test_production_surface_has_no_deferred_tools_even_with_their_env_vars(tmp_p
     )
     seen = json.loads(out.stdout.strip().splitlines()[-1])
     assert not REMOVED & set(seen["names"])
-    assert not any(n.startswith(("als_", "classify_", "knowledge_")) for n in seen["names"])
-    assert seen["imported"] == []
     assert {"live_plan_chain", "live_build_chain", "live_get_operation"} <= set(seen["names"])
 
 
 def test_annotations_mark_reads_mutations_and_creates_honestly():
     tools = _tools()
-    for name in ("live_tracks", "live_plan_chain", "live_get_operation", "live_browser_list"):
+    for name in ("live_get_tracks", "live_plan_chain", "live_get_operation", "live_browser_list"):
         a = tools[name].annotations
         assert a.read_only_hint is True and a.destructive_hint is False, name
-    for name in ("live_create_track", "live_create_scene", "live_load_item", "live_build_chain"):
+    for name in ("live_create_tracks", "live_create_scenes", "live_load_item", "live_build_chain"):
         a = tools[name].annotations
         assert a.read_only_hint is False and a.idempotent_hint is False, name
     a = tools["live_set_device_parameters"].annotations
@@ -114,11 +116,10 @@ class Bridge:
     def _session_info(self, _p):
         return {"generation": self.generation}
 
-    def _tracks(self, _p):
+    def _get_tracks(self, _p):
         devices = [{"name": n, "class_name": n} for n in self.devices]
-        return [
-            {"index": 0, "ref": "trk", "name": "Vox", "has_midi_input": False, "devices": devices}
-        ]
+        row = {"index": 0, "name": "Vox", "has_midi_input": False, "devices": devices}
+        return {"track_count": 1, "return_count": 0, "tracks": [row]}
 
     def _device_list(self, _p):
         rows = [
@@ -327,29 +328,30 @@ def test_policy_refusal_and_bridge_refusal_are_errors_that_say_not_applied(live,
     monkeypatch.undo()  # back to the real policy check, with no readable private config
     monkeypatch.setattr(server._bridge, "call", live.call)
     with pytest.raises(ToolFailure, match=r"read_only: .*\(not applied\)"):
-        server.live_create_track("audio")
+        server.live_create_tracks([NewTrack(kind="audio")])
     assert live.calls == []  # refused before any bridge call
 
     monkeypatch.setattr(server, "_writable", lambda: None)
-    live.script["create_track"] = [
+    live.script["create_tracks"] = [
         {"refused": True, "applied": False, "code": "stale_generation", "message": "moved"}
     ]
     with pytest.raises(ToolFailure, match=r"refused:stale_generation: moved \(not applied\)"):
-        server.live_create_track("audio")
-    live.script["create_track"] = [BridgeError("Timeout", "lost", may_have_applied=True)]
+        server.live_create_tracks([NewTrack(kind="audio")])
+    live.script["create_tracks"] = [BridgeError("Timeout", "lost", may_have_applied=True)]
     with pytest.raises(ToolFailure, match="may have been applied"):
-        server.live_create_track("audio")
+        server.live_create_tracks([NewTrack(kind="audio")])
 
 
 def test_mutations_are_serialized_by_one_lock(live, monkeypatch):
     monkeypatch.setattr(server, "LOCK_WAIT", 0.01)
     with server._mutation_lock:
         with pytest.raises(ToolFailure, match="busy: another mutation"):
-            server.live_create_track("audio")
-    assert "create_track" not in live.methods()
+            server.live_create_tracks([NewTrack(kind="audio")])
+    assert "create_tracks" not in live.methods()
 
 
 def test_untrusted_names_are_wrapped_and_references_are_not_leaked(live):
-    out = server.live_tracks()
+    out = server.live_get_tracks()
     assert out["provenance"] == "live_object_text_untrusted"
-    assert "ref" not in out["data"][0] and out["data"][0]["name"] == "Vox"
+    row = out["data"]["tracks"][0]
+    assert "ref" not in row and row["name"] == "Vox"

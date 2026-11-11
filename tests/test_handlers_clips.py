@@ -7,7 +7,6 @@ wrong-kind references, leases). Here: one shared bare-index guard table across t
 features, plus each feature's own validation, readback and bounds.
 """
 
-import asyncio
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -305,37 +304,3 @@ def test_no_destructive_handlers(env, method):
     assert method not in CLASSIFICATION
     with pytest.raises(ValueError, match="unclassified"):
         dispatch(method, {})
-
-
-# ---- MCP wrappers: registered, and writes forward references (settle: test_server_settle) ------
-
-
-@pytest.mark.parametrize(
-    "tool,args,method,params",
-    [
-        ("live_create_scene", {"index": 1}, "create_scene", {"index": 1, "generation": 5}),
-        ("live_set_scene_name", {"scene": 1, "name": "B"}, "set_scene_name",
-         {"scene": "R1", "name": "B"}),
-        ("live_fire_scene", {"scene": 0}, "fire_scene", {"scene": "R0"}),
-    ],
-)  # fmt: skip
-def test_mcp_write_tools_forward_references_and_readbacks(monkeypatch, tool, args, method, params):
-    from abletonlivemcp import server
-
-    calls = []
-    readback = {"actual": "readback"}
-
-    def call(name, arguments=None):
-        calls.append((name, arguments))
-        return {
-            "session_info": {"generation": 5},
-            "scenes": [{"index": i, "ref": f"R{i}", "name": "s"} for i in range(2)],
-            "clip_slot": {"slot": "SLOT", "has_clip": True, "clip": "CLIP"},
-        }.get(name, readback)
-
-    monkeypatch.setattr(server._bridge, "call", call)
-    monkeypatch.setattr(server, "_writable", lambda: None)
-    names = {t.name for t in asyncio.run(server.mcp.list_tools())}
-    assert tool in names
-    assert getattr(server, tool)(**args) is readback
-    assert calls[-1] == (method, params)

@@ -127,13 +127,13 @@ CAPABILITIES = {  # optional: name -> (state, reason)
 def delete_clips(ctx, p): ...
 
 METHODS = {
-    "get_clips": (READ, (), get_clips),
-    "delete_clips": (WRITE, (("targets", "ref", ANY_KIND),), delete_clips),
-    "set_clip_loop": (WRITE, (("clip", "clip"),), set_clip_loop),
+    "get_clips": (get_clips, READ, ()),
+    "delete_clips": (delete_clips, WRITE, (("targets", "ref", ANY_KIND),)),
+    "set_clip_loop": (set_clip_loop, WRITE, (("clip", "clip"),)),
 }
 ```
 
-- `METHODS = {name: (classification, targets, handler)}`. Classification `READ`, `WRITE` or
+- `METHODS = {name: (handler, classification, targets)}`. Classification `READ`, `WRITE` or
   `CONTROL`. Targets: `()` (global; the request must carry `generation`), `(param, kind)` for one
   reference, or `(list_param, item_param, kind)` for a list of objects (max 64). `kind` is a
   reference kind (exactly `safety.PARENTS`: `track`, `return_track`, `master`, `scene`, `cue`,
