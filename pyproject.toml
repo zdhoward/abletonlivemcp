@@ -24,8 +24,7 @@ abletonlivemcp = "abletonlivemcp.server:main"
 abletonlivemcp-install = "abletonlivemcp.install:main"
 
 [project.optional-dependencies]
-jev = ["typesafe-sdk>=0.7"]
-dev = ["pytest>=8", "ruff>=0.6", "typesafe-sdk>=0.7"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/abletonlivemcp"]

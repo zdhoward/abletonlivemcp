@@ -13,6 +13,15 @@ minor version once the first public release is tagged.
 - Typed plans and receipts; stop-on-failure chain building with stock vocal presets.
 - Handshake advertises the method list.
 
+### Changed
+- Remote Script handlers split into per-domain `dom_*.py` modules, each declaring its bridge methods;
+  the safety gate merges them and refuses to import on a duplicate or malformed declaration.
+- MCP tools split into `abletonlivemcp/tools/<domain>.py`; names, descriptions and schemas unchanged.
+
+### Removed
+- The Jev/TypeSafe judge backend, its `jev` extra and the `typesafe-sdk` dev dependency; the local
+  rules judge is the only backend.
+
 ### Fixed
 - A missing request parameter now returns a readable refusal ("not applied") instead of a generic error.
 - Remote Script loads without `ctypes` (not available in Live's embedded Python).
