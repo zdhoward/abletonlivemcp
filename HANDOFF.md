@@ -1,54 +1,64 @@
-# Handoff (2026-11-10, end of study & knowledge base sprint)
+# Handoff (2026-11-10, end of v1 hardening: M1a + M1b done and proven in real Live)
 
-Repo: `zdhoward/abletonlivemcp` (PRIVATE until the owner is happy with v1). Branch `main`.
+Repo: `zdhoward/abletonlivemcp` (PRIVATE until the owner is happy with v1). Branch `main` at the wrapup commit; the
+feature head is `4cd4e4b` plus this docs commit. **Nothing has been pushed or tagged by this session** (see Status).
 
-## State
-- **Bridge (M1)**: Remote Script `remote_script/AbletonLiveMCP/` (loopback `127.0.0.1:9877`, newline-framed JSON, main-thread queue via `update_display`) + MCP server `src/abletonlivemcp/server.py` (35 core tools + 3 conditional knowledge tools = 38 tools total) + installer `python -m abletonlivemcp.install "<User Library>"`.
-- **Offline `.als` (M2)**: reader, sample extraction, `scan_projects`, tools `als_summary`, `als_usage_index` (`src/abletonlivemcp/als/`).
-- **Knowledge Base (M6/M3/M5)**: Comprehensive 31-page knowledge base in `knowledge/` backed by 20 raw collector research files in `research/raw/`. All pages use evidence tags (`**FACT**`, `**CONVENTION**`, `**OPINION**`) and are dynamically indexed and queried via `knowledge_list`, `knowledge_search`, and `knowledge_read` MCP tools (`src/abletonlivemcp/knowledge.py`).
-- **Target Environment**: Owner's Live is **12.2.0** (on Windows; 12.3+ APIs like `insert_device` and `DrumChain.in_note` are unavailable; devices load through the browser route `load_item`). Sandbox folder: `S:\AbletonMCP\projects`; User Library: `D:\Beatz\DAWs\Ableton 12\User Library`.
+## What this session did
+Executed `docs/plans/v1-public-release.md` milestones M1a and M1b through delegated builders (Claude Sonnet 5.5 at
+medium for builds, Opus 5.5 for the security review; Codex hit its quota mid-run), then proved the result in real Live 12.2.0.
 
-## Comprehensive Knowledge Base Inventory (31 Pages)
-1. **Core Instruments & Stages**: `vocals.md`, `drums.md`, `busses-mixing.md`, `guitar-bass.md`, `keys-synths.md`, `mastering.md`
-2. **Genre-Specific FX Chains**: `rock.md`, `hip-hop.md`, `pop.md`, `acoustic.md`, `edm.md`
-3. **Genre Songwriting, Melody & Production**: `rock-songwriting-production.md`, `hip-hop-songwriting-production.md`, `pop-songwriting-production.md`, `acoustic-songwriting-production.md`, `edm-songwriting-production.md`
-4. **Genre MIDI FX & Programming**: `rock-midi-fx.md`, `hip-hop-midi-fx.md`, `pop-midi-fx.md`, `acoustic-midi-fx.md`, `edm-midi-fx.md`
-5. **Drum Machines, Patterns, Fills & Cymbals**: `drum-machines.md`, `drum-patterns.md`, `drum-fills-cymbals.md`
-6. **Studio Organization & Engineering Habits**: `studio-organization-templates.md`, `producer-engineer-habits.md`
-7. **Mixing Troubleshooting & Diagnostic Frameworks**: `mixing-troubleshooting.md`, `mixing-diagnostics-decision-tree.md`
-8. **VST Processors, Instruments & Stock Translation**: `vst-processors.md`, `vst-instruments-stock-mappings.md`
+- **M1a**: protocol-2 mutually authenticated, bounded bridge (`bridge.py` host side, `core.py` Remote Script side);
+  transactional backup-preserving installer (`install.py`) and private config (`config.py`, `~/.abletonlivemcp/bridge.json`).
+  Independent review found no blockers; 9 findings fixed (outcome text, readable refusals, SID via token not `whoami`,
+  reader agreement, 2 s auth deadline, `BridgeBusy`, backup pruning, no `config.py` in the Live folder, cleanup can't hide errors).
+- **M1b-01**: `safety.py` dispatch contract: writes need object references + `generation`, read-only policy read from
+  `bridge.json` (missing/unreadable = read-only; only literal `false` enables writes), bounded lease (max 60 s).
+  Refusals return a SUCCESSFUL result `{"refused":true,"applied":false,"code":...}`; the host treats it as an error.
+- **M1b-02**: `operations.py` bounded browser paging/search, load preconditions, tick-driven load state machine
+  (`pending/ready/failed/unknown`, quarantine on doubt, never retried).
+- **M1b-03**: typed plans/receipts (`models.py`, `chain.py`), stop-on-failure chains, only the v1 core is registered
+  (27 tools; knowledge/als/classifier/gear tools are no longer registered), local rules judge is the default.
+- **M1b-04**: red tests migrated to the new contracts; 190 clip tests collapsed to 94; research tests detached.
+- **M1b-05**: live scripts converted (assert, nonzero exit, `--allow-writes`); real-Live run recorded in
+  `docs/release/m1b-live-evidence.md`. Two real-Live defects found and fixed: no `ctypes` in Live's Python
+  (lazy imports + documented weaker fallback), and `generation` restarting at 1 after a Set change (random start).
+  Append placement is now verified per load (`select_device`, last-position check in the tick).
 
-## Verified in Real Live 12.2 (2026-11-10)
-- Remote Script handshake, browser roots/list/search, `load_item` (Compressor to a new track), device parameter read/write with readback (tested on native devices and VST3 Nexus), track create/rename/color, tempo, range and index guards. Real stdio smoke test passed (`scripts/stdio_smoke.py`).
-- Real clip and transport checks (`scripts/live_clip_test.py`): play/stop/get_transport, create/rename/fire scene, create MIDI clip, write/read 3 notes, fire/stop clip, bad-index and bad-pitch guards, settled transport checks.
-- Jev judge layer evaluated (`src/abletonlivemcp/judge/`) across 40 real OpenRouter calls on synthetic names.
-- Real project scan (`scan_projects`) verified on `S:\AbletonMCP\projects` (1 Set, 11 device instances including 4 VST3 Nexus instances, 0 sample references).
+## Status
+- Branch/commits: `main` has everything; feature branches and worktrees were deleted after merge.
+- PRs: none open. No push, no tag. Last tag is `v0.1.0` (older). `pyproject` version is still `0.0.1`.
+- Validation: 255 tests pass, ruff clean. Real Live 12.2.0: chain EQ Eight, Compressor, Saturator, Reverb loads in order
+  (complete receipt); write/clip/stdio scripts pass; lease and stale-reference/generation refusals observed.
+- Live is running with the new script installed in `D:\Beatz\DAWs\Ableton 12\User Library\Remote Scripts\AbletonLiveMCP`.
+  `bridge.json` has `read_only: true` (writes refused until the owner sets `false`; applies without restart).
+- Backups of earlier installs sit OUTSIDE the library in `D:\Beatz\DAWs\Ableton 12\AbletonLiveMCP-*` (safe to delete).
 
-## Pre-Release Audits Completed
-- `docs/plans/audits/hardening.md`: Local bridge authentication, request timeouts, and device indexing safety.
-- `docs/plans/audits/reusability.md`: Packaging, wheel self-containment, and stranger onboarding.
-- `docs/plans/audits/scope.md`: Scoping v1 to stock-first chain building and Session View assistant.
+## Decisions
+- Claude starts/closes/reinstalls Live itself (see memory `live-lifecycle-autonomy`); Basic is disposable.
+- Lifecycle control (kill/launch Live) stays as scripts, not MCP tools. Broad "run Python in Live" scope is a later,
+  opt-in milestone, not v1.
+- Live-side secret-file check is weaker than host side because Live has no `ctypes`; documented in
+  `docs/release/bridge-protocol.md`. Host and installer still enforce the owner-only DACL.
 
-## Validation Status
-- **pytest**: 332 passed in 2.47s (100% pass rate).
-- **ruff**: clean (0 lint errors).
-- **knowledge stdio smoke test**: verified tool execution (`scripts/knowledge_stdio_smoke.py`).
-- **knowledge page parsing**: all 31 pages parsed with valid section counts and line numbers.
+## Remaining work (ordered)
+1. Optional Sol review of `safety.py`, `operations.py`, chain receipts and the host/Remote Script seam (owner said wait).
+2. Fix: a missing handler parameter (e.g. `set_tempo` without `bpm`) returns a generic "may have been applied" error
+   instead of a readable refusal (`core.py` maps only `ValueError`; handlers raise `KeyError`/`TypeError` on missing args).
+3. Unproved items listed in `docs/release/m1b-live-evidence.md` (target reorder, second-process lease, responsiveness,
+   non-stock loads, one unexplained "connection lost" shortly after Live launched, OneDrive reparse points).
+4. Handshake `methods: []` is still advertised by `core.py`; wire `dispatch.methods` in.
+5. Remaining plan milestones after M1b (M2+ stock discovery, docs/release, packaging, tagging, public release): owner decisions.
+6. Reconnect the knowledge/als tools later behind their own milestone (they were unregistered for v1).
+7. Register `abletonlivemcp` from the `main` checkout in the owner's MCP client (no client config references it today).
 
-## Next Steps
-1. **M6 Chain Builder / Browser Loading**: Connect the curated knowledge base and role adapters (`adapters.py`, `resolve.py`) to browser-based device loading (`load_item`) in real Live 12.2.
-2. **Rules-first Jev Combination**: Implement rules-first classification with Jev fallback for ambiguous plugin names and sample roles.
-3. **M3 Drum Rack Builder**: Build standard 16-pad drum rack generator when audio samples are provided.
-4. **M4 Rack Grouping & Macro Mapping**: Implement parameter macro mapping within Live 12.2 capabilities.
+## Owner-only
+- Setting `read_only: false` when they want the assistant to write; release/tag/public decisions; sample files for M3/M4.
 
-## Owner-Only Actions
-- Remove unsaved `ALMCP test` track/scene in open `Basic` Set if desired.
-- Provide audio clip sample sets for M3/M4 drum rack testing.
-- Public release and version publishing decisions.
+## Knowledge base (unchanged, 31 pages in `knowledge/`, raw evidence in `research/raw/`)
+Core instruments/stages, five genre FX chains, genre songwriting, MIDI FX, drum machines/patterns/fills, studio
+organization, mixing diagnostics, VST stock translations. Index: `knowledge/INDEX.md`. Not exposed by the v1 tool surface.
 
-## Key Files
-- Knowledge index: `knowledge/INDEX.md`
-- Task tracking & plan: `tasks/todo.md`
-- Lessons learned: `tasks/lessons.md`
-- Architecture & decisions: `docs/vision.md`, `docs/research-deep-review.md`
-- Audits: `docs/plans/audits/`
+## Key files
+- Plan: `docs/plans/v1-public-release.md`; evidence: `docs/release/m1b-live-evidence.md`; protocol: `docs/release/bridge-protocol.md`
+- Safety contract: `remote_script/AbletonLiveMCP/safety.py` (module docstring); load state machine: `operations.py`
+- Tracking: `tasks/todo.md`, `tasks/lessons.md`; memory: `live-lifecycle-autonomy`, `bridge-latency-floor`

@@ -37,7 +37,8 @@ Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be v
 ## Milestones
 
 - [x] M0 Repo foundations: license (MIT), README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates, CI (lint+tests), `.gitignore`, pyproject. Repo stays private until the owner is happy with v1 (owner decision 2026-11-10). Research notes: `docs/research.md`.
-- [~] M1 Parity with upstream ableton-mcp. Bridge + 15 MCP tools committed (e6fb9c6). Verified in real Live 12.2 (2026-11-10): handshake, browser roots/list/search, `load_item` (Compressor onto a new track), device parameter read + write with readback, track create/rename/color, tempo, and range/index guards. Remaining: transport, scenes, clips (in progress, fake-tested only), then real-Live check of those after a Live restart; loading from `plugins`/drum kits/racks untested.
+- [x] M1 Parity + v1 hardening (plan `docs/plans/v1-public-release.md` M1a + M1b, 2026-11-10). Authenticated bounded bridge, transactional installer, reference/generation/read-only safety layer, bounded browser + load state machine, plan/receipt chains, pruned tests. Real-Live proof (Live 12.2.0): clip/write/stdio scripts and the EQ Eight -> Compressor -> Saturator -> Reverb chain pass; see `docs/release/m1b-live-evidence.md` for the unproved list. 255 tests pass.
+  - [ ] Follow-ups: readable refusal for missing handler params; handshake `methods`; target-reorder and second-process lease checks; optional Sol review.
 - [~] M2 Offline `.als` reader + usage index (UC1/UC6 foundation). Reader, usage scan and MCP tools (`als_summary`, `als_usage_index`) done (ebd1bd6, e6fb9c6). Sample extraction is synthetic-tested only; needs a real Set with audio clips.
   - [x] Extract sample filenames, relative paths, sizes, and conservative clip/note classifications (`referenced` / `potentially_triggered`); synthetic coverage includes clips, Simpler, DrumCell, and Drum Rack pads.
   - [x] Expose `scan_projects`, aggregate device classes/plugin formats and names/sample references, skip Backup directories, and retain corrupt/unreadable file errors.
@@ -72,4 +73,4 @@ Assumptions: target Live 12.2+ (owner's install); `0.1.0` tag waits until the tr
 
 ## Next step
 
-Finish M1 (transport/scenes/clips), then M3 (drum rack builder, needs samples) or M6 (vocal chain, no samples needed).
+M1 follow-ups above, then the next plan milestone (M2 stock discovery in `docs/plans/v1-public-release.md`), then M3 (needs samples) or M6.
