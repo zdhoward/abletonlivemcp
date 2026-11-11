@@ -146,7 +146,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Handshake: protocol, Live version, build id, variant, generation, read_only and\ndev_probes (bridge config, re-read per call), dialogs and CPU, capability_report (supported/unverified/disabled/unsupported per ability) and toolsets.\nCall first; current tempo/transport state is in live_get_session.",
+  "description": "Handshake: protocol, Live version, build id, variant, generation, read_only and\ndev_probes (bridge config, re-read per call), dialogs and CPU,\ncapability_report (supported/unverified/disabled/unsupported per ability) and toolsets.\nCall first; current tempo/transport state is in live_get_session.",
   "inputSchema": {
    "properties": {},
    "type": "object"

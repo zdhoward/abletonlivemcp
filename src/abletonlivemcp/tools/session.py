@@ -25,7 +25,8 @@ from ..server import _call, _control, _generation, _overwrite, _read, _untrusted
 @_read
 def live_hello() -> dict:
     """Handshake: protocol, Live version, build id, variant, generation, read_only and
-    dev_probes (bridge config, re-read per call), dialogs and CPU, capability_report (supported/unverified/disabled/unsupported per ability) and toolsets.
+    dev_probes (bridge config, re-read per call), dialogs and CPU,
+    capability_report (supported/unverified/disabled/unsupported per ability) and toolsets.
     Call first; current tempo/transport state is in live_get_session."""
     return {**_call("hello"), "toolsets": server.toolsets()}
 

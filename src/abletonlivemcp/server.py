@@ -175,7 +175,7 @@ def _writable(tool: str | None = None) -> None:
     if read_only:
         raise ToolFailure(
             "read_only: writes are disabled in the local bridge config; set read_only to false "
-            "there to allow them (read on every call, no restart needed; not applied)"
+            "there to allow them; it is read on every call, no restart needed (not applied)"
         )
     if tool is not None:
         missing = required_permissions(tool) - allowed_permissions(config)
