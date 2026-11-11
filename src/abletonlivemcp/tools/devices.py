@@ -50,7 +50,8 @@ def live_get_device_parameters(
 ) -> dict:
     """No path, or a path ending at a chain index or "pad:N": list the devices there. A path
     ending at a device ([d] or [d, chain, d, ...]): its parameters (value, range, display,
-    items, default), paged (limit <= 128). track: index, "return:N" or "master"."""
+    items, default), paged (limit <= 128). track: index, "return:N" or "master".
+    Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack (opt-in toolsets)."""
     if not at_device(path):
         info = _call("device_list", loc(track, path))
         info["devices"] = shape(info["devices"], response_format, DEVICES_CONCISE)
@@ -88,7 +89,8 @@ def live_set_device_parameters(
     """Set 1..32 parameters of one device, by name or index. value: a display target ("-18 dB",
     4, "Vocal", true) solved against Live's display, or {"raw": x}; or reset (default) or
     re_enable_automation. Results show actual vs requested and `exact`. Disabled or
-    macro-controlled parameters are refused."""
+    macro-controlled parameters are refused.
+    On/off or rename: live_set_devices; rack macros: live_set_rack (racks toolset)."""
     if not 1 <= len(settings) <= 32:
         raise ValueError("'settings' must hold 1..32 items")
     where = loc(track, path)
@@ -148,7 +150,8 @@ def live_set_device_parameters(
 def live_set_devices(targets: list[DeviceEdit]) -> dict:
     """Turn devices on/off, rename or collapse them (1..64 targets, each its track + path to a
     device; optional expect_name). All are validated before any write; the receipt has
-    per-item outcomes and `unverified` abilities."""
+    per-item outcomes and `unverified` abilities.
+    Parameter values: live_set_device_parameters."""
     if not 1 <= len(targets) <= 64:
         raise ValueError("'targets' must hold 1..64 devices")
     selectors = []

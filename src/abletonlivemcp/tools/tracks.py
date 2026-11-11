@@ -67,7 +67,8 @@ def _refs(edits, method: str) -> dict:
 @_overwrite
 def live_set_tracks(targets: TrackEdits) -> dict:
     """Batch-set name, color, mute, solo, arm, monitoring, fold and routing (display names
-    from live_get_tracks routing; unverified on 12.2). All validated before any write."""
+    from live_get_tracks routing; unverified on 12.2). All validated before any write.
+    Volume, pan and sends: live_set_mixer."""
     return _refs(targets, "set_tracks")
 
 
@@ -75,7 +76,8 @@ def live_set_tracks(targets: TrackEdits) -> dict:
 def live_set_mixer(targets: MixerEdits) -> dict:
     """Batch mixer writes: volume (dB, max +6) or raw 0..1, pan -1..1, sends by index (dB or
     raw), activator, crossfade A/none/B; master: crossfader, cue_volume_db. Readback shows
-    Live's display and `matches` (within 0.05 dB)."""
+    Live's display and `matches` (within 0.05 dB).
+    Name, mute, solo, arm, routing: live_set_tracks."""
     return _refs(targets, "set_mixer")
 
 

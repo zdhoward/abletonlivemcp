@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "No path, or a path ending at a chain index or \"pad:N\": list the devices there. A path\nending at a device ([d] or [d, chain, d, ...]): its parameters (value, range, display,\nitems, default), paged (limit <= 128). track: index, \"return:N\" or \"master\".",
+  "description": "No path, or a path ending at a chain index or \"pad:N\": list the devices there. A path\nending at a device ([d] or [d, chain, d, ...]): its parameters (value, range, display,\nitems, default), paged (limit <= 128). track: index, \"return:N\" or \"master\".\nRack macros and chains: live_get_rack; drum pads: live_get_drum_rack (opt-in toolsets).",
   "inputSchema": {
    "properties": {
     "limit": {
@@ -300,7 +300,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Set 1..32 parameters of one device, by name or index. value: a display target (\"-18 dB\",\n4, \"Vocal\", true) solved against Live's display, or {\"raw\": x}; or reset (default) or\nre_enable_automation. Results show actual vs requested and `exact`. Disabled or\nmacro-controlled parameters are refused.",
+  "description": "Set 1..32 parameters of one device, by name or index. value: a display target (\"-18 dB\",\n4, \"Vocal\", true) solved against Live's display, or {\"raw\": x}; or reset (default) or\nre_enable_automation. Results show actual vs requested and `exact`. Disabled or\nmacro-controlled parameters are refused.\nOn/off or rename: live_set_devices; rack macros: live_set_rack (racks toolset).",
   "inputSchema": {
    "$defs": {
     "ParamWrite": {
@@ -508,7 +508,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Turn devices on/off, rename or collapse them (1..64 targets, each its track + path to a\ndevice; optional expect_name). All are validated before any write; the receipt has\nper-item outcomes and `unverified` abilities.",
+  "description": "Turn devices on/off, rename or collapse them (1..64 targets, each its track + path to a\ndevice; optional expect_name). All are validated before any write; the receipt has\nper-item outcomes and `unverified` abilities.\nParameter values: live_set_device_parameters.",
   "inputSchema": {
    "$defs": {
     "DeviceEdit": {

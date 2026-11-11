@@ -5,8 +5,7 @@ does that ("Pro-C 2: its `Ratio` parameter, solved from the display"). The resol
 picks a device the user prefers and actually has, and falls back to a stock device.
 
 Adding a device means adding one `Adapter` here, nothing else. To write one, load the device on a
-track, run `scripts/live_probe_plugins.py "<name>"`, and read the parameter names and displays in
-docs/data/plugin-params-probe.json.
+track and read its parameter names and displays with `live_get_device_parameters`.
 
 How much of a device Live lets a script control ("access"), measured on Live 12.2:
   full    - every musically relevant parameter is exposed (Pro-C 2, ValhallaVintageVerb)

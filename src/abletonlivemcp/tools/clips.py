@@ -27,7 +27,8 @@ def live_get_clips(
     response_format: ResponseFormat = "concise",
 ) -> dict:
     """Clips by address, or scan Session clips (filter by track/scene; 128 rows max).
-    detail=True adds launch, audio and warp-marker fields."""
+    detail=True adds launch, audio and warp-marker fields.
+    Note contents: live_get_notes."""
     params = {"detail": detail or response_format == "detailed"}
     if clips is not None:
         params["clips"] = [c.model_dump(exclude_none=True) for c in clips]
@@ -44,7 +45,8 @@ def live_get_clips(
 @_create
 def live_create_clips(clips: list[NewClip]) -> dict:
     """Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:
-    absolute path, audio track). Never overwrites. Returns readback with new note_ids."""
+    absolute path, audio track). Never overwrites. Returns readback with new note_ids.
+    Arrangement: live_create_arrangement_clips; from a .mid: live_import_midi."""
     refs = issue_refs([{"kind": "slot", "track": c.track, "scene": c.scene} for c in clips])
     targets = [
         {"ref": r["ref"], **fields(c, ("track", "scene"))} for r, c in zip(refs, clips, strict=True)
@@ -55,7 +57,8 @@ def live_create_clips(clips: list[NewClip]) -> dict:
 @_overwrite
 def live_set_clips(targets: list[ClipEdit]) -> dict:
     """Set clip fields (Session or arrangement). loop/markers are [start, end] beats; gain,
-    pitch_*, warping, warp_mode need audio clips. Validates all, then writes; receipt."""
+    pitch_*, warping, warp_mode need audio clips. Validates all, then writes; receipt.
+    Notes: live_edit_notes; warp markers or crop: live_edit_audio_clip (editing toolset)."""
     refs = issue_refs([{**clip_selector(t.clip), "expect_name": t.expect_name} for t in targets])
     items = [
         {

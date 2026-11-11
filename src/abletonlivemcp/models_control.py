@@ -1,5 +1,5 @@
 """Domain request models for batch 2 (session, tracks, scenes, recording, view; v2 fast track,
-docs/plans/v2-contracts.md). Shared selectors and receipts come from ``abletonlivemcp.models``.
+the v2 tool contract). Shared selectors and receipts come from ``abletonlivemcp.models``.
 
 Kept compact on purpose: every field here is part of the core tool listing budget (40,000 bytes).
 """

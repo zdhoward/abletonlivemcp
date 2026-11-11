@@ -70,7 +70,8 @@ def _launch_selector(t) -> dict:
 def live_launch(action: Literal["fire", "stop"], targets: LaunchTargets) -> dict:
     """Fire or stop clips, slots (fire an empty slot = stop/record per Live), scenes (fire)
     or every clip of a track (stop). Launch quantization applies; `state` is read after Live
-    settles."""
+    settles.
+    Song play/stop/jump: live_transport."""
     selectors = [_launch_selector(t) for t in targets]
     rows = issue_refs(selectors)
     items = [{"kind": r["kind"], "ref": r["ref"]} for r in rows]

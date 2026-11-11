@@ -146,7 +146,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Handshake: protocol, Live version, build id, variant, generation, dialogs and CPU,\ncapability_report (supported/unverified/disabled/unsupported per ability) and toolsets.",
+  "description": "Handshake: protocol, Live version, build id, variant, generation, dialogs and CPU,\ncapability_report (supported/unverified/disabled/unsupported per ability) and toolsets.\nCall first; current tempo/transport state is in live_get_session.",
   "inputSchema": {
    "properties": {},
    "type": "object"
@@ -548,7 +548,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Transport: play, stop, continue, stop_all_clips, jump_to/jump_by (`beats`), cue jumps,\ntap_tempo, nudge, back_to_arranger. Returns the state read after Live settles.",
+  "description": "Transport: play, stop, continue, stop_all_clips, jump_to/jump_by (`beats`), cue jumps,\ntap_tempo, nudge, back_to_arranger. Returns the state read after Live settles.\nClips and scenes: live_launch.",
   "inputSchema": {
    "properties": {
     "action": {

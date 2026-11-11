@@ -1,4 +1,4 @@
-"""MCP resources (docs/plans/v2-contracts.md, batch 6).
+"""MCP resources (v2 tool contract).
 
 ``register(server)`` is called once by ``server.py`` after every tool is registered. A resource
 never adds a second read path: it calls the registered (guarded) read tool of the same name, so

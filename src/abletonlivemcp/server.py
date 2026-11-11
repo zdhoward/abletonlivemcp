@@ -11,7 +11,7 @@ Names and text that come from Live or from a browser are wrapped as untrusted da
 This module holds the shared helpers (registration, toolsets, bridge calls, settling, untrusted
 wrapping, batch preflight, step receipts); the tools themselves live in ``tools/<domain>.py``.
 ``server.<tool name>`` (module ``__getattr__``) or ``server.tool(name)`` reaches any registered
-tool; there is no static re-export list. Contract: ``docs/plans/v2-contracts.md``.
+tool; there is no static re-export list.
 
 Toolsets: a tool belongs to the toolset named by its module (``tools/drums.py`` -> ``drums``;
 the core domains -> ``core``). ``ABLETONLIVEMCP_TOOLSETS`` (comma-separated) or the config key
@@ -184,6 +184,8 @@ def _writable(tool: str | None = None) -> None:
                 f"permission_denied: {tool} requires local permission(s) {needed}; "
                 "update permissions in the private bridge config (not applied)"
             )
+        granted = ",".join(sorted(required_permissions(tool))) or "-"
+        _audit.info("allowed tool=%s permissions=%s", tool, granted)
 
 
 @dataclass(frozen=True)
@@ -477,7 +479,7 @@ def _settled(method: str, params: dict, readback: str, readback_params: dict | N
     return _call(readback, readback_params)
 
 
-# ---- shared tool helpers (v2 batch-1 contract: docs/plans/v2-contracts.md) -------------------
+# ---- shared tool helpers (v2 tool contract) -----------------------------------------------
 
 
 def unsupported(what: str, reason: str) -> Refusal:
@@ -581,10 +583,24 @@ _resources.register(sys.modules[__name__])
 _prompts.register(sys.modules[__name__])
 
 
+AUDIT_ENV = "ABLETONLIVEMCP_AUDIT"
+
+
+def enable_audit_log() -> None:
+    """ABLETONLIVEMCP_AUDIT=1 also logs every allowed write (tool and permissions, never
+    arguments) to stderr; denials are always logged."""
+    if os.environ.get(AUDIT_ENV) == "1" and not _audit.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(message)s"))
+        _audit.addHandler(handler)
+        _audit.setLevel(logging.INFO)
+
+
 def main() -> None:
     if _toolset_error is not None:
         print(f"abletonlivemcp: {_toolset_error}", file=sys.stderr)
         sys.exit(2)
+    enable_audit_log()
     mcp.run("stdio")
 
 

@@ -1,4 +1,4 @@
-"""MCP prompts (docs/plans/v2-contracts.md, batch 6).
+"""MCP prompts (v2 tool contract).
 
 ``register(server)`` is called once by ``server.py`` after every tool is registered. Prompts are
 static guidance that name the final tools; they never call Live. Prompts and resources are not

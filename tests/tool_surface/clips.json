@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:\nabsolute path, audio track). Never overwrites. Returns readback with new note_ids.",
+  "description": "Create clips in empty Session slots: MIDI (length beats, optional notes) or audio (file:\nabsolute path, audio track). Never overwrites. Returns readback with new note_ids.\nArrangement: live_create_arrangement_clips; from a .mid: live_import_midi.",
   "inputSchema": {
    "$defs": {
     "NewClip": {
@@ -254,7 +254,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Clips by address, or scan Session clips (filter by track/scene; 128 rows max).\ndetail=True adds launch, audio and warp-marker fields.",
+  "description": "Clips by address, or scan Session clips (filter by track/scene; 128 rows max).\ndetail=True adds launch, audio and warp-marker fields.\nNote contents: live_get_notes.",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
@@ -431,7 +431,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Set clip fields (Session or arrangement). loop/markers are [start, end] beats; gain,\npitch_*, warping, warp_mode need audio clips. Validates all, then writes; receipt.",
+  "description": "Set clip fields (Session or arrangement). loop/markers are [start, end] beats; gain,\npitch_*, warping, warp_mode need audio clips. Validates all, then writes; receipt.\nNotes: live_edit_notes; warp markers or crop: live_edit_audio_clip (editing toolset).",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {

@@ -686,7 +686,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Batch mixer writes: volume (dB, max +6) or raw 0..1, pan -1..1, sends by index (dB or\nraw), activator, crossfade A/none/B; master: crossfader, cue_volume_db. Readback shows\nLive's display and `matches` (within 0.05 dB).",
+  "description": "Batch mixer writes: volume (dB, max +6) or raw 0..1, pan -1..1, sends by index (dB or\nraw), activator, crossfade A/none/B; master: crossfader, cue_volume_db. Readback shows\nLive's display and `matches` (within 0.05 dB).\nName, mute, solo, arm, routing: live_set_tracks.",
   "inputSchema": {
    "$defs": {
     "MixerEdit": {
@@ -907,7 +907,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Batch-set name, color, mute, solo, arm, monitoring, fold and routing (display names\nfrom live_get_tracks routing; unverified on 12.2). All validated before any write.",
+  "description": "Batch-set name, color, mute, solo, arm, monitoring, fold and routing (display names\nfrom live_get_tracks routing; unverified on 12.2). All validated before any write.\nVolume, pan and sends: live_set_mixer.",
   "inputSchema": {
    "$defs": {
     "Routing": {

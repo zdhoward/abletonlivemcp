@@ -44,6 +44,27 @@ def test_local_permissions_and_file_roots_fail_closed(monkeypatch, tmp_path, cap
         files.confined(str(tmp_path.parent / "outside.mid"))
 
 
+def test_allowed_writes_are_audited_without_arguments(monkeypatch, caplog):
+    config = {"read_only": False, "permissions": ["transport", "edit"]}
+    monkeypatch.setattr(server, "load_config", lambda: config)
+    with caplog.at_level("INFO", logger="abletonlivemcp.audit"):
+        server._writable("live_set_tracks")
+    records = [r.getMessage() for r in caplog.records if r.name == "abletonlivemcp.audit"]
+    assert records == ["allowed tool=live_set_tracks permissions=edit"]
+
+
+def test_audit_env_attaches_one_stderr_handler(monkeypatch):
+    monkeypatch.setattr(server._audit, "handlers", [])
+    monkeypatch.setattr(server._audit, "level", server._audit.level)
+    monkeypatch.delenv(server.AUDIT_ENV, raising=False)
+    server.enable_audit_log()
+    assert server._audit.handlers == []
+    monkeypatch.setenv(server.AUDIT_ENV, "1")
+    server.enable_audit_log()
+    server.enable_audit_log()
+    assert len(server._audit.handlers) == 1
+
+
 def test_read_only_discovery_filters_writes_without_changing_tool_registry():
     code = (
         "import asyncio; from abletonlivemcp import server; "

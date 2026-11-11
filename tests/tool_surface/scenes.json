@@ -244,7 +244,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Fire or stop clips, slots (fire an empty slot = stop/record per Live), scenes (fire)\nor every clip of a track (stop). Launch quantization applies; `state` is read after Live\nsettles.",
+  "description": "Fire or stop clips, slots (fire an empty slot = stop/record per Live), scenes (fire)\nor every clip of a track (stop). Launch quantization applies; `state` is read after Live\nsettles.\nSong play/stop/jump: live_transport.",
   "inputSchema": {
    "$defs": {
     "LaunchTarget": {

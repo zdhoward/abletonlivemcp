@@ -1,16 +1,15 @@
 """Offline reader for Ableton Live Set (.als) files.
 
 An .als file is gzip-compressed XML. The structure here is reverse engineered, not an
-official schema (see docs/research-deep-review.md), so everything is defensive: unknown
-nodes are ignored, missing fields become None, and nothing is ever written back.
+official schema, so everything is defensive: unknown nodes are ignored, missing fields
+become None, and nothing is ever written back.
 
 The XML is parsed incrementally with expat, never with an entity-expanding parser: a DOCTYPE or
 ENTITY declaration is refused by the parser itself, and the compressed size, decompressed size,
 node count and nesting depth are all capped (a Set that exceeds a cap is reported as unreadable,
 not truncated). Text content is dropped; the reader only needs tags and attributes.
 
-Samples found in a Set are *references*, not proof of audible use (see UsageLevel in
-docs/research-deep-review.md section 5).
+Samples found in a Set are *references*, not proof of audible use (see UsageLevel).
 """
 
 from __future__ import annotations

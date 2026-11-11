@@ -25,7 +25,8 @@ from ..server import _call, _control, _generation, _overwrite, _read, _untrusted
 @_read
 def live_hello() -> dict:
     """Handshake: protocol, Live version, build id, variant, generation, dialogs and CPU,
-    capability_report (supported/unverified/disabled/unsupported per ability) and toolsets."""
+    capability_report (supported/unverified/disabled/unsupported per ability) and toolsets.
+    Call first; current tempo/transport state is in live_get_session."""
     return {**_call("hello"), "toolsets": server.toolsets()}
 
 
@@ -81,7 +82,8 @@ def live_set_session(
 @_control
 def live_transport(action: TransportAction, beats: float = None) -> dict:
     """Transport: play, stop, continue, stop_all_clips, jump_to/jump_by (`beats`), cue jumps,
-    tap_tempo, nudge, back_to_arranger. Returns the state read after Live settles."""
+    tap_tempo, nudge, back_to_arranger. Returns the state read after Live settles.
+    Clips and scenes: live_launch."""
     if action in ("jump_to", "jump_by") and beats is None:
         raise ValueError(f"{action} needs 'beats'")
     params = {"action": action, "generation": _generation()}

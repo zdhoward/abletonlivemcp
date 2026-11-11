@@ -378,7 +378,7 @@ def ref_check(ctx, p):
     return {"generation": ctx.safety.generation, "results": results}
 
 
-# ---- shared write helpers (v2 batch-1 contract: docs/plans/v2-contracts.md) ---------------
+# ---- shared write helpers (v2 tool contract) -------------------------------------------
 #
 # Capabilities. A domain module may export ``CAPABILITIES = {name: (state, reason)}`` next to
 # ``METHODS``; ``safety`` merges them fail-closed into ``safety.CAPABILITIES`` (duplicate names or

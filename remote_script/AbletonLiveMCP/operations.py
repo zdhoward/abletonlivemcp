@@ -25,7 +25,7 @@ session (generation). Only ``Safety.invalidate`` (Set change, disconnect) resets
 retry, no rollback and no replay. Ring: ``RING`` records; only ``ready``/``failed`` ones are
 evicted, so a full ring of pending/unknown records refuses new loads (``operations_full``).
 
-Step tasks (v2 contract, docs/plans/v2-contracts.md): ``start_task(kind, step, timeout)`` records
+Step tasks (v2 tool contract): ``start_task(kind, step, timeout)`` records
 a bounded multi-tick operation that is not a device load (cue seek/observe/toggle/observe, for
 instance). ``step()`` runs once per tick: it returns None (still pending) or a result dict
 (``ready``); a raise or the timeout makes it ``unknown`` (reason ``error:<Type>`` or

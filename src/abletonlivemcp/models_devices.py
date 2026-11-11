@@ -1,4 +1,4 @@
-"""Domain request/result models for batch devices (v2 fast track; see docs/plans/v2-contracts.md).
+"""Domain request/result models for batch devices (v2 tool contract).
 
 Owned by its batch; import shared selectors and receipts from ``abletonlivemcp.models``.
 """
