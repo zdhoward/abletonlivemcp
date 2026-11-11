@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -70,29 +69,23 @@ def _scenario(root):
         install.install(library)
         backups = list(dest.parent.glob(f".{install.SCRIPT}.backup-*"))
         assert any(_hashes(backup) == cached for backup in backups)
+        assert not (dest / "config.py").exists()  # nothing in the Remote Script imports it
+        # Backups do not pile up: one more install leaves only the newest owned backup.
+        install.install(library)
+        assert len(list(dest.parent.glob(f".{install.SCRIPT}.backup-*"))) == 1
         restored = config.load_config()
         secret_same = restored["secret"] == private["secret"]
         policy_same = restored["read_only"] == private["read_only"]
-        shared = runpy.run_path(str(dest / "config.py"))
-        discovery_same = shared["config_path"]() == config.config_path()
-        shared_value = shared["load_config"]()
-        shared_same = (
-            shared_value["secret"] == private["secret"]
-            and shared_value["read_only"] == private["read_only"]
-        )
-        assert secret_same and policy_same and discovery_same and shared_same
+        assert secret_same and policy_same
         print(
             f"secret_unchanged={secret_same} policy_unchanged={policy_same} "
-            f"shared_discovery={discovery_same} shared_config={shared_same} backup_preserved=True"
+            "no_config_copy=True backups_pruned_to=1"
         )
         with pytest.MonkeyPatch.context() as default:
             default.delenv("ABLETONLIVEMCP_CONFIG")
-            default_same = (
-                config.config_path() == shared["config_path"]()
-                == home / ".abletonlivemcp" / "bridge.json"
-            )
+            default_same = config.config_path() == home / ".abletonlivemcp" / "bridge.json"
             assert default_same
-        print(f"shared_default_discovery={default_same}")
+        print(f"default_discovery={default_same}")
 
         def attempt(label, fault_code):
             before = _hashes(dest)

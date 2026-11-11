@@ -26,17 +26,11 @@ def source_files() -> dict:
     """Use wheel resources, with the canonical tree for editable development only."""
     root = resources.files("abletonlivemcp").joinpath("_remote_script", SCRIPT)
     if root.is_dir():
-        return {
-            **{entry.name: entry for entry in root.iterdir() if entry.is_file()},
-            "config.py": resources.files("abletonlivemcp").joinpath("config.py"),
-        }
+        return {entry.name: entry for entry in root.iterdir() if entry.is_file()}
     root = checked_path(Path(__file__).absolute().parents[2] / "remote_script" / SCRIPT)
     if not root.is_dir():
         raise InstallError("Remote Script resources are missing; reinstall the host package")
-    return {
-        **{entry.name: entry for entry in root.glob("*.py")},
-        "config.py": Path(__file__).with_name("config.py"),
-    }
+    return {entry.name: entry for entry in root.glob("*.py")}
 
 
 def _digest(data: bytes) -> str:
@@ -89,6 +83,31 @@ def _overlaps(first: Path, second: Path) -> bool:
     return first == second or first in second.parents or second in first.parents
 
 
+def _prune_backups(parent: Path, keep: Path | None) -> None:
+    """Keep only the newest installer-owned backup; never raise, never touch foreign folders."""
+    try:
+        candidates = [
+            entry
+            for entry in parent.iterdir()
+            if re.fullmatch(rf"\.{SCRIPT}\.backup-[0-9a-f]{{32}}", entry.name)
+        ]
+        if keep is None and candidates:
+            keep = max(candidates, key=lambda entry: entry.stat().st_mtime_ns)
+    except OSError:
+        return
+    for entry in candidates:
+        if entry == keep:
+            continue
+        try:
+            checked_path(entry)
+            if entry.resolve().parent != parent.resolve():
+                continue
+            _owned_snapshot(entry)  # requires our manifest and unmodified managed files
+            shutil.rmtree(entry)
+        except Exception:  # noqa: BLE001 - unowned, modified or busy backups are preserved
+            continue
+
+
 def install(user_library: Path) -> Path:
     library = checked_path(user_library)
     presets = checked_path(library / "Presets")
@@ -105,7 +124,7 @@ def install(user_library: Path) -> Path:
     if _overlaps(library, package_root) or _overlaps(configuration, package_root):
         raise InstallError("Library, configuration and package resources must not overlap")
     files = source_files()
-    if not {"__init__.py", "core.py", "handlers.py", "config.py"} <= files.keys():
+    if not {"__init__.py", "core.py", "handlers.py"} <= files.keys():
         raise InstallError("Remote Script resources are incomplete; reinstall the host package")
     expected = {}
     for name, resource in files.items():
@@ -153,17 +172,22 @@ def install(user_library: Path) -> Path:
             raise InstallError(
                 "Replacement failed; previous installation restored. Close Live and retry"
             ) from exc
+        _prune_backups(parent, keep=backup if previous is not None else None)
         return dest
     finally:
-        if stage.exists():
-            checked_path(stage)
-            if stage.resolve().parent != parent.resolve() or not stage.name.startswith(
-                f".{SCRIPT}.stage-"
-            ):
-                raise InstallError("Refusing cleanup outside the private staging directory")
-            for entry in stage.iterdir():
-                checked_path(entry)
-            shutil.rmtree(stage)
+        # Cleanup must never raise: that would hide the original error and backup location.
+        try:
+            if stage.exists():
+                checked_path(stage)
+                if stage.resolve().parent != parent.resolve() or not stage.name.startswith(
+                    f".{SCRIPT}.stage-"
+                ):
+                    raise InstallError("Refusing cleanup outside the private staging directory")
+                for entry in stage.iterdir():
+                    checked_path(entry)
+                shutil.rmtree(stage)
+        except Exception:  # noqa: BLE001, S110 - best effort; leftovers are harmless
+            pass
 
 
 def main(argv: list[str] | None = None) -> None:
