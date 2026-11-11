@@ -1,63 +1,38 @@
-# Handoff (2026-11-10, end of v1 hardening: M1a + M1b done and proven in real Live)
+# Handoff (2026-11-11, v1 hardened; public roadmap + detailed plan written; Wave 0 T-001 done)
 
-Repo: `zdhoward/abletonlivemcp` (PRIVATE until the owner is happy with v1). Branch `main` at the wrapup commit; the
-feature head is `4cd4e4b` plus this docs commit. **Nothing has been pushed or tagged by this session** (see Status).
+Repo `zdhoward/abletonlivemcp` (PRIVATE until the owner is happy). `main` == `origin/main` at `81375d7`; no PRs, no worktrees, no tags
+this session (last tag `v0.1.0`, `pyproject` still `0.0.1`). Directive: cover everything competitors do, then more, with
+MCP best practices, to maintain and release publicly.
 
-## What this session did
-Executed `docs/plans/v1-public-release.md` milestones M1a and M1b through delegated builders (Claude Sonnet 5.5 at
-medium for builds, Opus 5.5 for the security review; Codex hit its quota mid-run), then proved the result in real Live 12.2.0.
-
-- **M1a**: protocol-2 mutually authenticated, bounded bridge (`bridge.py` host side, `core.py` Remote Script side);
-  transactional backup-preserving installer (`install.py`) and private config (`config.py`, `~/.abletonlivemcp/bridge.json`).
-  Independent review found no blockers; 9 findings fixed (outcome text, readable refusals, SID via token not `whoami`,
-  reader agreement, 2 s auth deadline, `BridgeBusy`, backup pruning, no `config.py` in the Live folder, cleanup can't hide errors).
-- **M1b-01**: `safety.py` dispatch contract: writes need object references + `generation`, read-only policy read from
-  `bridge.json` (missing/unreadable = read-only; only literal `false` enables writes), bounded lease (max 60 s).
-  Refusals return a SUCCESSFUL result `{"refused":true,"applied":false,"code":...}`; the host treats it as an error.
-- **M1b-02**: `operations.py` bounded browser paging/search, load preconditions, tick-driven load state machine
-  (`pending/ready/failed/unknown`, quarantine on doubt, never retried).
-- **M1b-03**: typed plans/receipts (`models.py`, `chain.py`), stop-on-failure chains, only the v1 core is registered
-  (27 tools; knowledge/als/classifier/gear tools are no longer registered), local rules judge is the default.
-- **M1b-04**: red tests migrated to the new contracts; 190 clip tests collapsed to 94; research tests detached.
-- **M1b-05**: live scripts converted (assert, nonzero exit, `--allow-writes`); real-Live run recorded in
-  `docs/release/m1b-live-evidence.md`. Two real-Live defects found and fixed: no `ctypes` in Live's Python
-  (lazy imports + documented weaker fallback), and `generation` restarting at 1 after a Set change (random start).
-  Append placement is now verified per load (`select_device`, last-position check in the tick).
-
-## Status
-- Branch/commits: `main` has everything; feature branches and worktrees were deleted after merge.
-- PRs: none open. No push, no tag. Last tag is `v0.1.0` (older). `pyproject` version is still `0.0.1`.
-- Validation: 255 tests pass, ruff clean. Real Live 12.2.0: chain EQ Eight, Compressor, Saturator, Reverb loads in order
-  (complete receipt); write/clip/stdio scripts pass; lease and stale-reference/generation refusals observed.
-- Live is running with the new script installed in `D:\Beatz\DAWs\Ableton 12\User Library\Remote Scripts\AbletonLiveMCP`.
-  `bridge.json` has `read_only: true` (writes refused until the owner sets `false`; applies without restart).
-- Backups of earlier installs sit OUTSIDE the library in `D:\Beatz\DAWs\Ableton 12\AbletonLiveMCP-*` (safe to delete).
+## Done this session
+- Catchup: missing-param refusal (`_Params`), handshake advertises `methods`, second-process lease proven in real Live.
+- Study (3 agents): `docs/research/live-api-map.md`, `docs/research/mcp-excellence.md`, repo audit (use cases vs code).
+- Plans: `docs/plans/v2-public-roadmap.md` (phases P0-P6, owner answers) and `docs/plans/v2-detailed-plan.md` (Opus: parity matrix,
+  core 31-tool surface + 13 opt-in toolsets, tickets T-001..T-083 in 9 waves, 26 probes, risks).
+- P0 hygiene: honest README goals, knowledge INDEX status, todo M2 text, `CHANGELOG.md`, `NOTICE`.
+- T-001 (merged `dea4b34`): handlers split into flat `dom_*.py` (METHODS tables merged fail-closed in `safety.py`), server tools in
+  `tools/<domain>.py`, Jev/TypeSafe removed. Real Live proof: `docs/release/v2/T-001.md` (write/clip/chain proofs PASS, 27 tools, 262 tests, ruff clean).
 
 ## Decisions
-- Claude starts/closes/reinstalls Live itself (see memory `live-lifecycle-autonomy`); Basic is disposable.
-- Lifecycle control (kill/launch Live) stays as scripts, not MCP tools. Broad "run Python in Live" scope is a later,
-  opt-in milestone, not v1.
-- Live-side secret-file check is weaker than host side because Live has no `ctypes`; documented in
-  `docs/release/bridge-protocol.md`. Host and installer still enforce the owner-only DACL.
+- Live 12.2 is the floor; 12.3+/12.4 APIs version-gated by `probe()`. After core surface: original use cases (UC6/UC1/UC4), then arrangement.
+- No arbitrary code-exec tool ever; probes are a fixed table in the Remote Script, never MCP tools.
+- Real Live is one shared resource: only the orchestrator runs proofs/probes, serially (start/close/reinstall Live itself; memory `live-lifecycle-autonomy`).
+- To test with writes: temporarily set `read_only:false` in `~/.abletonlivemcp/bridge.json`, restore `true` after (it is `true` now).
+- Use `.venv\Scripts\python` (system python lacks `mcp`). In Git Bash `/tmp` is not visible to Windows Python; use repo-local temp files.
 
-## Remaining work (ordered)
-1. Optional Sol review of `safety.py`, `operations.py`, chain receipts and the host/Remote Script seam (owner said wait).
-2. DONE (catchup): missing handler params now give a readable refusal (`_Params` in `handlers.py`); the handshake advertises `dispatch.methods`. Both verified in real Live.
-3. Unproved items listed in `docs/release/m1b-live-evidence.md` (target reorder, second-process lease, responsiveness,
-   non-stock loads, one unexplained "connection lost" shortly after Live launched, OneDrive reparse points).
-4. (done, see 2)
-5. Remaining plan milestones after M1b (M2+ stock discovery, docs/release, packaging, tagging, public release): owner decisions.
-6. Reconnect the knowledge/als tools later behind their own milestone (they were unregistered for v1).
-7. Register `abletonlivemcp` from the `main` checkout in the owner's MCP client (no client config references it today).
+## Next steps (in order; see `tasks/todo.md` and the detailed plan section 3)
+1. Wave 0 remainder: T-002 (toolset registry, annotations, outputSchema, response_format, selectors, auto-lease, snapshot test), T-003 (fixed-table
+   probe runner), T-004 (proof harness `scripts/live_harness.py`) in parallel (disjoint files); then T-005 (reference kinds, needs P-01) , T-006 (undo step, needs P-03), T-007 (elicitation for destructive).
+2. Wave 1 probes P-01..P-29 (serial in real Live), then Wave 2 core surface (mixer, returns/sends, note edit, device order, clip props, batch setters), Wave 3 MCP quality, Waves 4-6 UC1/UC4/UC6, Wave 7 arrangement, Wave 8 evals.
+3. P2 packaging/distribution and P6 launch from the roadmap (publish/tag/accounts are owner-gated).
+4. T-081 must re-verify the competitor matrix (it was written from memory; the fetch failed) before anything goes public.
+5. Delegate implementation with explicit briefs (Opus for safety-seam tickets, Sonnet medium otherwise), worktree isolation, verify against the diff, run proofs in real Live myself.
 
 ## Owner-only
-- Setting `read_only: false` when they want the assistant to write; release/tag/public decisions; sample files for M3/M4.
+Package/registry names and accounts, public flip and tags, sample files + a Set with clips (UC1 drum rack, real `.als` validation), `read_only:false` for assistant writes outside tests.
 
-## Knowledge base (unchanged, 31 pages in `knowledge/`, raw evidence in `research/raw/`)
-Core instruments/stages, five genre FX chains, genre songwriting, MIDI FX, drum machines/patterns/fills, studio
-organization, mixing diagnostics, VST stock translations. Index: `knowledge/INDEX.md`. Not exposed by the v1 tool surface.
+## Known unproved (see `docs/release/m1b-live-evidence.md`)
+Target-reorder refusal in real Live (no move/delete handler; unit-covered), non-stock loads, OneDrive reparse points, one unexplained "connection lost" after Live launch.
 
 ## Key files
-- Plan: `docs/plans/v1-public-release.md`; evidence: `docs/release/m1b-live-evidence.md`; protocol: `docs/release/bridge-protocol.md`
-- Safety contract: `remote_script/AbletonLiveMCP/safety.py` (module docstring); load state machine: `operations.py`
-- Tracking: `tasks/todo.md`, `tasks/lessons.md`; memory: `live-lifecycle-autonomy`, `bridge-latency-floor`
+Plans: `docs/plans/v2-detailed-plan.md`, `docs/plans/v2-public-roadmap.md`; research: `docs/research/`; evidence: `docs/release/`; safety contract: `remote_script/AbletonLiveMCP/safety.py`; ledger: `tasks/todo.md`, `tasks/lessons.md`.
