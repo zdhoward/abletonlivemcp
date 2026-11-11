@@ -11,7 +11,7 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -31,7 +31,7 @@ _lock = threading.Lock()
 def _iso(seconds: float | None) -> str | None:
     if seconds is None:
         return None
-    return datetime.fromtimestamp(seconds, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.fromtimestamp(seconds, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _scan_roots(requested: list[str] | None) -> tuple[list[Path], list[Path]]:

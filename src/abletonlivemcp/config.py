@@ -174,23 +174,18 @@ def _check_private(path: Path) -> None:
     if not stat.S_ISREG(info.st_mode):
         raise ConfigError("Bridge configuration must be a regular file")
     if os.name == "nt":
-        sid = _windows_sid()
-        sddl = _windows_sddl(path)
-        owner = re.search(r"O:(.*?)(?=[GDS]:|$)", sddl)
-        dacl = sddl[sddl.find("D:") :] if "D:" in sddl else ""
-        allowed = {sid, "OW", "S-1-3-4", "SY", "S-1-5-18", "BA", "S-1-5-32-544"}
-        fields = [ace.split(";") for ace in re.findall(r"\(([^()]*)\)", dacl)]
-        if (
-            owner is None
-            or owner[1] != sid
-            or not dacl
-            or any(len(f) != 6 for f in fields)
-            or any(f[0] != "D" and (f[0] != "A" or f[5] not in allowed) for f in fields)
-        ):
+        # SDDL abbreviates some current-user SIDs (e.g. LA for runneradmin). Compare the
+        # actual owner/ACE SIDs through the same handle-based checker as the bridge client.
+        from .bridge import _windows_private
+
+        try:
+            with path.open("rb") as stream:
+                _windows_private(stream.fileno())
+        except ValueError:
             raise ConfigError(
                 "Bridge configuration ACL must grant access only to its owner, SYSTEM "
                 "and Administrators"
-            )
+            ) from None
     elif info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
         raise ConfigError("Bridge configuration must be owner-only (chmod 600)")
 
