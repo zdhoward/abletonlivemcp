@@ -1,9 +1,10 @@
 """Arrangement domain: reads, direct clip creation (P-08), clip field edits, cue points.
 
 Live 12.2 facts: ``Track.create_midi_clip(start, length)`` and ``Track.create_audio_clip(path,
-start)`` work (P-08). Split, move (duplicate + delete), ``duplicate_clip_to_arrangement`` and
-take-lane creation/edits are crash-prone on 12.2 (P-19): they refuse with ``unsupported`` before
-any native call; take-lane reads stay. Cue adds and deletes run as a bounded operation (seek,
+start)`` work (P-08). Session-to-Arrangement copying was measured on Basic in 12.2 on
+2026-11-11: no crash, PAD's track automation survived deleting the copied clip. This does not
+qualify Arrangement-to-Arrangement duplication, split, move or take-lane writes; those stay
+disabled. Cue adds and deletes run as a bounded operation (seek,
 observe the playhead, toggle on a later tick, observe the cue at the exact time) because
 ``current_song_time`` applies late and ``set_or_delete_cue`` acts at the playhead.
 """
@@ -24,6 +25,7 @@ from .dom_common import (
     UNVERIFIED,
     WRITE,
     Refused,
+    _index,
     _number,
     _same,
     owner_node,
@@ -57,7 +59,7 @@ def _in_range(clip, span):
 
 def get_arrangement(ctx, p):
     song = ctx.song
-    include = p.get("include") or ["clips", "cues", "take_lanes"]
+    include = p.get("include") or ["clips", "cues"]
     if not isinstance(include, list) or set(include) - {"clips", "cues", "take_lanes"}:
         raise ValueError("'include' must list 'clips', 'cues' and/or 'take_lanes'")
     span = p.get("range")
@@ -132,7 +134,7 @@ def create_arrangement_clips(ctx, p, t):
             raise ValueError(f"{where}: arrangement clips go on regular tracks")
         kind = item.get("kind", "midi")
         if kind == "from_session":
-            require(ctx, "arrangement.duplicate")
+            require(ctx, "arrangement.from_session")
         if item.get("take_lane") is not None:
             require(ctx, "arrangement.take_lanes")
         start = float(_number(item.get("start"), f"{where}.start", 0, MAX_TIME))
@@ -155,9 +157,34 @@ def create_arrangement_clips(ctx, p, t):
                 raise ValueError(f"{where}: an audio clip needs an audio track (P-08)")
             prepared["file"] = audio_file(item.get("file"), where)
             end = float("inf")  # length is known only after creation: place after every clip
+        elif kind == "from_session":
+            require(ctx, "arrangement.from_session", ((track, "duplicate_clip_to_arrangement"),))
+            scene = _index(item.get("scene"), f"{where}.scene", len(track.clip_slots))
+            slot = track.clip_slots[scene]
+            if not slot.has_clip:
+                raise ValueError(f"{where}: source Session slot is empty")
+            source = slot.clip
+            length = float(source.length)
+            if length <= 0 or start + length > MAX_TIME:
+                raise ValueError(f"{where}: source length is outside the timeline bounds")
+            prepared["source"] = source
+            prepared["length"] = length
+            end = start + length
         else:
             raise ValueError(f"{where}: 'kind' must be 'midi', 'audio' or 'from_session'")
-        if _overlaps(track, start, end) or any(s < end and e > start for s, e in reserved):
+        overlaps = _overlaps(track, start, end)
+        prepared["replace"] = []
+        if item.get("replace"):
+            if "delete" not in ctx.safety._permissions():
+                raise Refused("permission_denied", "replace requires local permission delete")
+            if kind != "from_session":
+                raise ValueError(f"{where}: replace is only supported for from_session")
+            require(ctx, "arrangement.delete_clip", ((track, "delete_clip"),))
+            if any(c.start_time < start or c.end_time > end for c in overlaps):
+                raise ValueError(f"{where}: replace refuses clips outside the destination")
+            prepared["replace"] = overlaps
+        collision = any(s < end and e > start for s, e in reserved)
+        if (overlaps and not item.get("replace")) or collision:
             raise ValueError(
                 f"{where}: the range overlaps an existing clip (nothing is overwritten"
                 + ("; audio clips go after the track's last clip)" if kind == "audio" else ")")
@@ -169,15 +196,24 @@ def create_arrangement_clips(ctx, p, t):
 
     def write(e):
         track = e["track"]
+        for old in e["replace"]:
+            track.delete_clip(old)
         before = list(track.arrangement_clips)
         if e["kind"] == "midi":
             track.create_midi_clip(e["start"], e["length"])
+        elif e["kind"] == "from_session":
+            track.duplicate_clip_to_arrangement(e["source"], e["start"])
         else:
             track.create_audio_clip(e["file"], e["start"])
         new = [c for c in track.arrangement_clips if not any(_same(c, b) for b in before)]
         if len(new) != 1:
             raise RuntimeError(f"expected 1 new arrangement clip, found {len(new)}")
         clip = new[0]
+        if e["kind"] == "from_session" and (
+            abs(clip.start_time - e["start"]) > EPS
+            or abs(clip.end_time - (e["start"] + e["length"])) > EPS
+        ):
+            raise RuntimeError("copied clip has unexpected bounds; inspect before retrying")
         apply_fields(clip, e["fields"])
         ids = clip.add_new_notes(e["notes"]) if e["notes"] else ()
         row = {

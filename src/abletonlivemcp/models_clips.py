@@ -120,6 +120,8 @@ class NewArrangementClip(Model):
     track: Index
     start: Beats
     kind: Literal["midi", "audio", "from_session"] = "midi"
+    scene: Index | None = None
+    replace: bool = False
     length: Annotated[float, Field(gt=0, le=1024)] = 4.0
     file: Annotated[str, StringConstraints(max_length=1024)] | None = None
     name: Name | None = None

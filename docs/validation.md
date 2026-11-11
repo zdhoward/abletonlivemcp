@@ -28,6 +28,14 @@ Report write problems found in real projects as issues.
 
 ## Known limits
 
+Targeted P-19, 2026-11-11, Basic on Live 12.2: copying PAD's 16-beat Session clip with
+`Track.duplicate_clip_to_arrangement` to beat 0 returned a clip at [0,16] without a crash.
+Deleting it and restoring it also succeeded. With the clip deleted, the Auto Filter Frequency
+curve remained visible in PAD's track automation lane; the parameter's automation_state stayed
+1 (automated). Samples taken after the short buildup had passed were static, so those samples
+do not establish ramp playback. Basic was never saved; no saved-file claim is made for these
+unsaved edits. This qualifies Session-to-Arrangement copy only, not the full P-19 probe.
+
 - Automatic rack-chain insertion/grouping and macro mapping are unavailable on Live 12.2.
 - Custom drum-pad browser loading/building and pad copying refuse unsupported. Stock kit
   loading, pad reads/mute, rack macro edits and nested Simpler edits were exercised.

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Literal
 
+from ..config import load_config
 from ..models import ResponseFormat, TrackSel
 from ..models_clips import ArrangementEdit, CueAdd, CueEdit, NewArrangementClip, Span
+from ..permissions import allowed_permissions
 from ..server import (
     _call,
     _create,
@@ -32,7 +34,7 @@ def live_get_arrangement(
 ) -> dict:
     """Arrangement clips per track (index = order by start), take lanes, cue points (index =
     order by time), song length and loop. 256 clip rows max (truncated)."""
-    params = {"include": include or ["clips", "cues", "take_lanes"]}
+    params = {"include": include or ["clips", "cues"]}
     if tracks is not None:
         params["tracks"] = tracks
     if range is not None:
@@ -48,8 +50,12 @@ def live_get_arrangement(
 @_create
 def live_create_arrangement_clips(clips: list[NewArrangementClip]) -> dict:
     """New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;
-    placed after the track's last clip). Overlaps refuse. from_session and take_lane refuse on
-    Live 12.2 (crash risk)."""
+    placed after the track's last clip), or from_session (scene index on the same track;
+    copies notes and Session automation to the timeline). Overlaps refuse. Copies are kept;
+    direct arrangement envelope reads are unavailable. replace=True deletes only clips wholly
+    inside the destination span (needs local delete permission). Take lanes refuse on 12.2."""
+    if any(c.replace for c in clips) and "delete" not in allowed_permissions(load_config()):
+        raise ValueError("permission_denied: replace needs the local delete permission")
     refs = issue_refs([{"kind": "track", "track": c.track} for c in clips])
     targets = [{"ref": r["ref"], **fields(c, ("track",))} for r, c in zip(refs, clips, strict=True)]
     return _call("create_arrangement_clips", {"targets": targets})

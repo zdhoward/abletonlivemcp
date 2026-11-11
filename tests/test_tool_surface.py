@@ -131,8 +131,10 @@ def test_registered_tools_use_final_or_legacy_names_in_their_planned_module():
 
 
 def test_toolset_switch_and_unknown_name_stops_startup():
-    assert server.select_toolsets(None) == {"core", "automation"}
-    assert server.select_toolsets("drums, Racks") == {"core", "automation", "drums", "racks"}
+    assert server.select_toolsets(None) == {"core", "automation", "arrangement"}
+    assert server.select_toolsets("drums, Racks") == {
+        "core", "automation", "arrangement", "drums", "racks"
+    }
     assert server.select_toolsets(["all"]) == set(server.TOOLSETS) - {"experimental"}
     assert server.toolset_of("abletonlivemcp.tools.devices_advanced") == "devices-advanced"
     env = {**os.environ, server.TOOLSETS_ENV: "core,bogus"}

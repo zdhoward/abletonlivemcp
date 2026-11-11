@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;\nplaced after the track's last clip). Overlaps refuse. from_session and take_lane refuse on\nLive 12.2 (crash risk).",
+  "description": "New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;\nplaced after the track's last clip), or from_session (scene index on the same track;\ncopies notes and Session automation to the timeline). Overlaps refuse. Copies are kept;\ndirect arrangement envelope reads are unavailable. replace=True deletes only clips wholly\ninside the destination span (needs local delete permission). Take lanes refuse on 12.2.",
   "inputSchema": {
    "$defs": {
     "NewArrangementClip": {
@@ -57,6 +57,21 @@
          },
          "maxItems": 2000,
          "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "replace": {
+       "default": false,
+       "type": "boolean"
+      },
+      "scene": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
         },
         {
          "type": "null"

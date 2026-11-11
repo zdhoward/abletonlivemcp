@@ -33,8 +33,13 @@ ANY_KIND = "any"  # safety.ANY_KIND; importing it here is circular (safety impor
 CAPABILITIES = {
     "clip.create_audio": (SUPPORTED, "P-08: ClipSlot.create_audio_clip, absolute path"),
     "clip.duplicate": (UNVERIFIED, "ClipSlot.duplicate_clip_to; no 12.2 probe yet"),
-    "arrangement.delete_clip": (UNVERIFIED, "Track.delete_clip; P-19 unrun on 12.2"),
-    "arrangement.duplicate": (DISABLED, "duplicate_clip_to_arrangement crash risk on 12.2 (P-19)"),
+    "arrangement.delete_clip": (
+        SUPPORTED, "P-19 Basic 12.2, 2026-11-11: delete read back"
+    ),
+    "arrangement.duplicate": (DISABLED, "Arrangement-to-Arrangement copy remains unqualified"),
+    "arrangement.from_session": (
+        SUPPORTED, "P-19 Basic 12.2, 2026-11-11: Session copy only; no crash"
+    ),
     "arrangement.take_lanes": (DISABLED, "take-lane create/edit crash risk on 12.2 (P-19)"),
 }
 
