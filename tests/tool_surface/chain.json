@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Build a plan from live_plan_chain exactly once, after re-checking that the Set and target\ntrack are unchanged. Stops at the first stage that is not fully applied and exact and returns\na receipt: `status` (complete/partial/failed/pending), `intent_fulfilled` (false if anything\nwas omitted or off target), per-stage originals/actuals, `stopped_at`, `omitted` and\n`unknown`. It never deletes devices, undoes, retries, or loads a substitute. A plan with\nomitted intent builds only with accept_omissions=true. Using a plan again returns its\nreceipt; an expired or changed plan is refused.",
+  "description": "Build a live_plan_chain plan exactly once after re-checking the Set and target. Stops at\nthe first stage not fully applied and exact; receipt: status, intent_fulfilled, per-stage\noriginals/actuals, stopped_at, omitted, unknown, manual_steps. Never deletes, undoes,\nretries or substitutes. Reusing a plan returns its receipt.",
   "inputSchema": {
    "properties": {
     "accept_omissions": {
@@ -40,9 +40,40 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Dry run for an EMPTY regular audio track: resolve stages to the devices this user has,\nwithout loading anything. A stage is {\"role\": \"compressor\", \"intent\": {...}} (roles: eq,\ncompressor, saturation, reverb) or an exact {\"device\": \"Compressor\", \"params\": {...}} with\noptional \"root\" ('audio_effects' or 'plugins') and \"path\". A param value is a display target\n(\"-18 dB\") or {\"raw\": 0.3}. Returns an immutable plan with `plan_id`, the resolved devices,\nomitted intent (visible, never silent) and the target it was planned against. Plugin controls\nare `unverified_until_loaded`. The plan is review content, not approval: pass `plan_id` to\nlive_build_chain.",
+  "description": "Dry run. Target: track, return, master or a chain/pad (chain_path); occupied needs\nappend. Stage: {\"role\": eq|compressor|saturation|reverb, \"intent\"} or {\"device\", \"params\",\n\"root\"?, \"path\"?}; instruments first, empty MIDI target only. Value \"-18 dB\" or {\"raw\": x}.\nrack {\"groups\": [{macro, label?, value?, targets: [{device, parameter, min?, max?}]}]}\nwraps the existing effects in an Audio Effect Rack (manual mapping steps).",
   "inputSchema": {
    "properties": {
+    "append": {
+     "default": false,
+     "title": "Append",
+     "type": "boolean"
+    },
+    "chain_path": {
+     "anyOf": [
+      {
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
+         },
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Chain Path"
+    },
     "preferences": {
      "anyOf": [
       {
@@ -56,22 +87,51 @@
      "default": null,
      "title": "Preferences"
     },
+    "rack": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Rack"
+    },
     "stages": {
-     "items": {
-      "additionalProperties": true,
-      "type": "object"
-     },
-     "title": "Stages",
-     "type": "array"
+     "anyOf": [
+      {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Stages"
     },
     "track": {
-     "title": "Track",
-     "type": "integer"
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
     }
    },
    "required": [
-    "track",
-    "stages"
+    "track"
    ],
    "title": "live_plan_chainArguments",
    "type": "object"
@@ -83,26 +143,5 @@
    "type": "object"
   },
   "title": "Plan chain"
- },
- {
-  "annotations": {
-   "destructiveHint": false,
-   "idempotentHint": true,
-   "openWorldHint": false,
-   "readOnlyHint": true
-  },
-  "description": "List the starting-point vocal chains as role stages (values from general mixing practice,\nnot judged by ear), ready to pass to live_plan_chain.",
-  "inputSchema": {
-   "properties": {},
-   "title": "live_vocal_presetsArguments",
-   "type": "object"
-  },
-  "name": "live_vocal_presets",
-  "outputSchema": {
-   "additionalProperties": true,
-   "title": "live_vocal_presetsDictOutput",
-   "type": "object"
-  },
-  "title": "Vocal presets"
  }
 ]

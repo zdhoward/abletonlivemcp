@@ -64,7 +64,7 @@ def test_production_surface_has_no_deferred_tools_even_with_their_env_vars(tmp_p
 
 def test_annotations_mark_reads_mutations_and_creates_honestly():
     tools = _tools()
-    for name in ("live_tracks", "live_plan_chain", "live_get_operation", "live_vocal_presets"):
+    for name in ("live_tracks", "live_plan_chain", "live_get_operation", "live_browser_list"):
         a = tools[name].annotations
         assert a.read_only_hint is True and a.destructive_hint is False, name
     for name in ("live_create_track", "live_create_scene", "live_load_item", "live_build_chain"):
@@ -119,6 +119,17 @@ class Bridge:
         return [
             {"index": 0, "ref": "trk", "name": "Vox", "has_midi_input": False, "devices": devices}
         ]
+
+    def _device_list(self, _p):
+        rows = [
+            {"index": i, "name": n, "class_name": n, "type": "audio_effect"}
+            for i, n in enumerate(self.devices)
+        ]
+        owner = {"kind": "track", "name": "Vox", "has_midi_input": False, "is_group": False}
+        return {"owner": owner, "container": "track", "container_name": "Vox", "devices": rows}
+
+    def _ref_issue(self, p):
+        return {"refs": [{"ref": "trk", "name": "Vox"} for _ in p["targets"]]}
 
     def _browser_list(self, _p):
         return {"items": [{"name": n} for n in ("Compressor", "EQ Eight", "Reverb")]}
@@ -283,7 +294,7 @@ def test_plan_is_consumed_once_expires_and_refuses_a_changed_target(live, monkey
 
 def test_occupied_target_is_refused_at_plan_time(live):
     live.devices.append("Compressor")
-    with pytest.raises(ToolFailure, match="empty regular audio track"):
+    with pytest.raises(ToolFailure, match="must be empty"):
         _plan(RAW)
 
 
@@ -305,6 +316,8 @@ def test_omitted_intent_cannot_become_complete_success(live, monkeypatch):
 
 def test_unsupported_roots_and_unknown_devices_are_refused_at_plan_time(live):
     with pytest.raises(ToolFailure, match="can be built"):
+        _plan({"device": "Clip", "root": "clips", "path": ["Clip"]})
+    with pytest.raises(ToolFailure, match="empty MIDI"):  # a source never lands on audio
         _plan({"device": "Wavetable", "root": "instruments", "path": ["Wavetable"]})
     with pytest.raises(ToolFailure, match="not in Live"):
         _plan({"device": "Pultec"})

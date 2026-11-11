@@ -1,1 +1,719 @@
-[]
+[
+ {
+  "id": "dev-fixture",
+  "phase": "shared_fixture",
+  "tools": [],
+  "steps": [
+   {
+    "tool": "live_create_tracks",
+    "own": {
+     "label": "dev-audio",
+     "kind": "track"
+    },
+    "args": {
+     "tracks": [
+      {
+       "kind": "audio",
+       "name": "${ledger:dev-audio}"
+      }
+     ]
+    },
+    "save": "dev_audio"
+   },
+   {
+    "tool": "live_create_tracks",
+    "own": {
+     "label": "dev-audio2",
+     "kind": "track"
+    },
+    "args": {
+     "tracks": [
+      {
+       "kind": "audio",
+       "name": "${ledger:dev-audio2}"
+      }
+     ]
+    },
+    "save": "dev_audio2"
+   },
+   {
+    "tool": "live_create_tracks",
+    "own": {
+     "label": "dev-drums",
+     "kind": "track"
+    },
+    "args": {
+     "tracks": [
+      {
+       "kind": "midi",
+       "name": "${ledger:dev-drums}"
+      }
+     ]
+    },
+    "save": "dev_drums"
+   },
+   {
+    "tool": "live_create_tracks",
+    "own": {
+     "label": "dev-return",
+     "kind": "track"
+    },
+    "args": {
+     "tracks": [
+      {
+       "kind": "return",
+       "name": "${ledger:dev-return}"
+      }
+     ]
+    },
+    "save": "dev_return"
+   }
+  ]
+ },
+ {
+  "id": "dev-browser",
+  "phase": "browser_devices",
+  "tools": [
+   "live_browser_list",
+   "live_browser_search"
+  ],
+  "steps": [
+   {
+    "tool": "live_browser_list",
+    "args": {},
+    "assert": [
+     {
+      "path": "complete",
+      "equals": true
+     }
+    ]
+   },
+   {
+    "tool": "live_browser_list",
+    "args": {
+     "root": "audio_effects",
+     "path": [],
+     "limit": 50
+    }
+   },
+   {
+    "tool": "live_browser_search",
+    "args": {
+     "root": "audio_effects",
+     "query": "Utility",
+     "limit": 5
+    }
+   }
+  ]
+ },
+ {
+  "id": "dev-load-audio",
+  "phase": "browser_devices",
+  "needs": [
+   "dev-fixture"
+  ],
+  "tools": [
+   "live_load_item",
+   "live_get_operation"
+  ],
+  "steps": [
+   {
+    "tool": "live_load_item",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "root": "audio_effects",
+     "path": [
+      "Utility"
+     ]
+    },
+    "save": "load_a"
+   },
+   {
+    "tool": "live_get_operation",
+    "args": {
+     "operation": "${load_a.operation}"
+    }
+   },
+   {
+    "tool": "live_get_operation",
+    "args": {
+     "operations": [
+      "${load_a.operation}"
+     ]
+    },
+    "assert": [
+     {
+      "path": "operations.0.state",
+      "equals": "ready"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev-params",
+  "phase": "browser_devices",
+  "needs": [
+   "dev-load-audio"
+  ],
+  "tools": [
+   "live_get_device_parameters",
+   "live_set_device_parameters"
+  ],
+  "steps": [
+   {
+    "tool": "live_get_device_parameters",
+    "args": {
+     "track": "${dev_audio.items.0.index}"
+    }
+   },
+   {
+    "tool": "live_get_device_parameters",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ],
+     "limit": 16
+    }
+   },
+   {
+    "tool": "live_get_device_parameters",
+    "args": {
+     "track": "master"
+    }
+   },
+   {
+    "tool": "live_set_device_parameters",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ],
+     "settings": [
+      {
+       "parameter": "Gain",
+       "value": "-6 dB"
+      }
+     ]
+    },
+    "assert": [
+     {
+      "path": "status",
+      "equals": "complete"
+     }
+    ]
+   },
+   {
+    "tool": "live_set_device_parameters",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ],
+     "settings": [
+      {
+       "parameter": "Gain",
+       "reset": true
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "dev-set-devices",
+  "phase": "browser_devices",
+  "needs": [
+   "dev-load-audio"
+  ],
+  "tools": [
+   "live_set_devices"
+  ],
+  "steps": [
+   {
+    "tool": "live_set_devices",
+    "args": {
+     "targets": [
+      {
+       "track": "${dev_audio.items.0.index}",
+       "path": [
+        0
+       ],
+       "on": false
+      }
+     ]
+    },
+    "assert": [
+     {
+      "path": "status",
+      "equals": "complete"
+     }
+    ]
+   },
+   {
+    "tool": "live_set_devices",
+    "args": {
+     "targets": [
+      {
+       "track": "${dev_audio.items.0.index}",
+       "path": [
+        0
+       ],
+       "on": true,
+       "collapsed": true
+      }
+     ]
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-load-return",
+  "phase": "browser_devices",
+  "needs": [
+   "dev-fixture"
+  ],
+  "tools": [
+   "live_load_item"
+  ],
+  "steps": [
+   {
+    "tool": "live_load_item",
+    "args": {
+     "track": "return:${dev_return.items.0.index}",
+     "root": "audio_effects",
+     "path": [
+      "Reverb"
+     ]
+    },
+    "expect": "ok_or_unsupported",
+    "save": "load_r"
+   }
+  ]
+ },
+ {
+  "id": "dev-move",
+  "phase": "browser_devices",
+  "needs": [
+   "dev-set-devices",
+   "dev-params"
+  ],
+  "tools": [
+   "live_move_device"
+  ],
+  "steps": [
+   {
+    "tool": "live_move_device",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ],
+     "to_track": "${dev_audio.items.0.index}",
+     "position": 0
+    },
+    "expect": "refused:unsupported"
+   },
+   {
+    "tool": "live_move_device",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ],
+     "to_track": "${dev_audio2.items.0.index}"
+    },
+    "assert": [
+     {
+      "path": "position",
+      "equals": 0
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev-extras",
+  "phase": "browser_devices",
+  "needs": [
+   "dev-move"
+  ],
+  "tools": [
+   "live_get_device_extras",
+   "live_set_device_extras"
+  ],
+  "steps": [
+   {
+    "tool": "live_get_device_extras",
+    "args": {
+     "track": "${dev_audio2.items.0.index}",
+     "path": [
+      0
+     ]
+    }
+   },
+   {
+    "tool": "live_set_device_extras",
+    "args": {
+     "track": "${dev_audio2.items.0.index}",
+     "path": [
+      0
+     ],
+     "preset_index": 0
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-chain",
+  "phase": "assembly",
+  "needs": [
+   "dev-move"
+  ],
+  "tools": [
+   "live_plan_chain",
+   "live_build_chain"
+  ],
+  "steps": [
+   {
+    "tool": "live_plan_chain",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "stages": [
+      {
+       "device": "EQ Eight",
+       "params": {}
+      },
+      {
+       "device": "Compressor",
+       "params": {
+        "Threshold": "-18 dB"
+       }
+      }
+     ]
+    },
+    "save": "chain_plan"
+   },
+   {
+    "tool": "live_build_chain",
+    "args": {
+     "plan_id": "${chain_plan.plan_id}"
+    },
+    "assert": [
+     {
+      "path": "status",
+      "equals": "complete"
+     }
+    ]
+   },
+   {
+    "tool": "live_build_chain",
+    "args": {
+     "plan_id": "${chain_plan.plan_id}"
+    },
+    "assert": [
+     {
+      "path": "already_built",
+      "equals": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "dev-fx-rack",
+  "phase": "assembly",
+  "needs": [
+   "dev-chain"
+  ],
+  "tools": [
+   "live_plan_chain",
+   "live_build_chain"
+  ],
+  "steps": [
+   {
+    "tool": "live_plan_chain",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "rack": {
+      "groups": [
+       {
+        "macro": 1,
+        "label": "Squash",
+        "targets": [
+         {
+          "device": 1,
+          "parameter": "Threshold"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "expect": "ok_or_unsupported",
+    "save": "rack_plan"
+   },
+   {
+    "tool": "live_build_chain",
+    "args": {
+     "plan_id": "${rack_plan.plan_id}"
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-rack",
+  "phase": "assembly",
+  "needs": [
+   "dev-fx-rack"
+  ],
+  "tools": [
+   "live_get_rack",
+   "live_set_rack"
+  ],
+  "steps": [
+   {
+    "tool": "live_get_rack",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ]
+    }
+   },
+   {
+    "tool": "live_set_rack",
+    "args": {
+     "track": "${dev_audio.items.0.index}",
+     "path": [
+      0
+     ],
+     "macros": [
+      {
+       "macro": 1,
+       "value": {
+        "raw": 64.0
+       }
+      }
+     ],
+     "chains": [
+      {
+       "index": 0,
+       "mute": false
+      }
+     ]
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-drums",
+  "phase": "assembly",
+  "needs": [
+   "dev-fixture"
+  ],
+  "tools": [
+   "live_plan_drum_rack",
+   "live_build_drum_rack",
+   "live_get_drum_rack",
+   "live_set_drum_pads",
+   "live_get_simpler",
+   "live_set_simpler"
+  ],
+  "steps": [
+   {
+    "tool": "live_plan_drum_rack",
+    "args": {
+     "track": "${dev_drums.items.0.index}",
+     "pads": [
+      {
+       "note": 36,
+       "root": "instruments",
+       "path": [
+        "Simpler"
+       ]
+      }
+     ]
+    },
+    "save": "drum_plan"
+   },
+   {
+    "tool": "live_build_drum_rack",
+    "args": {
+     "plan_id": "${drum_plan.plan_id}"
+    },
+    "expect": "ok_or_unsupported"
+   },
+   {
+    "tool": "live_get_drum_rack",
+    "args": {
+     "track": "${dev_drums.items.0.index}",
+     "path": [
+      0
+     ]
+    }
+   },
+   {
+    "tool": "live_set_drum_pads",
+    "args": {
+     "track": "${dev_drums.items.0.index}",
+     "path": [
+      0
+     ],
+     "pads": [
+      {
+       "note": 36,
+       "mute": true
+      }
+     ]
+    },
+    "expect": "ok_or_unsupported"
+   },
+   {
+    "tool": "live_set_drum_pads",
+    "args": {
+     "track": "${dev_drums.items.0.index}",
+     "path": [
+      0
+     ],
+     "copy": {
+      "source": 36,
+      "destination": 37
+     }
+    },
+    "expect": "ok_or_unsupported"
+   },
+   {
+    "tool": "live_get_simpler",
+    "args": {
+     "track": "${dev_drums.items.0.index}",
+     "path": [
+      0,
+      "pad:36",
+      0
+     ]
+    }
+   },
+   {
+    "tool": "live_set_simpler",
+    "args": {
+     "track": "${dev_drums.items.0.index}",
+     "path": [
+      0,
+      "pad:36",
+      0
+     ],
+     "device_fields": {
+      "retrigger": true
+     }
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-convert",
+  "phase": "assembly",
+  "needs": [
+   "dev-extras"
+  ],
+  "tools": [
+   "live_convert"
+  ],
+  "steps": [
+   {
+    "tool": "live_convert",
+    "args": {
+     "action": "devices_to_drum_pad",
+     "target": {
+      "track": "${dev_audio2.items.0.index}"
+     }
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-chain-on-return",
+  "phase": "assembly",
+  "needs": [
+   "dev-load-return"
+  ],
+  "tools": [
+   "live_plan_chain"
+  ],
+  "steps": [
+   {
+    "tool": "live_plan_chain",
+    "args": {
+     "track": "return:${dev_return.items.0.index}",
+     "append": true,
+     "stages": [
+      {
+       "device": "Utility",
+       "params": {}
+      }
+     ]
+    },
+    "expect": "ok_or_unsupported"
+   }
+  ]
+ },
+ {
+  "id": "dev-delete-device",
+  "phase": "safety_destructive",
+  "needs": [
+   "dev-convert"
+  ],
+  "tools": [
+   "live_set_devices"
+  ],
+  "steps": [
+   {
+    "tool": "live_set_devices",
+    "args": {
+     "targets": [
+      {
+       "track": "${dev_audio2.items.0.index}",
+       "path": [
+        0
+       ],
+       "name": "${ledger:dev-device}"
+      }
+     ]
+    },
+    "own": {
+     "label": "dev-device",
+     "kind": "device"
+    }
+   },
+   {
+    "tool": "live_delete",
+    "args": {
+     "targets": [
+      {
+       "kind": "device",
+       "track": "${dev_audio2.items.0.index}",
+       "path": [
+        0
+       ],
+       "expect_name": "${ledger:dev-device}"
+      }
+     ]
+    },
+    "assert": [
+     {
+      "path": "status",
+      "equals": "complete"
+     }
+    ],
+    "confirm": "accept"
+   }
+  ]
+ }
+]

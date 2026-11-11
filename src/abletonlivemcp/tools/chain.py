@@ -1,10 +1,11 @@
-"""Chain tools: plan a chain, then build exactly that plan; vocal starting points."""
+"""Chain tools: plan a device chain (or an FX-rack wrap), then build exactly that plan."""
 
 from __future__ import annotations
 
 from .. import chain, server
 from ..chain import ChainError
-from ..chain_presets import PRESETS
+from ..models import DevicePath, TrackSel
+from ..models_devices import FxRack
 from ..preferences import load_preferences
 from ..resolve import plan_chain
 from ..server import _call, _create, _read
@@ -15,30 +16,39 @@ def _preferences(preferences: dict | None) -> dict:
 
 
 @_read
-def live_plan_chain(track: int, stages: list[dict], preferences: dict | None = None) -> dict:
-    """Dry run for an EMPTY regular audio track: resolve stages to the devices this user has,
-    without loading anything. A stage is {"role": "compressor", "intent": {...}} (roles: eq,
-    compressor, saturation, reverb) or an exact {"device": "Compressor", "params": {...}} with
-    optional "root" ('audio_effects' or 'plugins') and "path". A param value is a display target
-    ("-18 dB") or {"raw": 0.3}. Returns an immutable plan with `plan_id`, the resolved devices,
-    omitted intent (visible, never silent) and the target it was planned against. Plugin controls
-    are `unverified_until_loaded`. The plan is review content, not approval: pass `plan_id` to
-    live_build_chain."""
-    plan = chain.make_plan(_call, stages, track, _preferences(preferences), plan_chain)
+def live_plan_chain(
+    track: TrackSel,
+    stages: list[dict] | None = None,
+    chain_path: DevicePath | None = None,
+    append: bool = False,
+    rack: dict | None = None,
+    preferences: dict | None = None,
+) -> dict:
+    """Dry run. Target: track, return, master or a chain/pad (chain_path); occupied needs
+    append. Stage: {"role": eq|compressor|saturation|reverb, "intent"} or {"device", "params",
+    "root"?, "path"?}; instruments first, empty MIDI target only. Value "-18 dB" or {"raw": x}.
+    rack {"groups": [{macro, label?, value?, targets: [{device, parameter, min?, max?}]}]}
+    wraps the existing effects in an Audio Effect Rack (manual mapping steps)."""
+    if rack is not None:
+        if stages or chain_path or append:
+            raise ChainError("rack mode wraps the existing devices: no stages/chain_path/append")
+        groups = [g.model_dump() for g in FxRack.model_validate(rack).groups]
+        plan = chain.make_rack_plan(_call, track, (), groups)
+    else:
+        plan = chain.make_plan(
+            _call, stages or [], track, _preferences(preferences), plan_chain,
+            tuple(chain_path or ()), append,
+        )  # fmt: skip
     server._plans.add(plan)
     return plan.model_dump(mode="json")
 
 
-@_create
-def live_build_chain(plan_id: str, accept_omissions: bool = False) -> dict:
-    """Build a plan from live_plan_chain exactly once, after re-checking that the Set and target
-    track are unchanged. Stops at the first stage that is not fully applied and exact and returns
-    a receipt: `status` (complete/partial/failed/pending), `intent_fulfilled` (false if anything
-    was omitted or off target), per-stage originals/actuals, `stopped_at`, `omitted` and
-    `unknown`. It never deletes devices, undoes, retries, or loads a substitute. A plan with
-    omitted intent builds only with accept_omissions=true. Using a plan again returns its
-    receipt; an expired or changed plan is refused."""
+def run_plan(plan_id: str, accept_omissions: bool, modes: tuple[str, ...]) -> dict:
+    """Build a stored plan once under the bridge lease (shared by the chain and drum builders)."""
     plans = server._plans
+    peek = plans.peek(plan_id)
+    if peek is not None and peek.mode not in modes:
+        raise ChainError(f"that is a {peek.mode} plan; build it with its own build tool")
     mode, value = plans.claim(plan_id)
     if mode == "receipt":
         return {**value.model_dump(mode="json"), "already_built": True}
@@ -47,12 +57,12 @@ def live_build_chain(plan_id: str, accept_omissions: bool = False) -> dict:
     try:
         if not plan.intent_complete and not accept_omissions:
             raise ChainError("the plan omits intent; review `omitted` and pass accept_omissions")
-        track_ref = chain.verify_target(_call, plan)
+        ref = chain.verify_target(_call, plan)
         # The lease lives on the server module: server._call attaches it to every write.
         lease = chain.checked(server._bridge.call)("lease_acquire", {"ttl": server.LEASE_TTL})
         server._lease = lease["lease"]
         started = True
-        receipt = chain.execute(_call, plan, track_ref)
+        receipt = chain.execute(_call, plan, ref)
     except BaseException:
         if not started:
             plans.release(plan_id)  # nothing began: the plan may be tried again
@@ -68,8 +78,10 @@ def live_build_chain(plan_id: str, accept_omissions: bool = False) -> dict:
     return receipt.model_dump(mode="json")
 
 
-@_read
-def live_vocal_presets() -> dict:
-    """List the starting-point vocal chains as role stages (values from general mixing practice,
-    not judged by ear), ready to pass to live_plan_chain."""
-    return PRESETS
+@_create
+def live_build_chain(plan_id: str, accept_omissions: bool = False) -> dict:
+    """Build a live_plan_chain plan exactly once after re-checking the Set and target. Stops at
+    the first stage not fully applied and exact; receipt: status, intent_fulfilled, per-stage
+    originals/actuals, stopped_at, omitted, unknown, manual_steps. Never deletes, undoes,
+    retries or substitutes. Reusing a plan returns its receipt."""
+    return run_plan(plan_id, accept_omissions, ("chain", "fx_rack"))
