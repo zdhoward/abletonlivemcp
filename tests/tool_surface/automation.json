@@ -243,7 +243,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Write Session-clip automation: optional clear, delete_range [start,end], then steps\n[{time,length,value}] and ramps [{start,end,from,to,steps}] (value in the parameter's\nraw min..max). Readback samples per item.",
+  "description": "Write Session-clip automation: optional clear, delete_range [start,end], then steps\n[{time,length,value}] and ramps [{start,end,from,to,steps}] (value in the parameter's\nraw min..max). Alternatively points [{time,value}] (2-3, increasing) creates linear\nsegments over the full clip (requires clear=true); a middle point tunes the shape.\nLive retains coincident boundary guard\nevents. No native Bezier curvature setter exists. Points cannot mix with steps/ramps.\nReadback samples and actual event counts per item.",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
@@ -391,6 +391,21 @@
       "parameter": {
        "$ref": "#/$defs/AutoParam"
       },
+      "points": {
+       "anyOf": [
+        {
+         "items": {
+          "$ref": "#/$defs/Breakpoint"
+         },
+         "maxItems": 3,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
       "ramps": {
        "anyOf": [
         {
@@ -423,6 +438,24 @@
      "required": [
       "clip",
       "parameter"
+     ],
+     "type": "object"
+    },
+    "Breakpoint": {
+     "additionalProperties": false,
+     "properties": {
+      "time": {
+       "maximum": 16384,
+       "minimum": 0,
+       "type": "number"
+      },
+      "value": {
+       "type": "number"
+      }
+     },
+     "required": [
+      "time",
+      "value"
      ],
      "type": "object"
     },

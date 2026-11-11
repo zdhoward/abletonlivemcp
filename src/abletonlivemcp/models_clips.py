@@ -173,11 +173,17 @@ class Ramp(Model):
     steps: Annotated[int, Field(ge=2, le=256)] = 32
 
 
+class Breakpoint(Model):
+    time: Beats
+    value: float
+
+
 class AutomationEdit(Model):
     clip: ClipRef
     parameter: AutoParam
     steps: Annotated[list[Step], Field(max_length=512)] | None = None
     ramps: Annotated[list[Ramp], Field(max_length=16)] | None = None
+    points: Annotated[list[Breakpoint], Field(min_length=2, max_length=3)] | None = None
     delete_range: Span | None = None
     clear: bool = False
 

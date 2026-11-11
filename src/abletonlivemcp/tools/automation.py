@@ -57,7 +57,11 @@ def live_get_automation(
 def live_set_automation(targets: list[AutomationEdit]) -> dict:
     """Write Session-clip automation: optional clear, delete_range [start,end], then steps
     [{time,length,value}] and ramps [{start,end,from,to,steps}] (value in the parameter's
-    raw min..max). Readback samples per item."""
+    raw min..max). Alternatively points [{time,value}] (2-3, increasing) creates linear
+    segments over the full clip (requires clear=true); a middle point tunes the shape.
+    Live retains coincident boundary guard
+    events. No native Bezier curvature setter exists. Points cannot mix with steps/ramps.
+    Readback samples and actual event counts per item."""
     for t in targets:
         _session_only(t.clip)
     sels = [clip_selector(t.clip) for t in targets]

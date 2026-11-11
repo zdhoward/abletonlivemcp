@@ -3,7 +3,8 @@
 Live 12.2 (P-10): ``create_automation_envelope``, ``insert_step(time, length, value)``,
 ``value_at_time``, ``events_in_range``, ``delete_events_in_range`` and ``clear_envelope`` work on
 session clips. ``automation_envelope`` on an arrangement clip returns None, so arrangement
-automation refuses with ``unsupported`` before any call. Ramps are emulated with steps.
+automation refuses with ``unsupported`` before any call. Legacy ramps use steps; sparse
+points retain linear interpolation by deleting interior step boundaries.
 """
 
 from .dom_common import (
@@ -120,6 +121,32 @@ def _steps(item, param, length, where):
     return out
 
 
+def _points(item, param, length, where):
+    points = item.get("points")
+    if points is None:
+        return []
+    if item.get("steps") or item.get("ramps"):
+        raise ValueError(f"{where}: points cannot be combined with steps or ramps")
+    if item.get("clear") is not True:
+        raise ValueError(f"{where}.points replaces the envelope; set clear=true")
+    if not isinstance(points, list) or not 2 <= len(points) <= 3:
+        raise ValueError(f"{where}.points: give 2 or 3 breakpoints")
+    if param.is_quantized:
+        raise ValueError(f"{where}.points: interpolation needs a continuous parameter")
+    out = []
+    for p in points:
+        if not isinstance(p, dict):
+            raise ValueError(f"{where}.points entries must be objects")
+        time = float(_number(p.get("time"), f"{where}.points.time", 0, length))
+        value = float(_number(p.get("value"), f"{where}.points.value", param.min, param.max))
+        if out and time - out[-1][0] < 0.001:
+            raise ValueError(f"{where}.points must increase by at least 0.001 beats")
+        out.append((time, value))
+    if out[0][0] != 0 or out[-1][0] != length:
+        raise ValueError(f"{where}.points must span beat 0 through clip.length ({length})")
+    return out
+
+
 def set_automation(ctx, p, t):
     """Per item: optional ``clear`` (the parameter's envelope), optional ``delete_range``
     ([start, end]), then ``steps``/``ramps`` written with insert_step. Readback per item."""
@@ -142,6 +169,7 @@ def set_automation(ctx, p, t):
         param = param_r.obj
         length = float(clip.length)
         steps = _steps(item, param, length, where)
+        points = _points(item, param, length, where)
         clear = item.get("clear", False)
         if not isinstance(clear, bool):
             raise ValueError(f"{where}.clear must be a bool")
@@ -153,30 +181,53 @@ def set_automation(ctx, p, t):
                 float(_number(span[0], f"{where}.delete_range[0]", 0, length)),
                 float(_number(span[1], f"{where}.delete_range[1]", 0, length)),
             )
-        if not (clear or span or steps):
+        if not (clear or span or steps or points):
             raise ValueError(f"{where}: nothing to do (steps, ramps, delete_range or clear)")
-        return clip, param, clear, span, steps
+        return clip, param, clear, span, steps, points
 
     def write(e):
-        clip, param, clear, span, steps = e
+        clip, param, clear, span, steps, points = e
         if clear:
             clip.clear_envelope(param)
         env = clip.automation_envelope(param)
         if span is not None and env is not None:
             env.delete_events_in_range(span[0], span[1])
-        if steps:
+        if steps or points:
             if env is None:
                 env = clip.create_automation_envelope(param)
             if env is None:
                 raise RuntimeError("Live returned no envelope for this parameter")
             for t_, d, v in steps:
                 env.insert_step(t_, d, v)
+            # Live has no insert-point/curve setter. Remove the interior step boundaries
+            # to retain interpolation between endpoints. Coincident outer guards remain.
+            if points:
+                # Force a terminal boundary even when the last value equals Live's
+                # original/default value (notably Pump A/B = 1). The seed ends beyond
+                # the clip, so its restoring event is outside the copied timeline span.
+                baseline = param.min if points[-1][1] != param.min else param.max
+                env.insert_step(0.0, float(clip.length) + 1.0, baseline)
+            for (a, va), (b, vb) in zip(points, points[1:], strict=False):
+                mid = (a + b) / 2
+                env.insert_step(a, mid - a, va)
+                env.insert_step(mid, b - mid, vb)
+                epsilon = min(0.0001, (b - a) / 4)
+                env.delete_events_in_range(a + epsilon, b - epsilon)
         row = {"parameter": param.name, "has_envelopes": bool(clip.has_envelopes)}
         if env is not None and steps:
             row["events"] = len(_events(env, 0.0, float(clip.length)))
             row["checks"] = [
                 {"time": t_, "wrote": v, "read": env.value_at_time(t_ + d / 2)}
                 for t_, d, v in steps[:: max(1, len(steps) // 8)]
+            ]
+        if env is not None and points:
+            events = _events(env, 0.0, float(clip.length))
+            row["events"] = len(events)
+            row["breakpoint_times"] = sorted({e["time"] for e in events})
+            row["interpolation"] = "linear; coincident boundary guards retained by Live"
+            row["checks"] = [
+                {"time": (a + b) / 2, "read": env.value_at_time((a + b) / 2)}
+                for (a, _), (b, _) in zip(points, points[1:], strict=False)
             ]
         return row
 
