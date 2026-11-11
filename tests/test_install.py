@@ -13,7 +13,8 @@ import pytest
 def _hashes(directory):
     return {
         str(path.relative_to(directory)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(directory.rglob("*")) if path.is_file()
+        for path in sorted(directory.rglob("*"))
+        if path.is_file()
     }
 
 
@@ -30,7 +31,7 @@ def _scenario(root):
         for name in ("HOME", "USERPROFILE"):
             patch.setenv(name, str(home))
         patch.setenv("HOMEDRIVE", home.drive)
-        patch.setenv("HOMEPATH", str(home)[len(home.drive):])
+        patch.setenv("HOMEPATH", str(home)[len(home.drive) :])
         patch.setenv("ABLETONLIVEMCP_CONFIG", str(home / "private" / "bridge.json"))
         print(f"home={Path.home()} config={config.config_path()} cwd={Path.cwd()}")
         assert Path.home() == home
@@ -46,7 +47,8 @@ def _scenario(root):
         config._check_private(config.config_path())
         principal = (
             "current-user-only; protected DACL; full control"
-            if os.name == "nt" else "owner uid; mode 0600"
+            if os.name == "nt"
+            else "owner uid; mode 0600"
         )
         print(
             f"secret_present={secret_present} read_only_default={private['read_only']} "
@@ -101,7 +103,8 @@ def _scenario(root):
             code = (
                 "import sys\nfrom pathlib import Path\n"
                 f"sys.path.insert(0, {str(Path(abletonlivemcp.__file__).parents[1])!r})\n"
-                "from abletonlivemcp import install\n" + fault_code
+                "from abletonlivemcp import install\n"
+                + fault_code
                 + f"\ninstall.main({[str(library)]!r})\n"
             )
             command = [sys.executable, "-c", code]
@@ -144,7 +147,8 @@ def _scenario(root):
         if os.name == "nt":
             result = subprocess.run(
                 ["cmd", "/c", "mklink", "/J", str(linked), str(library)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             assert result.returncode == 0
         else:
@@ -165,7 +169,8 @@ def _scenario(root):
         if os.name == "nt":
             result = subprocess.run(
                 ["icacls", str(insecure), "/grant", "*S-1-1-0:(R)"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             assert result.returncode == 0
         else:
@@ -188,17 +193,22 @@ def test_install_reinstall_and_failures(tmp_path):
     wheel = os.environ.get("ABLETONLIVEMCP_TEST_WHEEL")
     if wheel:
         command = [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys, runpy; sys.path.insert(0, sys.argv[1]); "
             "runpy.run_path(sys.argv[2], run_name='__main__')",
-            wheel, str(Path(__file__).absolute()), str(tmp_path),
+            wheel,
+            str(Path(__file__).absolute()),
+            str(tmp_path),
         ]
         result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True)
         evidence = os.environ.get("ABLETONLIVEMCP_TEST_EVIDENCE")
         if evidence:
             Path(evidence).write_text(
                 f"command={subprocess.list2cmdline(command)}\nexit={result.returncode}\n"
-                + result.stdout + result.stderr, encoding="utf-8",
+                + result.stdout
+                + result.stderr,
+                encoding="utf-8",
             )
         assert result.returncode == 0, result.stdout + result.stderr
     else:

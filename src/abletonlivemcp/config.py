@@ -53,10 +53,16 @@ def _windows_sid() -> str:
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     ptr = ctypes.c_void_p
     advapi.OpenProcessToken.argtypes = [
-        wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE),
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
     ]
     advapi.GetTokenInformation.argtypes = [
-        wintypes.HANDLE, ctypes.c_int, ptr, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD),
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ptr,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
     ]
     advapi.ConvertSidToStringSidW.argtypes = [ptr, ctypes.POINTER(ptr)]
     advapi.ConvertSidToStringSidW.restype = wintypes.BOOL
@@ -96,15 +102,23 @@ def _windows_sddl(path: Path) -> str:
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     get_security = advapi.GetNamedSecurityInfoW
     get_security.argtypes = [
-        wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD,
-        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_void_p),
     ]
     get_security.restype = wintypes.DWORD
     stringify = advapi.ConvertSecurityDescriptorToStringSecurityDescriptorW
     stringify.argtypes = [
-        ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
-        ctypes.POINTER(wintypes.LPWSTR), ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.LPWSTR),
+        ctypes.c_void_p,
     ]
     stringify.restype = wintypes.BOOL
     kernel.LocalFree.argtypes = [ctypes.c_void_p]
@@ -132,7 +146,10 @@ def _windows_set_private(path: Path) -> None:
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     convert = advapi.ConvertStringSecurityDescriptorToSecurityDescriptorW
     convert.argtypes = [
-        wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
     ]
     convert.restype = wintypes.BOOL
     apply = advapi.SetFileSecurityW
@@ -160,11 +177,13 @@ def _check_private(path: Path) -> None:
         sid = _windows_sid()
         sddl = _windows_sddl(path)
         owner = re.search(r"O:(.*?)(?=[GDS]:|$)", sddl)
-        dacl = sddl[sddl.find("D:"):] if "D:" in sddl else ""
+        dacl = sddl[sddl.find("D:") :] if "D:" in sddl else ""
         allowed = {sid, "OW", "S-1-3-4", "SY", "S-1-5-18", "BA", "S-1-5-32-544"}
         fields = [ace.split(";") for ace in re.findall(r"\(([^()]*)\)", dacl)]
         if (
-            owner is None or owner[1] != sid or not dacl
+            owner is None
+            or owner[1] != sid
+            or not dacl
             or any(len(f) != 6 for f in fields)
             or any(f[0] != "D" and (f[0] != "A" or f[5] not in allowed) for f in fields)
         ):
