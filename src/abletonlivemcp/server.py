@@ -8,15 +8,26 @@ from the bridge as an error: nothing was written.
 
 Names and text that come from Live or from a browser are wrapped as untrusted data.
 
-This module holds the shared helpers (registration, bridge calls, settling, untrusted wrapping);
-the tools themselves live in ``tools/<domain>.py`` and are re-exported here.
+This module holds the shared helpers (registration, toolsets, bridge calls, settling, untrusted
+wrapping); the tools themselves live in ``tools/<domain>.py`` and are re-exported here.
+
+Toolsets: a tool belongs to the toolset named by its module (``tools/drums.py`` -> ``drums``;
+the core domains -> ``core``). ``ABLETONLIVEMCP_TOOLSETS`` (comma-separated) or the config key
+``toolsets`` picks them; ``core`` is always on, ``all`` means every toolset but ``experimental``,
+and an unknown name stops the server at startup. Read-only still wins: write tools stay listed
+and refuse.
 """
 
 from __future__ import annotations
 
 import functools
+import inspect
+import os
+import sys
 import threading
 import time
+from dataclasses import dataclass
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -26,6 +37,7 @@ from . import chain
 from .bridge import BridgeClient, BridgeError
 from .chain import ChainError, Refusal
 from .config import ConfigError, load_config
+from .models import ResponseFormat
 
 mcp = MCPServer("abletonlivemcp")
 _bridge = BridgeClient()
@@ -34,18 +46,95 @@ _mutation_lock = threading.Lock()
 LOCK_WAIT = 5.0
 SETTLE_SECONDS = 0.3  # Live applies play/stop/launch a tick after the call returns
 LEASE_TTL = 60.0
-WRITE_METHODS = {"load_item", "set_device_parameter", "set_device_parameters"}
-_lease: str | None = None  # held only inside live_build_chain
+_lease: str | None = None  # held only inside live_build_chain; rides on every call meanwhile
 
-READ = ToolAnnotations(
-    readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+
+def _preset(read_only: bool, destructive: bool, idempotent: bool) -> ToolAnnotations:
+    return ToolAnnotations(
+        readOnlyHint=read_only,
+        destructiveHint=destructive,
+        idempotentHint=idempotent,
+        openWorldHint=False,
+    )
+
+
+READ = _preset(True, False, True)
+CREATE = _preset(False, False, False)
+OVERWRITE = _preset(False, True, True)
+CONTROL = _preset(False, False, False)  # audible state only (transport, launch, view)
+DESTRUCTIVE = _preset(False, True, False)  # confirmation by elicitation arrives with T-007
+
+# ---- toolsets ---------------------------------------------------------------------------------
+
+CORE_MODULES = {"session", "tracks", "scenes", "clips", "notes", "devices", "browser", "chain"}
+TOOLSETS = (
+    "core",
+    "drums",
+    "racks",
+    "organize",
+    "als",
+    "library",
+    "arrangement",
+    "automation",
+    "recording",
+    "editing",
+    "song",
+    "view",
+    "devices-advanced",
+    "files",
+    "experimental",
 )
-CREATE = ToolAnnotations(
-    readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
-)
-OVERWRITE = ToolAnnotations(
-    readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False
-)
+TOOLSETS_ENV = "ABLETONLIVEMCP_TOOLSETS"
+
+
+class ToolsetError(ValueError):
+    """An unknown toolset name; the server refuses to start rather than guess."""
+
+
+def toolset_of(module: str) -> str:
+    """``abletonlivemcp.tools.devices_advanced`` -> ``devices-advanced``; core domains -> core."""
+    leaf = module.rsplit(".", 1)[-1]
+    return "core" if leaf in CORE_MODULES else leaf.replace("_", "-")
+
+
+def select_toolsets(requested: str | list | tuple | None) -> frozenset[str]:
+    """Resolve a toolset request (comma string or list) to the enabled set; core is always on."""
+    if requested is None:
+        requested = ()
+    if isinstance(requested, str):
+        requested = requested.split(",")
+    if not isinstance(requested, list | tuple) or not all(isinstance(n, str) for n in requested):
+        raise ToolsetError("toolsets must be a comma-separated string or a list of names")
+    names = {n.strip().lower() for n in requested if n.strip()}
+    unknown = sorted(names - set(TOOLSETS) - {"all"})
+    if unknown:
+        raise ToolsetError(f"unknown toolset(s) {unknown}; known: {', '.join(TOOLSETS)}, all")
+    if "all" in names:
+        names = (names - {"all"}) | (set(TOOLSETS) - {"experimental"})
+    return frozenset(names | {"core"})
+
+
+def configured_toolsets() -> frozenset[str]:
+    """The environment wins over the private config; neither means core only."""
+    requested = os.environ.get(TOOLSETS_ENV)
+    if requested is None:
+        try:
+            requested = load_config().get("toolsets")
+        except ConfigError:
+            requested = None
+    return select_toolsets(requested)
+
+
+try:
+    ENABLED = configured_toolsets()
+    _toolset_error: ToolsetError | None = None
+except ToolsetError as exc:  # reported by main(); importing for tests still works
+    ENABLED, _toolset_error = frozenset({"core"}), exc
+
+
+def toolsets() -> dict:
+    """What live_hello reports: enabled and available toolsets."""
+    return {"enabled": sorted(ENABLED), "available": list(TOOLSETS)}
 
 
 class ToolFailure(ToolError, ValueError):
@@ -77,6 +166,39 @@ def _writable() -> None:
         )
 
 
+@dataclass(frozen=True)
+class ToolSpec:
+    """Everything needed to list a tool; kept for every tool, enabled or not."""
+
+    fn: Any  # the guarded wrapper
+    name: str
+    title: str
+    toolset: str
+    module: str
+    annotations: ToolAnnotations
+
+
+SPECS: dict[str, ToolSpec] = {}
+_UNTYPED = {dict: dict[str, Any], list: list[Any]}  # bare annotations still get a schema
+
+
+def _title(name: str) -> str:
+    """``live_get_clip`` -> ``Get clip``."""
+    words = name.removeprefix("live_").replace("_", " ")
+    return words[:1].upper() + words[1:]
+
+
+def install(server: MCPServer, enabled: frozenset[str]) -> None:
+    """Add every recorded tool whose toolset is enabled (used for alternate surfaces, tests)."""
+    for spec in SPECS.values():
+        if spec.toolset in enabled:
+            _add(server, spec)
+
+
+def _add(server: MCPServer, spec: ToolSpec) -> None:
+    server.add_tool(spec.fn, name=spec.name, title=spec.title, annotations=spec.annotations)
+
+
 def _register(fn, annotations: ToolAnnotations, mutation: bool):
     @functools.wraps(fn)
     def run(*args, **kwargs):
@@ -95,7 +217,20 @@ def _register(fn, annotations: ToolAnnotations, mutation: bool):
         except (ValueError, BridgeError) as exc:  # ChainError and Refusal are ValueErrors
             raise ToolFailure(_explain(exc)) from exc
 
-    return mcp.tool(annotations=annotations)(run)
+    # Publish the resolved signature (annotations evaluated in the tool's own module) so the MCP
+    # library derives the input schema and, from the return annotation, the outputSchema.
+    sig = inspect.signature(fn, eval_str=True)
+    ret = _UNTYPED.get(sig.return_annotation, sig.return_annotation)
+    run.__signature__ = sig.replace(return_annotation=ret)
+    if fn.__name__ in SPECS:
+        raise RuntimeError(f"tool {fn.__name__} is registered twice")
+    spec = ToolSpec(
+        run, fn.__name__, _title(fn.__name__), toolset_of(fn.__module__), fn.__module__, annotations
+    )
+    SPECS[spec.name] = spec
+    if spec.toolset in ENABLED:
+        _add(mcp, spec)
+    return run
 
 
 def _read(fn):
@@ -110,11 +245,30 @@ def _overwrite(fn):
     return _register(fn, OVERWRITE, True)
 
 
+def _control(fn):
+    return _register(fn, CONTROL, True)
+
+
+def _destructive(fn):
+    return _register(fn, DESTRUCTIVE, True)
+
+
 def _call(method: str, params: dict | None = None):
-    """One bridge call. The mutation lease rides on writes; a refusal reply raises Refusal."""
-    if _lease is not None and method in WRITE_METHODS:
+    """One bridge call; a refusal reply raises Refusal. While a lease is held every call carries
+    it: writes need it and the bridge ignores it on reads, so no host-side write list can drift
+    from the bridge's own classification."""
+    if _lease is not None:
         params = {**(params or {}), "lease": _lease}
     return chain.checked(_bridge.call)(method, params)
+
+
+def shape(rows: list[dict], response_format: ResponseFormat, concise: tuple[str, ...]) -> list:
+    """`concise` keeps only the named keys of each row; `detailed` returns rows unchanged."""
+    if response_format == "detailed":
+        return rows
+    if response_format != "concise":
+        raise ValueError("response_format must be 'concise' or 'detailed'")
+    return [{k: r[k] for k in concise if k in r} for r in rows]
 
 
 def _untrusted(data):
@@ -191,6 +345,9 @@ from .tools.tracks import live_create_track, live_set_track, live_tracks  # noqa
 
 
 def main() -> None:
+    if _toolset_error is not None:
+        print(f"abletonlivemcp: {_toolset_error}", file=sys.stderr)
+        sys.exit(2)
     mcp.run("stdio")
 
 

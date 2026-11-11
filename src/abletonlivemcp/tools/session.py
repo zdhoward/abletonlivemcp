@@ -10,8 +10,9 @@ from ..server import _call, _generation, _overwrite, _read
 
 @_read
 def live_hello() -> dict:
-    """Handshake with Live: protocol version, Live version, generation and capabilities."""
-    return _call("hello")
+    """Handshake with Live: protocol version, Live version, generation, capabilities and the
+    enabled and available toolsets."""
+    return {**_call("hello"), "toolsets": server.toolsets()}
 
 
 @_read

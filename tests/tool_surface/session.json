@@ -1,0 +1,111 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Read play state, tempo, time signature and current song time in beats.",
+  "inputSchema": {
+   "properties": {},
+   "title": "live_get_transportArguments",
+   "type": "object"
+  },
+  "name": "live_get_transport",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_transportDictOutput",
+   "type": "object"
+  },
+  "title": "Get transport"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Handshake with Live: protocol version, Live version, generation, capabilities and the\nenabled and available toolsets.",
+  "inputSchema": {
+   "properties": {},
+   "title": "live_helloArguments",
+   "type": "object"
+  },
+  "name": "live_hello",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_helloDictOutput",
+   "type": "object"
+  },
+  "title": "Hello"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Tempo, play state, time signature, counts and the Set generation of the open Set.",
+  "inputSchema": {
+   "properties": {},
+   "title": "live_session_infoArguments",
+   "type": "object"
+  },
+  "name": "live_session_info",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_session_infoDictOutput",
+   "type": "object"
+  },
+  "title": "Session info"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Set the tempo (20..999 BPM) and/or start (true) or stop (false) playback. Returns the\ntransport as read back after Live applied it.",
+  "inputSchema": {
+   "properties": {
+    "playing": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Playing"
+    },
+    "tempo": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Tempo"
+    }
+   },
+   "title": "live_set_transportArguments",
+   "type": "object"
+  },
+  "name": "live_set_transport",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_transportDictOutput",
+   "type": "object"
+  },
+  "title": "Set transport"
+ }
+]

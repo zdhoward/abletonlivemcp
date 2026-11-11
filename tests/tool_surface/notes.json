@@ -1,0 +1,79 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Add up to 2000 MIDI notes: pitch 0..127, start_time >= 0, duration > 0,\nvelocity 1..127 and optional boolean mute. Not idempotent: notes are added, not replaced.\nReturns bounded note readback.",
+  "inputSchema": {
+   "properties": {
+    "notes": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Notes",
+     "type": "array"
+    },
+    "scene": {
+     "title": "Scene",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "scene",
+    "notes"
+   ],
+   "title": "live_add_notesArguments",
+   "type": "object"
+  },
+  "name": "live_add_notes",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_add_notesDictOutput",
+   "type": "object"
+  },
+  "title": "Add notes"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Read up to 2000 MIDI notes starting within the clip length; check `truncated`.",
+  "inputSchema": {
+   "properties": {
+    "scene": {
+     "title": "Scene",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "scene"
+   ],
+   "title": "live_get_notesArguments",
+   "type": "object"
+  },
+  "name": "live_get_notes",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_notesDictOutput",
+   "type": "object"
+  },
+  "title": "Get notes"
+ }
+]
