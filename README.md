@@ -5,9 +5,16 @@
 An MCP server that lets Claude (or any MCP-capable LLM) assist you inside Ableton Live, with control
 as close to native as possible. Not an autonomous producer: you stay in charge, the LLM does the tedious parts.
 
-> **Status: pre-alpha, private development (0.0.1).** Tested paths and explicit refusals on Live 12.2/Windows are recorded in the [proof evidence](docs/release/v2-fast-track.md). Current work is in [`tasks/todo.md`](tasks/todo.md). No public release has been approved.
+> **v0.9.0 beta.** Built for Ableton Live 12.2 on Windows. Ready for hands-on testing;
+> [validation and limitations](docs/validation.md) describe what was checked.
 
 ## Install and upgrade
+
+Clone this repository, then install it with Python 3.10 or later:
+
+```sh
+python -m pip install .
+```
 
 1. Close Live, then install the Remote Script into your **User Library** (the one Live is set to
    use; check Settings > Library). The installer only touches a folder it created itself:
@@ -35,16 +42,35 @@ On Windows the strict permission check on `bridge.json` runs on the host side. I
 embedded Python has no `ctypes`, so Live applies a weaker check (location, no links); it logs one
 line saying so at startup.
 
-## Goals
+## Connect your assistant
+
+Add this stdio server to your MCP client (use the Python executable where you installed the package):
+
+```json
+{
+  "mcpServers": {
+    "abletonlive": {
+      "command": "python",
+      "args": ["-m", "abletonlivemcp.server"]
+    }
+  }
+}
+```
+
+For Codex: `codex mcp add abletonlive -- python -m abletonlivemcp.server`.
+Restart the client after changing its MCP configuration. Ask it to call `live_hello`, then
+`live_get_session`. To make edits, enable writes in your private bridge config as described above.
+Destructive operations also require an MCP client that supports form elicitation.
+
+## What it does
 
 - Cover what the other Ableton MCP servers do (sessions, tracks, clips, mixer, devices, browser loading) and go
   further, with verified writes (every change is read back and reported as stored), read-only by default, and
-  fewer, batched calls. Parity is tracked in [`docs/plans/v2-detailed-plan.md`](docs/plans/v2-detailed-plan.md) as it lands;
-  the current surface includes mixer/routing, extended note edits and bounded arrangement operations.
-- Build drum racks in a standard layout from the one-shots you actually use in recent projects.
+  fewer, batched calls. Includes mixer/routing, extended note edits and bounded arrangement operations.
+- Read and edit stock drum kits, pads and nested Simpler devices; custom pad loading is unavailable on 12.2.
 - Set up scenes and plugin stacks; replicate a described vocal chain with the plugins you own.
-- Group an FX chain into a rack and label/map macros from a plain-language spec.
-- Color-tag and organize plugins by category and how often you use them.
+- Edit existing rack macros; automatic grouping and macro mapping are unavailable on 12.2.
+- Organize tracks and maintain local labels and project-usage reports. Native browser Collections are not writable.
 
 ## Knowledge base
 
@@ -52,9 +78,6 @@ line saying so at startup.
 keys/synths, mastering). It is **not shipped** in the package. Enable the `library` toolset and
 set `ABLETONLIVEMCP_KNOWLEDGE` to a local knowledge directory to use `live_knowledge` and knowledge resources.
 Anyone can add a Markdown page there; see the index for the two-line convention.
-
-See [`docs/vision.md`](docs/vision.md) for details and [`docs/original-prompt.md`](docs/original-prompt.md)
-for the verbatim founding prompt.
 
 ## Toolsets and limits
 
@@ -67,7 +90,7 @@ Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `arrangement`, `automat
 Live 12.2 cannot insert rack chains or map macros automatically. Custom drum-pad loading and pad
 copy refuse unsupported; stock kits, pad reads/mute and rack macro values are available. Unsafe
 arrangement split/move/take-lane edits and arrangement automation refuse unsupported. Capabilities
-vary by object; `live_hello` explains support and refusals. See [final proof](docs/release/v2-fast-track.md)
+vary by object; `live_hello` explains support and refusals. See [validation](docs/validation.md)
 for tested paths and limitations; a listed tool does not imply every action is supported.
 
 Offline scans use `ABLETONLIVEMCP_ALS_ROOTS`; MIDI files use `ABLETONLIVEMCP_FILE_ROOTS`

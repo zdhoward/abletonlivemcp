@@ -4,7 +4,10 @@ All notable changes to this project are recorded here. Format: [Keep a Changelog
 versioning: [SemVer](https://semver.org). Versions below 1.0 may change tool names; renames keep an alias for one
 minor version once the first public release is tagged.
 
-## [Unreleased]
+## [0.9.0] - 2026-11-11
+
+First public beta for hands-on testing. Tested on Ableton Live 12.2/Windows; see
+[validation and limitations](docs/validation.md). Read-only by default.
 
 ### Added
 - 57 tools across core (30) and opt-in toolsets: mixer/routing, notes, clips, arrangement,

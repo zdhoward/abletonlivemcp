@@ -646,7 +646,8 @@ def test_review_fixes_outcome_text_refusals_auth_deadline_and_busy(private_confi
     with running(lambda m, p: None, pump=False) as server:
         with dial(server) as conn:
             began = time.monotonic()
-            assert closed(conn) == b""  # keyless peer is dropped at the auth deadline
+            reply = closed(conn)  # keyless peer is dropped; deadline races may send an error.
+            assert reply == b"" or json.loads(reply).get("error") == "FrameTimeout"
             assert 0.2 <= time.monotonic() - began < 1.5
     with running(lambda m, p: None, pump=False) as server:
         peers = [dial(server) for _ in range(core.MAX_CONNECTIONS)]

@@ -394,7 +394,7 @@ class BridgeServer:
             ) from None
         self._status = {
             "protocol": 2,
-            "component_version": "0.0.1",
+            "component_version": "0.9.0",
             "build": "source-protocol-2",
             "session": secrets.token_hex(32),
             "methods": [

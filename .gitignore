@@ -19,4 +19,15 @@ build/
 *.aif
 *.aiff
 /local/
+/HANDOFF.md
+/PROJECT_LOG.md
+/tasks/
+/research/raw/
+/docs/plans/
+/docs/release/
+/docs/original-prompt.md
+/docs/vision.md
+/docs/research.md
+/docs/research-deep-review.md
+/scripts/live_restart.ps1
 !tests/fixtures/**

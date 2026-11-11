@@ -1,6 +1,6 @@
 # Knowledge base: FX chains, songwriting, production, drum programming, MIDI FX, studio organization, mixing troubleshooting, and VST plugins
 
-Built by `/study` on 2026-11-10 for the Ableton Live MCP server. Each page organizes chains by **role and stage order**, not by brand, so a chain can resolve to whatever plugins or stock devices a user owns (see `src/abletonlivemcp/adapters.py`). Raw collector notes with citations are in `research/raw/`.
+Each page organizes chains by **role and stage order**, not by brand, so a chain can resolve to whatever plugins or stock devices a user owns (see `src/abletonlivemcp/adapters.py`). Sources and confidence notes are included in the pages.
 
 ## Using and extending this folder
 
@@ -11,7 +11,7 @@ Built by `/study` on 2026-11-10 for the Ableton Live MCP server. Each page organ
 - Start with a `# Title` line and use `##` headings for sections, so a section can be read by itself. Nothing else is required: no frontmatter, no registration.
 - Label evidence as FACT (documented for a named recording or workflow), CONVENTION or OPINION, link the source URL, and tag numbers you could not confirm against the original page with `UNCONFIRMED-NUMBER`, `UNVERIFIED`, `SECOND-HAND` or `LOW CONFIDENCE`. `knowledge_list` counts these tags per page.
 - Do **not** add your page to the table below to register it; listing is automatic. The table is a hand-written overview and can lag behind. Editing the same file from two threads causes merge conflicts.
-- Commit only your own files (`git add knowledge/<your files>`), and keep raw collector notes in `research/raw/`, not here.
+- Include sources and confidence notes in your page; keep the index focused on reusable reference material.
 
 ### Instrument & Stage Knowledge Pages
 

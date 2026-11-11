@@ -4,7 +4,7 @@ Thanks for helping. This is a small project; the process is deliberately light.
 
 ## Before you start
 
-Read [`docs/vision.md`](docs/vision.md). The project assists a person working in Ableton Live with
+Read the [README](README.md) and [known limits](docs/validation.md). The project assists a person working in Ableton Live with
 near-native control; it is not a fully autonomous production surface. Open an issue before large changes.
 
 ## Setup
