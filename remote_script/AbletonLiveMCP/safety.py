@@ -10,11 +10,9 @@ checks for a method classed ``write``:
 3. Set: the *current* Song is fetched from a supplier on every dispatch; a different Song
    object bumps the generation, which drops every reference and any lease;
 4. targets: every target named in ``TARGETS`` must be an opaque reference string issued by a
-   read in the current generation and still a current member of the live object tree
-   (track in the Set, device in its track, parameter in its device at the issued position,
-   slot in its track at the issued scene row, clip still in its slot, scene in the Set);
-   device parameters additionally require an unchanged parameter layout. A request with no
-   target (global operation) must carry the expected ``generation``;
+   read in the current generation and still a current member of the live object tree, checked
+   level by level from the root (see "Reference kinds" below). A request with no target
+   (global operation) must carry the expected ``generation``;
 5. only then does the handler run its own value validation and the Live write.
 
 A bare number or name never authorizes a write: numeric indices are accepted by reads only,
@@ -30,6 +28,29 @@ Generation starts at a random positive number (a reloaded script never reuses on
 increases on Song change or ``invalidate()`` (disconnect); the
 registry and lease are cleared at the same moment. Liveness of Live objects is checked by
 identity-or-equality membership inside try/except; any exception means "not valid".
+
+Reference kinds (T-005). A reference is a root-to-leaf path of ``(kind, obj, snapshot)`` nodes;
+``PARENTS`` fixes which kind may sit under which, and ``issue`` refuses any other shape. Every
+level is re-checked on every use, so a reference refuses once its object (or any ancestor) is
+deleted, moved or reordered:
+
+- ``track``: at the issued index of ``song.tracks`` (pinned); a legacy snapshot without
+  ``index`` only requires membership (regular or return track);
+- ``return_track``: at the issued index of ``song.return_tracks``; ``master``: is
+  ``song.master_track`` (pinned identity);
+- ``scene``: at the issued index (legacy: membership); ``cue``: in ``song.cue_points`` at the
+  issued ``time``;
+- ``slot``/``clip``: the slot at its scene row with the issued scene there; the slot's clip;
+- ``device`` (under a track, return, master or chain): at the issued index (legacy:
+  membership) with the sibling layout (class names) unchanged; ``chain`` (under a rack device
+  or a drum pad): at the issued index with the same chain count; ``drum_pad``: the pad at the
+  issued ``drum_pads`` position with the same note and the same chains (a cleared or
+  copied-over pad refuses);
+- ``param``: at the issued index with the same name and parameter count; ``mixer_param``: the
+  owner's ``mixer_device`` member named by a fixed role, or the send at the issued index with
+  the same send count;
+- ``take_lane``: at the issued index of ``track.take_lanes``; ``arr_clip``: in the parent's
+  (track or take lane) ``arrangement_clips`` at the issued ``start_time``.
 
 Lease: ``lease_acquire`` (ttl <= ``MAX_LEASE_TTL``, default ``DEFAULT_LEASE_TTL``) returns a
 random token; ``lease_release`` frees it. It is non-renewable, expires on a monotonic clock,
@@ -76,7 +97,15 @@ from . import (
     dom_view,
 )
 from .core import _HEX, _decode, _windows_private
-from .dom_common import CONTROL, READ, WRITE, Refused, _same, same_items  # noqa: F401 - re-exported
+from .dom_common import (  # noqa: F401 - re-exported
+    CONTROL,
+    MIXER_ROLES,
+    READ,
+    WRITE,
+    Refused,
+    _same,
+    same_items,
+)
 
 MAX_REFS = 1024
 MAX_REF_LEN = 64
@@ -108,7 +137,25 @@ DOMAINS = (
 )
 # Executed by the gate itself (handlers.make_dispatch), never by a domain handler.
 GATE_METHODS = {"lease_acquire": CONTROL, "lease_release": CONTROL}
-REFERENCE_KINDS = ("track", "scene", "slot", "clip", "device", "param")
+# Reference kinds and the kinds each may sit under (None: a root, found from the Song).
+PARENTS = {
+    "track": (None,),
+    "return_track": (None,),
+    "master": (None,),
+    "scene": (None,),
+    "cue": (None,),
+    "slot": ("track",),
+    "clip": ("slot",),
+    "device": ("track", "return_track", "master", "chain"),
+    "chain": ("device", "drum_pad"),
+    "drum_pad": ("device",),
+    "param": ("device",),
+    "mixer_param": ("track", "return_track", "master", "chain"),
+    "take_lane": ("track",),
+    "arr_clip": ("track", "take_lane"),
+}
+REFERENCE_KINDS = tuple(PARENTS)
+MAX_PATH_NODES = 24  # owner + 6 device levels (device, pad, chain) + leaf, with margin
 
 
 class DeclarationError(RuntimeError):
@@ -225,6 +272,75 @@ def _member(seq, obj):
         return False
 
 
+def _shape_ok(nodes):
+    """Root first, each node under an allowed parent kind, dict snapshots, bounded depth."""
+    if not isinstance(nodes, tuple) or not 0 < len(nodes) <= MAX_PATH_NODES:
+        return False
+    previous = None
+    for node in nodes:
+        if not isinstance(node, tuple) or len(node) != 3 or not isinstance(node[2], dict):
+            return False
+        if previous not in PARENTS.get(node[0], ()):
+            return False
+        previous = node[0]
+    return True
+
+
+def _alive(kind, song, parent, obj, snap):
+    """One level of a reference: ``obj`` (of ``kind``) is still where it was issued under
+    ``parent`` (the previous level's object; the Song for a root). Raising means invalid."""
+    if kind == "track":
+        if "index" in snap:
+            return _at(song.tracks, snap["index"], obj)
+        return _member(song.tracks, obj) or _member(getattr(song, "return_tracks", ()), obj)
+    if kind == "return_track":
+        return _at(song.return_tracks, snap["index"], obj)
+    if kind == "master":
+        return _same(song.master_track, obj)
+    if kind == "scene":
+        if "index" in snap:
+            return _at(song.scenes, snap["index"], obj)
+        return _member(song.scenes, obj)
+    if kind == "cue":
+        return _member(song.cue_points, obj) and obj.time == snap["time"]
+    if kind == "slot":
+        return _at(parent.clip_slots, snap["index"], obj) and _at(
+            song.scenes, snap["index"], snap["scene"]
+        )
+    if kind == "clip":
+        return bool(parent.has_clip) and _same(parent.clip, obj)
+    if kind == "device":
+        devices = parent.devices
+        placed = _at(devices, snap["index"], obj) if "index" in snap else _member(devices, obj)
+        return placed and snap["layout"] == tuple(d.class_name for d in devices)
+    if kind == "chain":
+        chains = parent.chains
+        return len(chains) == snap["count"] and _at(chains, snap["index"], obj)
+    if kind == "drum_pad":
+        return (
+            _at(parent.drum_pads, snap["slot"], obj)
+            and obj.note == snap["note"]
+            and same_items(tuple(obj.chains), snap["chains"])
+        )
+    if kind == "param":
+        return (
+            len(parent.parameters) == snap["count"]
+            and _at(parent.parameters, snap["index"], obj)
+            and obj.name == snap["name"]
+        )
+    if kind == "mixer_param":
+        mixer, role = parent.mixer_device, snap["role"]
+        if role == "send":
+            sends = mixer.sends
+            return len(sends) == snap["count"] and _at(sends, snap["index"], obj)
+        return role in MIXER_ROLES and _same(getattr(mixer, role), obj)
+    if kind == "take_lane":
+        return _at(parent.take_lanes, snap["index"], obj)
+    if kind == "arr_clip":
+        return _member(parent.arrangement_clips, obj) and obj.start_time == snap["start"]
+    return False
+
+
 class Safety:
     def __init__(
         self,
@@ -265,7 +381,10 @@ class Safety:
 
     # ---- references -------------------------------------------------------------------
     def issue(self, *nodes):
-        """nodes: root-to-leaf tuples (kind, obj, snapshot dict). Returns the leaf's reference."""
+        """nodes: root-to-leaf tuples (kind, obj, snapshot dict). Returns the leaf's reference.
+        A path whose shape breaks ``PARENTS`` is never issued (ValueError, fail closed)."""
+        if not _shape_ok(nodes):
+            raise ValueError("internal: malformed reference path")
         ref = secrets.token_hex(8)
         self._refs[ref] = (self.generation, tuple(nodes))
         while len(self._refs) > MAX_REFS:
@@ -273,33 +392,12 @@ class Safety:
         return ref
 
     def _valid(self, song, nodes):
+        if not _shape_ok(nodes):
+            return False
         parent = song
         for kind, obj, snap in nodes:
             try:
-                if kind == "track":
-                    ok = _member(song.tracks, obj) or _member(
-                        getattr(song, "return_tracks", ()), obj
-                    )
-                elif kind == "scene":
-                    ok = _member(song.scenes, obj)
-                elif kind == "slot":
-                    ok = _at(parent.clip_slots, snap["index"], obj) and _at(
-                        song.scenes, snap["index"], snap["scene"]
-                    )
-                elif kind == "clip":
-                    ok = bool(parent.has_clip) and _same(parent.clip, obj)
-                elif kind == "device":
-                    ok = _member(parent.devices, obj) and snap["layout"] == tuple(
-                        d.class_name for d in parent.devices
-                    )
-                elif kind == "param":
-                    ok = (
-                        len(parent.parameters) == snap["count"]
-                        and _at(parent.parameters, snap["index"], obj)
-                        and obj.name == snap["name"]
-                    )
-                else:
-                    ok = False
+                ok = _alive(kind, song, parent, obj, snap)
             except Exception:  # noqa: BLE001
                 ok = False
             if not ok:
@@ -322,7 +420,8 @@ class Safety:
         if not self._valid(song, nodes):
             raise Refused("stale_target", f"{kind} reference no longer matches Live; re-read")
         self._refs.move_to_end(ref)
-        return SimpleNamespace(obj=nodes[-1][1], nodes={n[0]: n[1] for n in nodes})
+        # ``nodes``: kind -> innermost object of that kind; ``path``: every level, root first.
+        return SimpleNamespace(obj=nodes[-1][1], nodes={n[0]: n[1] for n in nodes}, path=nodes)
 
     # ---- policy and lease ---------------------------------------------------------------
     def read_only(self):
