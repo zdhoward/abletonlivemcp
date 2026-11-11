@@ -142,7 +142,7 @@ def scene_ref(dispatch, index=0):
 def clip_env(env):
     """A fresh clip in track 0 / scene 0 plus its reference."""
     song, app, dispatch = env
-    dispatch("create_clip", {"slot": slot_ref(dispatch), "length_beats": 4})
+    song.tracks[0].clip_slots[0].create_clip(4)
     return song.tracks[0].clip_slots[0].clip, clip_ref(dispatch), dispatch
 
 
@@ -150,17 +150,13 @@ def note(**changes):
     return {"pitch": 60, "start_time": 0, "duration": 1, "velocity": 100, **changes}
 
 
-def add(dispatch, ref, notes):
-    return dispatch("add_notes", {"clip": ref, "notes": notes})
-
-
 # ---- shared guard: a bare index never authorizes a write ---------------------------------------
 
 BARE_INDEX_WRITES = [  # one scenario per supported feature
     ("set_scene_name", {"scene": 0, "name": "X"}, "reference_required"),
     ("fire_scene", {"scene": 0}, "reference_required"),
-    ("create_clip", {"slot": 0, "length_beats": 4}, "reference_required"),
-    ("add_notes", {"clip": 0, "notes": [note()]}, "reference_required"),
+    ("create_clips", {"targets": [{"ref": 0}]}, "reference_required"),
+    ("edit_notes", {"targets": [{"kind": "clip", "ref": 0}]}, "reference_required"),
     ("fire_clip", {"clip": 0}, "reference_required"),
     ("stop_clip", {"clip": 0}, "reference_required"),
     ("create_scene", {"index": -1}, "stale_generation"),  # global writes need the generation
@@ -184,7 +180,7 @@ def test_writes_without_a_reference_or_generation_are_refused_and_change_nothing
 def test_every_scene_clip_and_transport_write_is_in_the_guard_table():
     guarded = {m for m, _p, _c in BARE_INDEX_WRITES}
     feature = {
-        "create_scene", "set_scene_name", "fire_scene", "create_clip", "add_notes",
+        "create_scene", "set_scene_name", "fire_scene", "create_clips", "edit_notes",
         "fire_clip", "stop_clip", "play", "stop",
     }  # fmt: skip
     assert feature <= {m for m, k in CLASSIFICATION.items() if k == WRITE}
@@ -268,7 +264,7 @@ def test_scene_name_requires_string(env, name):
         ("clip_slot", {"track": 0, "scene": 2}, "scene"),  # past the last scene
         ("clip_slot", {"track": True, "scene": 0}, "track"),  # bool is not an index
         ("get_clip", {"track": 0, "scene": -1}, "scene"),
-        ("get_notes", {"track": "0", "scene": 0}, "track"),
+        ("get_notes", {"track": True, "scene": 0}, "track"),
     ],
 )
 def test_clip_reads_validate_indices(env, method, params, key):
@@ -277,190 +273,10 @@ def test_clip_reads_validate_indices(env, method, params, key):
         dispatch(method, params)
 
 
-def test_empty_and_missing_slots(env):
-    song, _app, dispatch = env
-    assert dispatch("clip_slot", {"track": 0, "scene": 0})["has_clip"] is False
-    assert "clip" not in dispatch("clip_slot", {"track": 0, "scene": 0})
-    for method in ("get_clip", "get_notes"):
-        with pytest.raises(ValueError, match="empty"):
-            dispatch(method, {"track": 0, "scene": 0})
-    song.tracks[0].clip_slots = []
-    with pytest.raises(ValueError, match="no clip slot"):
-        dispatch("get_clip", {"track": 0, "scene": 0})
-
-
 # ---- clip lifecycle ----------------------------------------------------------------------------
 
 
-def test_create_get_launch_and_stop_clip(env):
-    song, _app, dispatch = env
-    read = {"track": 0, "scene": 1}
-    assert dispatch("create_clip", {"slot": slot_ref(dispatch, 0, 1), "length_beats": 1024}) == {
-        "name": "MIDI clip",
-        "length": 1024,
-        "is_playing": False,
-        "looping": True,
-    }
-    clip = song.tracks[0].clip_slots[1].clip
-    assert dispatch("get_clip", read)["length"] == clip.length
-    ref = clip_ref(dispatch, 0, 1)
-    assert dispatch("fire_clip", {"clip": ref})["is_playing"] is clip.is_playing is True
-    assert dispatch("stop_clip", {"clip": ref})["is_playing"] is clip.is_playing is False
-
-
-def test_create_clip_refuses_an_occupied_slot_without_replacing_it(clip_env):
-    clip, _ref, dispatch = clip_env
-    song = dispatch.safety.song()
-    with pytest.raises(ValueError, match="occupied"):
-        dispatch("create_clip", {"slot": slot_ref(dispatch), "length_beats": 4})
-    assert song.tracks[0].clip_slots[0].clip is clip
-
-
-@pytest.mark.parametrize("length", [0, -1, 1024.1, True, "4", None, float("nan"), float("inf")])
-def test_create_clip_bad_length(env, length):
-    song, _app, dispatch = env
-    with pytest.raises(ValueError, match="length_beats"):
-        dispatch("create_clip", {"slot": slot_ref(dispatch), "length_beats": length})
-    assert not song.tracks[0].clip_slots[0].has_clip
-
-
-def test_create_clip_rejects_audio_track_and_accepts_fractions(env):
-    song, _app, dispatch = env
-    with pytest.raises(ValueError, match="MIDI track"):
-        dispatch("create_clip", {"slot": slot_ref(dispatch, 2, 0), "length_beats": 4})
-    assert not song.tracks[2].clip_slots[0].has_clip
-    made = dispatch("create_clip", {"slot": slot_ref(dispatch), "length_beats": 0.25})
-    assert made["length"] == 0.25
-
-
 # ---- notes -------------------------------------------------------------------------------------
-
-
-def test_legacy_notes_add_and_readback(clip_env):
-    clip, ref, dispatch = clip_env
-    read = {"track": 0, "scene": 0}
-    assert dispatch("get_notes", read) == {"notes": [], "truncated": False}
-    assert add(dispatch, ref, [note()]) == {"notes": [note(mute=False)], "truncated": False}
-    result = add(dispatch, ref, [note(pitch=127, mute=True)])
-    assert result["notes"] == [note(mute=False), note(pitch=127, mute=True)]
-    assert len(clip.notes) == 2 and clip.writes == 2
-
-
-def test_note_value_boundaries(clip_env):
-    _clip, ref, dispatch = clip_env
-    notes = [note(pitch=0, velocity=1, duration=0.25), note(pitch=127, velocity=127)]
-    assert add(dispatch, ref, notes) == {
-        "notes": [{**n, "mute": False} for n in notes],
-        "truncated": False,
-    }
-
-
-def test_modern_notes_preferred_and_probed(env, monkeypatch):
-    song, app, dispatch = env
-    monkeypatch.setitem(
-        sys.modules,
-        "Live",
-        SimpleNamespace(Clip=SimpleNamespace(MidiNoteSpecification=SimpleNamespace)),
-    )
-    clip = song.tracks[0].clip_slots[0].clip = ModernClip()
-    result = add(dispatch, clip_ref(dispatch), [note()])
-    assert result == {"notes": [note(mute=False)], "truncated": False}
-    assert clip.writes == 1
-    caps = handlers.probe(song, app)
-    for key in ("add_new_notes", "set_notes", "get_notes_extended", "get_notes"):
-        assert caps[f"clip.{key}"] is True
-    assert caps["Live.Clip.MidiNoteSpecification"] is True
-    assert caps["clip.note_api_sample_count"] == 1
-
-
-@pytest.mark.parametrize("modern", [False, True])
-def test_notes_read_is_bounded(env, modern):
-    song, _app, dispatch = env
-    clip = song.tracks[0].clip_slots[0].clip = ModernClip() if modern else Clip()
-    clip.notes = [(60, 0, 1, 100, False)] * (handlers.NOTE_LIMIT + 1)
-    result = dispatch("get_notes", {"track": 0, "scene": 0})
-    assert len(result["notes"]) == handlers.NOTE_LIMIT
-    assert result["truncated"] is True
-
-
-@pytest.mark.parametrize("count", [0, handlers.NOTE_LIMIT])
-def test_note_batch_boundaries(clip_env, count):
-    clip, ref, dispatch = clip_env
-    result = add(dispatch, ref, [note()] * count)
-    assert len(result["notes"]) == count and result["truncated"] is False
-    assert len(clip.notes) == count
-
-
-@pytest.mark.parametrize("notes", [None, {}, (), [None], [note()] * (handlers.NOTE_LIMIT + 1)])
-def test_bad_note_batches(clip_env, notes):
-    clip, ref, dispatch = clip_env
-    with pytest.raises(ValueError):
-        add(dispatch, ref, notes)
-    assert clip.writes == 0
-
-
-@pytest.mark.parametrize("field,value", [
-    ("pitch", -1), ("pitch", 128), ("pitch", True), ("pitch", 60.0), ("pitch", "60"),
-    ("start_time", -0.1), ("start_time", True), ("start_time", float("nan")),
-    ("duration", 0), ("duration", -1), ("duration", "1"), ("duration", float("inf")),
-    ("velocity", 0), ("velocity", 128), ("velocity", False), ("velocity", 100.5),
-    ("mute", 0), ("mute", "false"),
-])  # fmt: skip
-def test_note_fields_validate_entire_batch_before_write(clip_env, field, value):
-    clip, ref, dispatch = clip_env
-    with pytest.raises(ValueError, match=field):
-        add(dispatch, ref, [note(), note(**{field: value})])  # the bad note is the second one
-    assert clip.writes == 0 and clip.notes == []
-
-
-@pytest.mark.parametrize("field", ["pitch", "start_time", "duration", "velocity"])
-def test_note_missing_fields(clip_env, field):
-    clip, ref, dispatch = clip_env
-    value = note()
-    del value[field]
-    with pytest.raises(ValueError, match=field):
-        add(dispatch, ref, [value])
-    assert clip.writes == 0
-
-
-@pytest.mark.parametrize("method", ["get_notes", "add_notes"])
-def test_notes_reject_audio_clips(clip_env, method):
-    clip, ref, dispatch = clip_env
-    clip.is_midi_clip = False
-    params = {"track": 0, "scene": 0} if method == "get_notes" else {"clip": ref, "notes": [note()]}
-    with pytest.raises(ValueError, match="MIDI clip"):
-        dispatch(method, params)
-    assert clip.writes == 0
-
-
-def test_missing_write_api_and_probe(env):
-    song, app, dispatch = env
-    clip = song.tracks[0].clip_slots[0].clip = SimpleNamespace(
-        is_midi_clip=True, get_notes=lambda *args: (), length=4
-    )
-    ref = clip_ref(dispatch)
-    with pytest.raises(ValueError, match="neither add_new_notes nor set_notes"):
-        add(dispatch, ref, [note()])
-    caps = handlers.probe(song, app)
-    assert caps["clip.add_new_notes"] is False
-    assert caps["clip.set_notes"] is False
-    assert caps["clip.get_notes"] is True
-    del clip.get_notes
-    with pytest.raises(ValueError, match="neither get_notes_extended nor get_notes"):
-        add(dispatch, ref, [note()])
-    with pytest.raises(ValueError, match="neither get_notes_extended nor get_notes"):
-        dispatch("get_notes", {"track": 0, "scene": 0})
-
-
-@pytest.mark.parametrize("live", [None, SimpleNamespace(), SimpleNamespace(Clip=SimpleNamespace())])
-def test_missing_note_specification(env, monkeypatch, live):
-    song, app, dispatch = env
-    monkeypatch.setitem(sys.modules, "Live", live)
-    clip = song.tracks[0].clip_slots[0].clip = ModernClip()
-    assert handlers.probe(song, app)["Live.Clip.MidiNoteSpecification"] is False
-    with pytest.raises(ValueError, match="MidiNoteSpecification is unavailable"):
-        add(dispatch, clip_ref(dispatch), [note()])
-    assert clip.writes == 0
 
 
 def test_probe_empty_session(env):
@@ -501,10 +317,6 @@ def test_no_destructive_handlers(env, method):
         ("live_set_scene_name", {"scene": 1, "name": "B"}, "set_scene_name",
          {"scene": "R1", "name": "B"}),
         ("live_fire_scene", {"scene": 0}, "fire_scene", {"scene": "R0"}),
-        ("live_create_clip", {"track": 0, "scene": 1, "length_beats": 4}, "create_clip",
-         {"slot": "SLOT", "length_beats": 4}),
-        ("live_add_notes", {"track": 0, "scene": 1, "notes": [note()]}, "add_notes",
-         {"clip": "CLIP", "notes": [note()]}),
     ],
 )  # fmt: skip
 def test_mcp_write_tools_forward_references_and_readbacks(monkeypatch, tool, args, method, params):

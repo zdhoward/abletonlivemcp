@@ -1,0 +1,218 @@
+"""Batch 3 host tools: argument forwarding to the bridge, refusals before any call, and the MIDI
+file codec and roots (no Live)."""
+
+import inspect
+
+import pytest
+from pydantic import TypeAdapter
+
+from abletonlivemcp import midi_file, server
+from abletonlivemcp.tools import arrangement, automation, clips, editing, files, notes
+
+
+class Bridge:
+    def __init__(self, replies=None):
+        self.calls, self.replies = [], replies or {}
+
+    def call(self, method, params=None):
+        self.calls.append((method, params))
+        if method == "ref_issue":
+            refs = [
+                {"kind": t["kind"], "ref": f"R{i}", "name": "n"}
+                for i, t in enumerate(params["targets"])
+            ]  # noqa: E501
+            return {"generation": 5, "refs": refs}
+        if method == "session_info":
+            return {"generation": 5, "tempo": 120.0, "signature": [4, 4]}
+        reply = self.replies.get(method, {"status": "complete"})
+        return reply(params) if callable(reply) else reply
+
+    def last(self):
+        return self.calls[-1]
+
+
+def call(tool, **kwargs):
+    """Validate keyword arguments like the MCP layer does, then run the guarded tool."""
+    params = inspect.signature(tool.__wrapped__, eval_str=True).parameters
+    return tool(
+        **{k: TypeAdapter(params[k].annotation).validate_python(v) for k, v in kwargs.items()}
+    )
+
+
+@pytest.fixture
+def bridge(monkeypatch):
+    fake = Bridge()
+    monkeypatch.setattr(server, "_bridge", fake)
+    monkeypatch.setattr(server, "_writable", lambda: None)
+    return fake
+
+
+def test_create_clips_issues_slot_refs_and_forwards_fields(bridge):
+    call(
+        clips.live_create_clips,
+        clips=[
+            {
+                "track": 0,
+                "scene": 1,
+                "length": 8,
+                "notes": [{"pitch": 60, "start_time": 0, "duration": 1}],
+            }
+        ],
+    )  # noqa: E501
+    method, params = bridge.last()
+    assert method == "create_clips"
+    (t,) = params["targets"]
+    assert t["ref"] == "R0" and t["length"] == 8 and t["notes"][0]["velocity"] == 100
+
+
+def test_set_clips_addresses_session_and_arrangement_clips(bridge):
+    call(
+        clips.live_set_clips,
+        targets=[
+            {"clip": {"track": 0, "scene": 0}, "name": "A"},
+            {"clip": {"track": 1, "arrangement": 2}, "loop": [0, 4]},
+        ],
+    )
+    sent = bridge.calls[0][1]["targets"]
+    assert [s["kind"] for s in sent] == ["clip", "arr_clip"]
+    assert [t["kind"] for t in bridge.last()[1]["targets"]] == ["clip", "arr_clip"]
+
+
+def test_edit_notes_forwards_every_edit_kind(bridge):
+    call(
+        notes.live_edit_notes,
+        clip={"track": 0, "scene": 0},
+        remove_ids=[3],
+        modify=[{"note_id": 1, "probability": 0.5}],
+        quantize={"grid": 0.25},
+    )
+    method, params = bridge.last()
+    assert method == "edit_notes" and params["remove_ids"] == [3]
+    assert params["modify"] == [{"note_id": 1, "probability": 0.5}]
+    assert params["quantize"] == {"grid": 0.25, "amount": 1.0}
+
+
+def test_get_notes_concise_drops_extended_fields(bridge):
+    row = {
+        "note_id": 1,
+        "pitch": 60,
+        "start_time": 0,
+        "duration": 1,
+        "velocity": 100,
+        "mute": False,
+        "probability": 1,
+        "velocity_deviation": 0,
+        "release_velocity": 64,
+    }
+    bridge.replies["get_notes"] = {"notes": [row], "total": 1, "next_offset": None}
+    out = call(notes.live_get_notes, clip={"track": 0, "scene": 0}, response_format="concise")
+    assert "probability" not in out["notes"][0] and out["notes"][0]["note_id"] == 1
+
+
+def test_cue_points_add_carries_the_generation(bridge):
+    call(
+        arrangement.live_set_cue_points,
+        cues=[{"cue": 0, "action": "rename", "name": "A"}],
+        add=[{"time": 16}],
+    )
+    method, params = bridge.last()
+    assert method == "set_cue_points" and params["generation"] == 5
+    assert params["cues"] == [{"cue": "R0", "action": "rename", "name": "A"}]
+
+
+def test_arrangement_automation_refuses_before_any_call(bridge):
+    with pytest.raises(Exception, match="unsupported"):
+        call(
+            automation.live_set_automation,
+            targets=[
+                {
+                    "clip": {"track": 0, "arrangement": 0},
+                    "parameter": {"mixer": "volume"},
+                    "clear": True,
+                }
+            ],
+        )
+    assert not [c for c in bridge.calls if c[0] != "session_info"]
+
+
+def test_set_automation_issues_clip_and_param_refs(bridge):
+    call(
+        automation.live_set_automation,
+        targets=[
+            {
+                "clip": {"track": 0, "scene": 0},
+                "parameter": {"device": [0], "parameter": 2},
+                "ramps": [{"start": 0, "end": 4, "from": 0, "to": 1}],
+            }
+        ],
+    )
+    sels = bridge.calls[0][1]["targets"]
+    assert [s["kind"] for s in sels] == ["clip", "param"] and sels[1]["parameter"] == 2
+    (t,) = bridge.last()[1]["targets"]
+    assert t["param"] == "R1" and t["param_kind"] == "param" and t["ramps"][0]["from"] == 0
+
+
+def test_edit_audio_clip_forwards_markers(bridge):
+    call(
+        editing.live_edit_audio_clip,
+        clip={"track": 1, "scene": 0},
+        gain=0.5,
+        warp_markers=[{"action": "remove", "beat_time": 4}],
+    )
+    method, params = bridge.last()
+    assert method == "edit_audio_clip" and params["gain"] == 0.5
+    assert params["warp_markers"] == [{"action": "remove", "beat_time": 4.0}]
+
+
+# ---- MIDI files --------------------------------------------------------------------------------
+
+
+def test_midi_codec_round_trip():
+    src = [
+        {"pitch": 60, "start_time": 0, "duration": 1, "velocity": 100},
+        {"pitch": 64, "start_time": 0.5, "duration": 0.25, "velocity": 80},
+    ]
+    data = midi_file.encode(src, tempo_bpm=128, time_signature=(3, 4))
+    back = midi_file.parse(data)
+    assert [(n.pitch, n.start_time, n.duration, n.velocity) for n in back.notes] == [
+        (60, 0.0, 1.0, 100),
+        (64, 0.5, 0.25, 80),
+    ]
+    assert back.tempo_bpm == 128 and back.time_signature == (3, 4)
+
+
+def test_midi_parse_rejects_garbage_and_truncation():
+    with pytest.raises(midi_file.MidiFileError):
+        midi_file.parse(b"not midi")
+    with pytest.raises(midi_file.MidiFileError):
+        midi_file.parse(midi_file.encode([{"pitch": 1, "start_time": 0, "duration": 1}])[:-6])
+
+
+def test_file_roots_confine_paths(monkeypatch, tmp_path):
+    monkeypatch.setenv("ABLETONLIVEMCP_FILE_ROOTS", str(tmp_path))
+    assert files.confined(str(tmp_path / "a.mid")) == (tmp_path / "a.mid").resolve()
+    for bad in ("rel.mid", str(tmp_path / ".." / "x.mid"), str(tmp_path / "a.txt")):
+        with pytest.raises(ValueError):
+            files.confined(bad)
+
+
+def test_export_then_import_round_trip(bridge, monkeypatch, tmp_path):
+    monkeypatch.setenv("ABLETONLIVEMCP_FILE_ROOTS", str(tmp_path))
+    row = {
+        "note_id": 1,
+        "pitch": 62,
+        "start_time": 1.0,
+        "duration": 0.5,
+        "velocity": 90.0,
+        "mute": False,
+    }
+    bridge.replies["get_notes"] = {"notes": [row], "total": 1, "next_offset": None}
+    out = call(files.live_export_midi, clip={"track": 0, "scene": 0}, file=str(tmp_path / "x.mid"))
+    assert out["notes"] == 1
+    with pytest.raises(Exception, match="new files only"):
+        call(files.live_export_midi, clip={"track": 0, "scene": 0}, file=str(tmp_path / "x.mid"))
+    call(files.live_import_midi, file=str(tmp_path / "x.mid"), track=0, scene=1)
+    method, params = bridge.last()
+    (t,) = params["targets"]
+    assert method == "create_clips" and t["length"] == 4.0
+    assert t["notes"] == [{"pitch": 62, "start_time": 1.0, "duration": 0.5, "velocity": 90.0}]

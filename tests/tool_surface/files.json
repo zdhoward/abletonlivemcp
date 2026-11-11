@@ -1,0 +1,207 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Export a MIDI clip's notes (from beat 0 of the clip, Set tempo and signature) to a NEW\n.mid file (SMF 0; an existing file refuses).",
+  "inputSchema": {
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
+    },
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "clip": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ClipAddr"
+      },
+      {
+       "$ref": "#/$defs/ArrangementClipAddr"
+      }
+     ],
+     "title": "Clip"
+    },
+    "file": {
+     "title": "File",
+     "type": "string"
+    }
+   },
+   "required": [
+    "clip",
+    "file"
+   ],
+   "title": "live_export_midiArguments",
+   "type": "object"
+  },
+  "name": "live_export_midi",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_export_midiDictOutput",
+   "type": "object"
+  },
+  "title": "Export midi"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Import a .mid (SMF 0/1, all tracks merged, 2000 notes max) as a new MIDI clip: in the\nempty Session slot `scene`, or in the arrangement at `start` beats. Length defaults to the\nnotes rounded up to a bar.",
+  "inputSchema": {
+   "properties": {
+    "file": {
+     "title": "File",
+     "type": "string"
+    },
+    "length": {
+     "anyOf": [
+      {
+       "exclusiveMinimum": 0,
+       "maximum": 1024,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Length"
+    },
+    "name": {
+     "anyOf": [
+      {
+       "maxLength": 256,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Name"
+    },
+    "scene": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scene"
+    },
+    "start": {
+     "anyOf": [
+      {
+       "maximum": 16384,
+       "minimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Start"
+    },
+    "track": {
+     "minimum": 0,
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "file",
+    "track"
+   ],
+   "title": "live_import_midiArguments",
+   "type": "object"
+  },
+  "name": "live_import_midi",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_import_midiDictOutput",
+   "type": "object"
+  },
+  "title": "Import midi"
+ }
+]

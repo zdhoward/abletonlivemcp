@@ -1,0 +1,787 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;\nplaced after the track's last clip). Overlaps refuse. from_session and take_lane refuse on\nLive 12.2 (crash risk).",
+  "inputSchema": {
+   "$defs": {
+    "NewArrangementClip": {
+     "additionalProperties": false,
+     "properties": {
+      "file": {
+       "anyOf": [
+        {
+         "maxLength": 1024,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "File"
+      },
+      "kind": {
+       "default": "midi",
+       "enum": [
+        "midi",
+        "audio",
+        "from_session"
+       ],
+       "title": "Kind",
+       "type": "string"
+      },
+      "length": {
+       "default": 4.0,
+       "exclusiveMinimum": 0,
+       "maximum": 1024,
+       "title": "Length",
+       "type": "number"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "notes": {
+       "anyOf": [
+        {
+         "items": {
+          "$ref": "#/$defs/Note"
+         },
+         "maxItems": 2000,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Notes"
+      },
+      "start": {
+       "maximum": 16384,
+       "minimum": 0,
+       "title": "Start",
+       "type": "number"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "minimum": 0,
+       "title": "Track",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "track",
+      "start"
+     ],
+     "title": "NewArrangementClip",
+     "type": "object"
+    },
+    "Note": {
+     "additionalProperties": false,
+     "properties": {
+      "duration": {
+       "exclusiveMinimum": 0,
+       "maximum": 16384,
+       "title": "Duration",
+       "type": "number"
+      },
+      "mute": {
+       "default": false,
+       "title": "Mute",
+       "type": "boolean"
+      },
+      "pitch": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Pitch",
+       "type": "integer"
+      },
+      "probability": {
+       "default": 1,
+       "maximum": 1,
+       "minimum": 0,
+       "title": "Probability",
+       "type": "number"
+      },
+      "release_velocity": {
+       "default": 64,
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Release Velocity",
+       "type": "number"
+      },
+      "start_time": {
+       "maximum": 16384,
+       "minimum": 0,
+       "title": "Start Time",
+       "type": "number"
+      },
+      "velocity": {
+       "default": 100,
+       "maximum": 127,
+       "minimum": 1,
+       "title": "Velocity",
+       "type": "number"
+      },
+      "velocity_deviation": {
+       "default": 0,
+       "maximum": 127,
+       "minimum": -127,
+       "title": "Velocity Deviation",
+       "type": "number"
+      }
+     },
+     "required": [
+      "pitch",
+      "start_time",
+      "duration"
+     ],
+     "title": "Note",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "clips": {
+     "items": {
+      "$ref": "#/$defs/NewArrangementClip"
+     },
+     "title": "Clips",
+     "type": "array"
+    }
+   },
+   "required": [
+    "clips"
+   ],
+   "title": "live_create_arrangement_clipsArguments",
+   "type": "object"
+  },
+  "name": "live_create_arrangement_clips",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_create_arrangement_clipsDictOutput",
+   "type": "object"
+  },
+  "title": "Create arrangement clips"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Set arrangement clip fields (as live_set_clips). move_to, split_at and take-lane clips\nrefuse on Live 12.2; delete with live_delete.",
+  "inputSchema": {
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
+    },
+    "ArrangementEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "clip": {
+       "$ref": "#/$defs/ArrangementClipAddr"
+      },
+      "color_index": {
+       "anyOf": [
+        {
+         "maximum": 69,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Color Index"
+      },
+      "expect_name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Expect Name"
+      },
+      "gain": {
+       "anyOf": [
+        {
+         "maximum": 1,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Gain"
+      },
+      "launch_mode": {
+       "anyOf": [
+        {
+         "enum": [
+          "trigger",
+          "gate",
+          "toggle",
+          "repeat"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Launch Mode"
+      },
+      "launch_quantization": {
+       "anyOf": [
+        {
+         "enum": [
+          "global",
+          "none",
+          "8 bars",
+          "4 bars",
+          "2 bars",
+          "1 bar",
+          "1/2",
+          "1/2t",
+          "1/4",
+          "1/4t",
+          "1/8",
+          "1/8t",
+          "1/16",
+          "1/16t",
+          "1/32"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Launch Quantization"
+      },
+      "legato": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Legato"
+      },
+      "loop": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "number"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Loop"
+      },
+      "looping": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Looping"
+      },
+      "markers": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "number"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Markers"
+      },
+      "move_to": {
+       "anyOf": [
+        {
+         "maximum": 16384,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Move To"
+      },
+      "muted": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Muted"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "pitch_coarse": {
+       "anyOf": [
+        {
+         "maximum": 48,
+         "minimum": -48,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pitch Coarse"
+      },
+      "pitch_fine": {
+       "anyOf": [
+        {
+         "maximum": 50,
+         "minimum": -50,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pitch Fine"
+      },
+      "signature": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "integer"
+         },
+         "maxItems": 2,
+         "minItems": 2,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Signature"
+      },
+      "split_at": {
+       "anyOf": [
+        {
+         "maximum": 16384,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Split At"
+      },
+      "velocity_amount": {
+       "anyOf": [
+        {
+         "maximum": 1,
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Velocity Amount"
+      },
+      "warp_mode": {
+       "anyOf": [
+        {
+         "enum": [
+          "beats",
+          "tones",
+          "texture",
+          "re_pitch",
+          "complex",
+          "rex",
+          "complex_pro"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Warp Mode"
+      },
+      "warping": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Warping"
+      }
+     },
+     "required": [
+      "clip"
+     ],
+     "title": "ArrangementEdit",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "targets": {
+     "items": {
+      "$ref": "#/$defs/ArrangementEdit"
+     },
+     "title": "Targets",
+     "type": "array"
+    }
+   },
+   "required": [
+    "targets"
+   ],
+   "title": "live_edit_arrangement_clipsArguments",
+   "type": "object"
+  },
+  "name": "live_edit_arrangement_clips",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_edit_arrangement_clipsDictOutput",
+   "type": "object"
+  },
+  "title": "Edit arrangement clips"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows max (truncated).",
+  "inputSchema": {
+   "properties": {
+    "include": {
+     "anyOf": [
+      {
+       "items": {
+        "enum": [
+         "clips",
+         "cues",
+         "take_lanes"
+        ],
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Include"
+    },
+    "range": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Range"
+    },
+    "response_format": {
+     "default": "concise",
+     "enum": [
+      "concise",
+      "detailed"
+     ],
+     "title": "Response Format",
+     "type": "string"
+    },
+    "tracks": {
+     "anyOf": [
+      {
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
+         },
+         {
+          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+          "type": "string"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Tracks"
+    }
+   },
+   "title": "live_get_arrangementArguments",
+   "type": "object"
+  },
+  "name": "live_get_arrangement",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_arrangementDictOutput",
+   "type": "object"
+  },
+  "title": "Get arrangement"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Rename/jump/delete cues (index from live_get_arrangement) and add cues at exact times\n(transport stopped; an existing cue there is reused). Adds and deletes run as an operation:\npoll live_get_operation until ready.",
+  "inputSchema": {
+   "$defs": {
+    "CueAdd": {
+     "additionalProperties": false,
+     "properties": {
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "time": {
+       "maximum": 16384,
+       "minimum": 0,
+       "title": "Time",
+       "type": "number"
+      }
+     },
+     "required": [
+      "time"
+     ],
+     "title": "CueAdd",
+     "type": "object"
+    },
+    "CueEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "action": {
+       "enum": [
+        "rename",
+        "jump",
+        "delete"
+       ],
+       "title": "Action",
+       "type": "string"
+      },
+      "cue": {
+       "minimum": 0,
+       "title": "Cue",
+       "type": "integer"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      }
+     },
+     "required": [
+      "cue",
+      "action"
+     ],
+     "title": "CueEdit",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "add": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/CueAdd"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Add"
+    },
+    "cues": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/CueEdit"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Cues"
+    }
+   },
+   "title": "live_set_cue_pointsArguments",
+   "type": "object"
+  },
+  "name": "live_set_cue_points",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_cue_pointsDictOutput",
+   "type": "object"
+  },
+  "title": "Set cue points"
+ }
+]

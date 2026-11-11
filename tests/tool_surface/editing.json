@@ -1,0 +1,276 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Edit one clip in order: fields, warp_markers (add needs sample_time seconds and an\nexisting marker; move by distance beats; remove at beat_time), crop, duplicate_loop\n(MIDI too). Receipt plus clip and marker readback.",
+  "inputSchema": {
+   "$defs": {
+    "ArrangementClipAddr": {
+     "additionalProperties": false,
+     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "title": "Arrangement",
+       "type": "integer"
+      },
+      "take_lane": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Take Lane"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "arrangement"
+     ],
+     "title": "ArrangementClipAddr",
+     "type": "object"
+    },
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
+    },
+    "WarpOp": {
+     "additionalProperties": false,
+     "properties": {
+      "action": {
+       "enum": [
+        "add",
+        "move",
+        "remove"
+       ],
+       "title": "Action",
+       "type": "string"
+      },
+      "beat_time": {
+       "title": "Beat Time",
+       "type": "number"
+      },
+      "distance": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Distance"
+      },
+      "sample_time": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Sample Time"
+      }
+     },
+     "required": [
+      "action",
+      "beat_time"
+     ],
+     "title": "WarpOp",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "clip": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ClipAddr"
+      },
+      {
+       "$ref": "#/$defs/ArrangementClipAddr"
+      }
+     ],
+     "title": "Clip"
+    },
+    "crop": {
+     "default": false,
+     "title": "Crop",
+     "type": "boolean"
+    },
+    "duplicate_loop": {
+     "default": false,
+     "title": "Duplicate Loop",
+     "type": "boolean"
+    },
+    "expect_name": {
+     "anyOf": [
+      {
+       "maxLength": 256,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Expect Name"
+    },
+    "gain": {
+     "anyOf": [
+      {
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Gain"
+    },
+    "pitch_coarse": {
+     "anyOf": [
+      {
+       "maximum": 48,
+       "minimum": -48,
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Pitch Coarse"
+    },
+    "pitch_fine": {
+     "anyOf": [
+      {
+       "maximum": 50,
+       "minimum": -50,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Pitch Fine"
+    },
+    "warp_markers": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/WarpOp"
+       },
+       "maxItems": 32,
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Warp Markers"
+    },
+    "warp_mode": {
+     "anyOf": [
+      {
+       "enum": [
+        "beats",
+        "tones",
+        "texture",
+        "re_pitch",
+        "complex",
+        "rex",
+        "complex_pro"
+       ],
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Warp Mode"
+    },
+    "warping": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Warping"
+    }
+   },
+   "required": [
+    "clip"
+   ],
+   "title": "live_edit_audio_clipArguments",
+   "type": "object"
+  },
+  "name": "live_edit_audio_clip",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_edit_audio_clipDictOutput",
+   "type": "object"
+  },
+  "title": "Edit audio clip"
+ }
+]
