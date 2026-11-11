@@ -207,7 +207,9 @@ def load_config() -> dict:
         _check_private(path)
         if path.stat().st_size > 8192:
             raise ConfigError("Bridge configuration is too large")
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicates)
+        value = json.loads(  # utf-8-sig: tolerate a BOM from Windows PowerShell 5.1
+            path.read_text(encoding="utf-8-sig"), object_pairs_hook=_no_duplicates
+        )
     except (OSError, ValueError) as exc:
         if isinstance(exc, ConfigError):
             raise

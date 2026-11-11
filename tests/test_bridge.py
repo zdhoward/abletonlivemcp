@@ -203,6 +203,12 @@ def test_config_is_private_and_fails_closed(private_config, monkeypatch):
     )
 
 
+def test_config_with_utf8_bom_is_accepted(private_config):
+    config, secret = private_config  # Windows PowerShell 5.1 writes a BOM with -Encoding utf8
+    config.write_bytes(b"\xef\xbb\xbf" + json.dumps({"secret": secret.hex()}).encode())
+    assert core._load_secret() == bridge._load_secret() == secret
+
+
 def _without_ctypes(monkeypatch, path="bridge_core_noctypes"):
     for name in ("ctypes", "ctypes.wintypes", "msvcrt"):
         monkeypatch.setitem(sys.modules, name, None)  # import raises ImportError

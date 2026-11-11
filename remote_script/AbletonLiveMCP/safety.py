@@ -267,7 +267,7 @@ def _read_config():
             raw = stream.read(8193)
         if len(raw) > 8192:
             return None
-        config = _decode(raw)
+        config = _decode(raw[3:] if raw.startswith(b"\xef\xbb\xbf") else raw)  # tolerate a BOM
         secret = config.get("secret") if isinstance(config, dict) else None
         if not isinstance(secret, str) or not _HEX.fullmatch(secret):
             return None
