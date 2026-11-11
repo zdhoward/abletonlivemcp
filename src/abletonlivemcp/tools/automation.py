@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from .. import chain
 from ..models import ClipRef, ResponseFormat
 from ..models_clips import AutomationEdit, AutoParam, Span
 from ..server import _call, _overwrite, _read, clip_selector, issue_refs, unsupported
@@ -20,7 +21,11 @@ def param_selector(track, p: AutoParam) -> dict:
                 raise ValueError("parameter.send is required for mixer 'send'")
             sel["send"] = p.send
         return sel
-    return {"kind": "param", "track": track, "path": p.device, "parameter": p.parameter}
+    index = p.parameter
+    if isinstance(index, str):  # a name: resolve it on the device, like live_set_device_parameters
+        rows = _call("device_parameters", {"track": track, "path": list(p.device)})
+        index = chain._resolve(rows, index)["index"]
+    return {"kind": "param", "track": track, "path": p.device, "parameter": index}
 
 
 def _session_only(clip) -> None:

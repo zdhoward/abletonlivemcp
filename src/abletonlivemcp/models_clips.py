@@ -149,10 +149,10 @@ class CueAdd(Model):
 
 
 class AutoParam(Model):
-    """A device parameter (``device`` path + ``parameter`` index) or a mixer control."""
+    """A device parameter (``device`` path + ``parameter`` name or index) or a mixer control."""
 
     device: DevicePath | None = None
-    parameter: Index | None = None
+    parameter: Index | Annotated[str, StringConstraints(max_length=120)] | None = None
     mixer: MixerRole | None = None
     send: Index | None = None
 

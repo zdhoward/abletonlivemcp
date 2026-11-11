@@ -97,6 +97,10 @@
          "type": "integer"
         },
         {
+         "maxLength": 120,
+         "type": "string"
+        },
+        {
          "type": "null"
         }
        ]
@@ -328,6 +332,10 @@
         {
          "minimum": 0,
          "type": "integer"
+        },
+        {
+         "maxLength": 120,
+         "type": "string"
         },
         {
          "type": "null"

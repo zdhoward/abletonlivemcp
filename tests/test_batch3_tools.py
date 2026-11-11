@@ -152,6 +152,20 @@ def test_set_automation_issues_clip_and_param_refs(bridge):
     assert t["param"] == "R1" and t["param_kind"] == "param" and t["ramps"][0]["from"] == 0
 
 
+def test_automation_parameter_by_name_resolves_to_its_index(bridge):
+    bridge.replies["device_parameters"] = [
+        {"index": 0, "name": "Device On"},
+        {"index": 1, "name": "Frequency"},
+    ]
+    call(
+        automation.live_get_automation,
+        clip={"track": 0, "scene": 0},
+        parameter={"device": [1], "parameter": "frequency"},
+    )
+    method, params = bridge.last()
+    assert method == "get_automation" and params["parameter"]["parameter"] == 1
+
+
 def test_edit_audio_clip_forwards_markers(bridge):
     call(
         editing.live_edit_audio_clip,
