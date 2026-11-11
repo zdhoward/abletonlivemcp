@@ -1,4 +1,5 @@
-# Public source and reproducible checks only. Personal work stays local.
+# Public source and reproducible checks only. Personal work stays local by default:
+# everything at the root is ignored unless allowlisted here. Add public files deliberately.
 /*
 !/.gitignore
 !/pyproject.toml
@@ -9,14 +10,15 @@
 !/SECURITY.md
 !/CONTRIBUTING.md
 !/CODE_OF_CONDUCT.md
+!/SKILL.md
 !/src/
+!/tests/
+!/.github/
 !/remote_script/
 /remote_script/*
 !/remote_script/AbletonLiveMCP/
-!/tests/
-!/.github/
 
-# Public documentation and artwork.
+# Public documentation and artwork (allowlisted file by file).
 !/assets/
 /assets/*
 !/assets/icon.svg
@@ -28,41 +30,70 @@
 /docs/data/*
 !/docs/data/live-12.2-api.json
 
-# Only the reusable proof/test dependencies and distribution check are public.
+# Only the scripts that tests, CI and the Live proof harness depend on.
 !/scripts/
 /scripts/*
 !/scripts/check_distribution.py
+!/scripts/proof_contract.py
 !/scripts/live_harness.py
 !/scripts/live_v2_final.py
 !/scripts/live_final_cleanup.py
 !/scripts/live_probe_run.py
 !/scripts/final_cases/
 
-# Generated files and secrets, including inside permitted directories.
+# Generated files, anywhere in the tree.
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
 .venv/
 venv/
 dist/
 build/
+*.log
+*.tmp
+
+# Secrets and local client config.
 .env
 .env.*
 *.pem
 *.key
 bridge.json
-*.log
+.mcp.json
+.claude/
 
-# Personal Ableton projects, presets and audio.
+# Editor and OS clutter.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Personal Ableton material and audio (incl. analysis files, backups and MIDI exports).
 *.als
 *.alc
 *.adg
 *.adv
+*.agr
+*.amxd
+*.asd
+*.ablbundle
+Ableton Project Info/
+Backup/
+*.mid
+*.midi
 *.wav
 *.aif
 *.aiff
 *.flac
 *.mp3
-!tests/fixtures/**
+*.ogg
+*.m4a
+
+# Deliberate test fixtures only; never place personal material here.
+!/tests/fixtures/**

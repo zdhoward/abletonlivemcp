@@ -4,9 +4,20 @@ All notable changes to this project are recorded here. Format: [Keep a Changelog
 versioning: [SemVer](https://semver.org). Versions below 1.0 may change tool names; renames keep an alias for one
 minor version once the first public release is tagged.
 
-## [0.10.0] - Unreleased
+## [0.10.0] - 2026-11-11
 
+### Upgrade notes
+- Reinstall the Remote Script (`abletonlivemcp-install`) and restart Live; server and script
+  must be the same version.
+- MIDI import/export now need `ABLETONLIVEMCP_FILE_ROOTS`; home and temp are no longer allowed.
+
+### Changed
 - Advertise typed outputs for all tools and bounded chain, browser, and note inputs.
+- Core tool descriptions name the neighbouring tool to use instead.
+- Developer probe modules and proof metadata are no longer shipped in wheels or source
+  archives; the Remote Script loads probes all-or-none from a source checkout only.
+- `ABLETONLIVEMCP_AUDIT=1` logs every allowed write (tool and permissions, no arguments).
+- README documents Claude Code config scopes (user scope recommended) and first use on a real project.
 - Add local transport/edit/files/delete permissions and optional read-only discovery.
 - Require explicit MIDI file roots instead of granting home/temp access by default.
 - Keep personal knowledge and development material local; check runtime-only archives

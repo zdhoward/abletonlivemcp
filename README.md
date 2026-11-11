@@ -5,16 +5,19 @@
 An MCP server that lets Claude (or any MCP-capable LLM) assist you inside Ableton Live, with control
 as close to native as possible. Not an autonomous producer: you stay in charge, the LLM does the tedious parts.
 
-> **v0.10.0 development beta.** Built for Ableton Live 12.2 on Windows. Ready for hands-on testing;
+> **v0.10.0 beta.** Built for Ableton Live 12.2 on Windows. Ready for hands-on testing;
 > [validation and limitations](docs/validation.md) describe what was checked.
 
 ## Install and upgrade
 
-Clone this repository, then install it with Python 3.10 or later:
+With Python 3.10 or later, install a tagged release (or download the wheel from the
+[releases page](https://github.com/zdhoward/abletonlivemcp/releases)):
 
 ```sh
-python -m pip install .
+python -m pip install "git+https://github.com/zdhoward/abletonlivemcp@v0.10.0"
 ```
+
+From a clone, `python -m pip install .` does the same.
 
 1. Close Live, then install the Remote Script into your **User Library** (the one Live is set to
    use; check Settings > Library). The installer only touches a folder it created itself:
@@ -46,7 +49,24 @@ line saying so at startup.
 
 ## Connect your assistant
 
-Add this stdio server to your MCP client (use the Python executable where you installed the package):
+Use the Python executable where you installed the package. Live runs on one machine and the
+bridge secret is per user, so add the server at **user scope** in Claude Code:
+
+```sh
+claude mcp add abletonlive --scope user -- python -m abletonlivemcp.server
+```
+
+| Scope | Stored in | Use it for |
+| --- | --- | --- |
+| `user` (recommended) | `~/.claude.json`, top level | Every project on this machine, private to you |
+| `local` (default) | `~/.claude.json`, under this project | Trying a development checkout in one project |
+| `project` | `.mcp.json`, committed | A shared template repo; put settings in `${VARS}`, never secrets |
+
+Settings are environment variables, so they can differ per scope, for example
+`claude mcp add --scope user --env ABLETONLIVEMCP_TOOLSETS=core,drums abletonlive -- python -m abletonlivemcp.server`.
+The bridge secret lives only in `~/.abletonlivemcp/bridge.json`; never copy it into an MCP config.
+
+Other clients take the equivalent JSON:
 
 ```json
 {
@@ -63,6 +83,20 @@ For Codex: `codex mcp add abletonlive -- python -m abletonlivemcp.server`.
 Restart the client after changing its MCP configuration. Ask it to call `live_hello`, then
 `live_get_session`. To make edits, enable writes in your private bridge config as described above.
 Destructive operations also require an MCP client that supports form elicitation.
+
+## Using it on a real project
+
+1. **Save a copy of the Set first.** Writes are verified and each tool write is one Live undo
+   step (`live_undo`), but a batch has no rollback.
+2. Start read-only: ask for `live_hello` and a summary of the Set. Nothing can change yet.
+3. When you want edits, set `"read_only": false` in `~/.abletonlivemcp/bridge.json`. The default
+   permissions (`transport`, `edit`) allow playback and edits but not deletion or MIDI files.
+   Add `"delete"` or `"files"` only when you need them; deletion always asks you to confirm.
+4. Enable opt-in toolsets only for the job at hand (`drums`, `racks`, `arrangement`...). Fewer
+   tools means faster, more accurate tool choice.
+5. If something goes wrong, check Live's `Log.txt` and the server's stderr. Set
+   `ABLETONLIVEMCP_AUDIT=1` to log every allowed write (tool and permission, never arguments).
+   Report issues with the `live_hello` output and the refusal text.
 
 ## What it does
 
@@ -118,9 +152,9 @@ Personal knowledge, research, task notes and one-off development scripts stay lo
 `.gitignore` uses an explicit public-file allowlist; add new public files deliberately.
 
 Wheels and source archives contain only the runtime source, Remote Script, package metadata and
-license/attribution files. They do not contain tests, scripts, knowledge notes or research.
-Developer probe modules remain part of the Remote Script because its installer/imports require
-them; their execution is disabled unless explicitly enabled in the private configuration.
+license/attribution files. They do not contain tests, scripts, knowledge notes, research or the
+developer probe modules (`probe_pNN.py`): those exist only in the source tree, load all-or-none,
+and run only when the private configuration says `"dev_probes": true`.
 
 To build and verify a clean installation without touching Live:
 

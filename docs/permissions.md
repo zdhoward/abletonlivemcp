@@ -37,7 +37,8 @@ by the platform path separator (`;` on Windows, `:` on Linux/macOS). No home or 
 directory is granted by default. Existing files are never overwritten by export.
 
 Authorization denials are logged to stderr using tool identifiers and required permissions,
-without arguments, object names, file contents, or secrets. A denial says `permission_denied`
+without arguments, object names, file contents, or secrets. Set `ABLETONLIVEMCP_AUDIT=1` in the
+MCP server environment to also log every allowed write in the same form. A denial says `permission_denied`
 and `(not applied)`. Read state after an unknown write outcome; never retry it blindly.
 
 Tool annotations guide clients; they are not authorization checks. Destructive confirmation
