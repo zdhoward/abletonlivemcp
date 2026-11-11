@@ -71,6 +71,17 @@ def _call(fn, *args):
 
 
 def run(ctx, scratch):
+    try:
+        return _run(ctx, scratch)
+    except Exception as exc:  # noqa: BLE001 - report where an unexpected error came from
+        tb, lines = exc.__traceback__, []
+        while tb is not None:
+            lines.append(tb.tb_lineno)
+            tb = tb.tb_next
+        return {"verdict": "no-go", "unexpected_error": _err(exc), "lines": lines}
+
+
+def _run(ctx, scratch):
     song = ctx.song
     probe_track = scratch.midi_track()  # also the clip-slot test track below
     owners = {"song": song, "track": probe_track, "slot": probe_track.clip_slots[0]}
@@ -163,7 +174,7 @@ def run(ctx, scratch):
     )
 
     # Clip slots on the scratch track made first (slot 0 and 1 belong to existing scenes).
-    track = probe_track
+    track = scratch.midi_track()  # probe_track may be stale after the undo test above
     slots = track.clip_slots
     if len(slots) >= 2:
         slot0, slot1 = slots[0], slots[1]

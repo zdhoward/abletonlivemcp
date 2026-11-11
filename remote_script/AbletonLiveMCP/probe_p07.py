@@ -47,7 +47,8 @@ def verdict_for(missing_api, errors, ids_stable):
 
 
 def _notes(clip, span=64.0):
-    return list(clip.get_notes_extended(0, 128, 0.0, span))
+    # raw return value: apply_note_modifications refuses a list()/tuple() copy of it (P-07 run 3)
+    return clip.get_notes_extended(0, 128, 0.0, span)
 
 
 def _brief(note):
@@ -121,6 +122,26 @@ def run(ctx, scratch):
             except Exception as exc:  # noqa: BLE001
                 writes[field] = _err(exc)
         attempt("apply_note_modifications", lambda: clip.apply_note_modifications(notes))
+        if "apply_note_modifications" in errors:
+            # list form refused (error kept above); a tuple is how Live hands the notes out
+            errors["apply_note_modifications(list)"] = errors.pop("apply_note_modifications", None)
+            errors.pop("apply_note_modifications", None)
+            # Variants: fresh unmodified notes, one note, a tuple, then add-modify via by-id calls.
+            variants = {}
+            fresh = _notes(clip)
+            for label, arg in (
+                ("fresh_list", fresh),
+                ("fresh_tuple", tuple(fresh)),
+                ("fresh_first_only", fresh[:1]),
+                ("raw_tuple", clip.get_notes_extended(0, 128, 0.0, 64.0)),
+            ):
+                try:
+                    clip.apply_note_modifications(arg)
+                    variants[label] = "ok"
+                except Exception as exc:  # noqa: BLE001
+                    variants[label] = _err(exc)[:90]
+            out["apply_variants"] = variants
+            out["apply_form"] = next((k for k, v in variants.items() if v == "ok"), "none-worked")
     after = attempt("get_notes_extended", lambda: _notes(clip)) or []
     ids_after = sorted(n.note_id for n in after)
     ids_stable = bool(ids_before) and ids_before == ids_after

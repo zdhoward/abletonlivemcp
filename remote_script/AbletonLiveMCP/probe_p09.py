@@ -180,14 +180,51 @@ def _audio_clip_probe(clip):
     before = _markers(clip)
     count_before = len(before) if isinstance(before, list) else None
     length = attempt(lambda: float(clip.length)).get("value") or 4.0
-    added = attempt(lambda: clip.add_warp_marker(length / 2.0))
+    # Live wants a WarpMarker struct: a float is refused (probe run 1), so try a dict form.
+    beat, ratio = length / 2.0, 2.0 / 3.0  # sample_time/beat_time ratio seen on the 2nd marker
+    forms = {
+        "dict": {"beat_time": beat, "sample_time": beat * ratio},
+        "beat_only_dict": {"beat_time": beat},
+        "float": beat,
+    }
+    marker_cls = type(clip.warp_markers[0]) if len(clip.warp_markers) else None
+    if marker_cls is not None:
+        forms["struct_kwargs"] = attempt(
+            lambda: marker_cls(beat_time=beat, sample_time=beat * ratio)
+        ).get("value")
+        forms["struct_positional"] = attempt(lambda: marker_cls(beat, beat * ratio)).get("value")
+        forms["struct_default_then_set"] = attempt(
+            lambda: setattr(m := marker_cls(), "beat_time", beat) or m
+        ).get("value")
+    forms = {k: v for k, v in forms.items() if v is not None}
+    add_attempts = {}
+    added = {"ok": False}
+    for name, arg in forms.items():
+        add_attempts[name] = attempt(lambda a=arg: clip.add_warp_marker(a))
+        if add_attempts[name]["ok"]:
+            added = add_attempts[name]
+            break
     after_add = _markers(clip)
-    moved = attempt(lambda: clip.move_warp_marker(length / 2.0, 0.25))
+    added = dict(added, attempts=add_attempts)
+    move_forms = {"beat_time float": (beat, 0.25), "marker dict": (forms["dict"], 0.25)}
+    move_attempts = {}
+    moved = {"ok": False}
+    for name, args in move_forms.items():
+        move_attempts[name] = attempt(lambda a=args: clip.move_warp_marker(*a))
+        if move_attempts[name]["ok"]:
+            moved = move_attempts[name]
+            break
+    moved = dict(moved, attempts=move_attempts)
     after_move = _markers(clip)
-    removed = attempt(lambda: clip.remove_warp_marker(length / 2.0 + 0.25))
+    rem_attempts = {}
+    removed = {"ok": False}
+    for name, arg in (("float", beat + 0.25), ("float unmoved", beat), ("dict", forms["dict"])):
+        rem_attempts[name] = attempt(lambda a=arg: clip.remove_warp_marker(a))
+        if rem_attempts[name]["ok"]:
+            removed = rem_attempts[name]
+            break
+    removed = dict(removed, attempts=rem_attempts)
     after_remove = _markers(clip)
-    if not removed["ok"]:  # try the un-moved position so the clip is left as found
-        attempt(lambda: clip.remove_warp_marker(length / 2.0))
     return {
         "setters": plain,
         "available_warp_modes": warp_modes.get("value", warp_modes.get("error")),
@@ -195,11 +232,11 @@ def _audio_clip_probe(clip):
         "warping": warping,
         "warp_markers": {
             "before": before,
-            "add": {"ok": added["ok"], "error": added.get("error")},
+            "add": {"ok": added["ok"], "attempts": add_attempts},
             "after_add": after_add,
-            "move": {"ok": moved["ok"], "error": moved.get("error")},
+            "move": {"ok": moved["ok"], "attempts": move_attempts},
             "after_move": after_move,
-            "remove": {"ok": removed["ok"], "error": removed.get("error")},
+            "remove": {"ok": removed["ok"], "attempts": rem_attempts},
             "after_remove": after_remove,
             "count_before": count_before,
         },
@@ -219,7 +256,8 @@ def run(ctx, scratch):
         clip = probe_clip.clip
     except Exception as exc:  # noqa: BLE001
         return {"verdict": "no-go", "reason": f"MIDI clip not created: {err(exc)}"}
-    members = {n: hasattr(clip, n) for n in MEMBERS}
+    # class-level check: hasattr on an instance evaluates the property (warp_* raise on MIDI clips)
+    members = {n: hasattr(type(clip), n) for n in MEMBERS}
     missing = sorted(n for n, ok in members.items() if not ok)
     if missing:
         return {"verdict": "gated", "missing_members": missing}
