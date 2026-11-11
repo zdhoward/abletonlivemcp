@@ -100,9 +100,9 @@ def test_refusals_happen_before_any_probe_runs(monkeypatch):
     assert d("probe_run", {"name": "P-02", "generation": gen})["code"] == "lease_required"
     assert d("probe_run", {"name": "P-02", "lease": "x"})["code"] == "lease_expired"
     lease = d("lease_acquire", {"ttl": 5})["lease"]
-    reply = d("probe_run", {"name": "P-02", "generation": gen, "lease": lease})
+    reply = d("probe_run", {"name": "P-08", "generation": gen, "lease": lease})
     assert reply == {
-        "probe": "P-02",
+        "probe": "P-08",
         "kind": "write",
         "ok": True,
         "result": {"verdict": "not_implemented"},
