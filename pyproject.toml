@@ -30,8 +30,14 @@ dev = ["pytest>=8", "ruff>=0.6", "typesafe-sdk>=0.7"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/abletonlivemcp"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"remote_script/AbletonLiveMCP/__init__.py" = "abletonlivemcp/_remote_script/AbletonLiveMCP/__init__.py"
+"remote_script/AbletonLiveMCP/core.py" = "abletonlivemcp/_remote_script/AbletonLiveMCP/core.py"
+"remote_script/AbletonLiveMCP/handlers.py" = "abletonlivemcp/_remote_script/AbletonLiveMCP/handlers.py"
+
 [tool.hatch.build.targets.sdist]
-exclude = ["knowledge", "research", "tasks"]
+include = ["/pyproject.toml", "/README.md", "/LICENSE", "/src", "/remote_script/AbletonLiveMCP", "/tests"]
+exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
