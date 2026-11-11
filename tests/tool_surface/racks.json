@@ -1,0 +1,330 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "A rack's macros (value, display), variations and chains (devices, mute/solo, volume,\npan). Macro mapping is manual in Live; the reply says how.",
+  "inputSchema": {
+   "properties": {
+    "path": {
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
+    }
+   },
+   "required": [
+    "track",
+    "path"
+   ],
+   "title": "live_get_rackArguments",
+   "type": "object"
+  },
+  "name": "live_get_rack",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_rackDictOutput",
+   "type": "object"
+  },
+  "title": "Get rack"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Set macro values (\"50 %\", {\"raw\": x}), visible macro count, store/recall/delete/randomize a\nvariation, and chain name/mute/solo/volume/pan (raw). Rack state is validated before any\nwrite; macros are written last. Receipt lists `unverified` abilities.",
+  "inputSchema": {
+   "$defs": {
+    "ChainEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "index": {
+       "minimum": 0,
+       "title": "Index",
+       "type": "integer"
+      },
+      "mute": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Mute"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "minLength": 1,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "pan": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pan"
+      },
+      "solo": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Solo"
+      },
+      "volume": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Volume"
+      }
+     },
+     "required": [
+      "index"
+     ],
+     "title": "ChainEdit",
+     "type": "object"
+    },
+    "MacroSet": {
+     "additionalProperties": false,
+     "properties": {
+      "macro": {
+       "maximum": 16,
+       "minimum": 1,
+       "title": "Macro",
+       "type": "integer"
+      },
+      "value": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/RawValue"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        }
+       ],
+       "title": "Value"
+      }
+     },
+     "required": [
+      "macro",
+      "value"
+     ],
+     "title": "MacroSet",
+     "type": "object"
+    },
+    "RawValue": {
+     "additionalProperties": false,
+     "description": "A stored (not displayed) parameter value; it is written as given and never claimed to\nbe a physical unit.",
+     "properties": {
+      "raw": {
+       "title": "Raw",
+       "type": "number"
+      }
+     },
+     "required": [
+      "raw"
+     ],
+     "title": "RawValue",
+     "type": "object"
+    },
+    "Variation": {
+     "additionalProperties": false,
+     "properties": {
+      "action": {
+       "enum": [
+        "store",
+        "recall",
+        "delete",
+        "randomize"
+       ],
+       "title": "Action",
+       "type": "string"
+      },
+      "index": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Index"
+      }
+     },
+     "required": [
+      "action"
+     ],
+     "title": "Variation",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "chains": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/ChainEdit"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Chains"
+    },
+    "macros": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/MacroSet"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Macros"
+    },
+    "path": {
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
+    },
+    "variation": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Variation"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "visible_macros": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Visible Macros"
+    }
+   },
+   "required": [
+    "track",
+    "path"
+   ],
+   "title": "live_set_rackArguments",
+   "type": "object"
+  },
+  "name": "live_set_rack",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_rackDictOutput",
+   "type": "object"
+  },
+  "title": "Set rack"
+ }
+]

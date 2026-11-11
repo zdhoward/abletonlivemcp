@@ -327,8 +327,9 @@ def test_plan_with_explicit_path_skips_the_stock_listing_and_checks_the_path():
         calls.append(method)
         if method == "session_info":
             return {"generation": 3}
-        if method == "tracks":
-            return [{"index": 0, "ref": "t", "name": "Vox", "has_midi_input": False, "devices": []}]
+        if method == "device_list":
+            owner = {"kind": "track", "name": "Vox", "has_midi_input": False}
+            return {"owner": owner, "container": "track", "devices": []}
         return live.call(method, p)
 
     stage = {"device": "Pro-C 2", "root": "plugins", "path": ["Compressor"], "params": {"Ratio": 4}}

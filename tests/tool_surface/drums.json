@@ -1,0 +1,674 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Build a live_plan_drum_rack plan exactly once (Set and target re-checked). Stops at the\nfirst pad not observed; never retries, deletes or substitutes. Reuse returns the receipt.",
+  "inputSchema": {
+   "properties": {
+    "plan_id": {
+     "title": "Plan Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "plan_id"
+   ],
+   "title": "live_build_drum_rackArguments",
+   "type": "object"
+  },
+  "name": "live_build_drum_rack",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_build_drum_rackDictOutput",
+   "type": "object"
+  },
+  "title": "Build drum rack"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Run one Live conversion (adds tracks/devices; nothing is deleted): audio_to_midi\n(midi_type), drum_rack_from_audio_clip, simpler_from_audio_clip, midi_track_from_drum_pad,\nsliced_simpler_to_drum_rack, devices_to_drum_pad. Re-read tracks afterwards.",
+  "inputSchema": {
+   "$defs": {
+    "ConvertTarget": {
+     "additionalProperties": false,
+     "properties": {
+      "arrangement": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Arrangement"
+      },
+      "path": {
+       "anyOf": [
+        {
+         "items": {
+          "anyOf": [
+           {
+            "minimum": 0,
+            "type": "integer"
+           },
+           {
+            "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+            "type": "string"
+           }
+          ]
+         },
+         "maxItems": 12,
+         "minItems": 1,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Path"
+      },
+      "scene": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Scene"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track"
+     ],
+     "title": "ConvertTarget",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "action": {
+     "enum": [
+      "audio_to_midi",
+      "drum_rack_from_audio_clip",
+      "simpler_from_audio_clip",
+      "midi_track_from_drum_pad",
+      "sliced_simpler_to_drum_rack",
+      "devices_to_drum_pad"
+     ],
+     "title": "Action",
+     "type": "string"
+    },
+    "midi_type": {
+     "default": "melody",
+     "enum": [
+      "drums",
+      "harmony",
+      "melody"
+     ],
+     "title": "Midi Type",
+     "type": "string"
+    },
+    "target": {
+     "$ref": "#/$defs/ConvertTarget"
+    }
+   },
+   "required": [
+    "action",
+    "target"
+   ],
+   "title": "live_convertArguments",
+   "type": "object"
+  },
+  "name": "live_convert",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_convertDictOutput",
+   "type": "object"
+  },
+  "title": "Convert"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Pads of a Drum Rack (path to the rack device): note, name, mute/solo, chain devices,\nchoke group. include_empty lists all 128 pads.",
+  "inputSchema": {
+   "properties": {
+    "include_empty": {
+     "default": false,
+     "title": "Include Empty",
+     "type": "boolean"
+    },
+    "path": {
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
+    }
+   },
+   "required": [
+    "track",
+    "path"
+   ],
+   "title": "live_get_drum_rackArguments",
+   "type": "object"
+  },
+  "name": "live_get_drum_rack",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_drum_rackDictOutput",
+   "type": "object"
+  },
+  "title": "Get drum rack"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "A Simpler's mode/voices and its sample: markers, gain, warp, slicing and slices.",
+  "inputSchema": {
+   "properties": {
+    "path": {
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
+    }
+   },
+   "required": [
+    "track",
+    "path"
+   ],
+   "title": "live_get_simplerArguments",
+   "type": "object"
+  },
+  "name": "live_get_simpler",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_simplerDictOutput",
+   "type": "object"
+  },
+  "title": "Get simpler"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Dry run: an empty Drum Rack on an EMPTY MIDI track, then one browser item (root + path,\nchecked in its folder) per pad note; at most 16 pads. Returns plan_id, unverified.",
+  "inputSchema": {
+   "$defs": {
+    "DrumRole": {
+     "additionalProperties": false,
+     "properties": {
+      "note": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Note",
+       "type": "integer"
+      },
+      "path": {
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "minItems": 1,
+       "title": "Path",
+       "type": "array"
+      },
+      "root": {
+       "default": "samples",
+       "title": "Root",
+       "type": "string"
+      }
+     },
+     "required": [
+      "note",
+      "path"
+     ],
+     "title": "DrumRole",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "pads": {
+     "items": {
+      "$ref": "#/$defs/DrumRole"
+     },
+     "title": "Pads",
+     "type": "array"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "pads"
+   ],
+   "title": "live_plan_drum_rackArguments",
+   "type": "object"
+  },
+  "name": "live_plan_drum_rack",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_plan_drum_rackDictOutput",
+   "type": "object"
+  },
+  "title": "Plan drum rack"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Edit pads of a Drum Rack (by note): mute, solo, name, choke_group, clear (needs the pad's\ncurrent expect_name); or copy one pad onto an EMPTY pad. Validated before any write.",
+  "inputSchema": {
+   "$defs": {
+    "PadCopy": {
+     "additionalProperties": false,
+     "properties": {
+      "destination": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Destination",
+       "type": "integer"
+      },
+      "source": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Source",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "source",
+      "destination"
+     ],
+     "title": "PadCopy",
+     "type": "object"
+    },
+    "PadEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "choke_group": {
+       "anyOf": [
+        {
+         "maximum": 16,
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Choke Group"
+      },
+      "clear": {
+       "default": false,
+       "title": "Clear",
+       "type": "boolean"
+      },
+      "expect_name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "required with clear: the pad's current name",
+       "title": "Expect Name"
+      },
+      "mute": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Mute"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "minLength": 1,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Name"
+      },
+      "note": {
+       "maximum": 127,
+       "minimum": 0,
+       "title": "Note",
+       "type": "integer"
+      },
+      "solo": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Solo"
+      }
+     },
+     "required": [
+      "note"
+     ],
+     "title": "PadEdit",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "copy": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/PadCopy"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "pads": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/PadEdit"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Pads"
+    },
+    "path": {
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
+    }
+   },
+   "required": [
+    "track",
+    "path"
+   ],
+   "title": "live_set_drum_padsArguments",
+   "type": "object"
+  },
+  "name": "live_set_drum_pads",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_drum_padsDictOutput",
+   "type": "object"
+  },
+  "title": "Set drum pads"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Set Simpler fields (playback_mode, voices, retrigger, ...), sample fields (start_marker,\nend_marker, gain, warping, warp_mode, slicing_*) and slices (insert/remove sample times,\nclear, reset). Validated first; the receipt says how far it got.",
+  "inputSchema": {
+   "$defs": {
+    "SliceEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "clear": {
+       "default": false,
+       "title": "Clear",
+       "type": "boolean"
+      },
+      "insert": {
+       "items": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "maxItems": 64,
+       "title": "Insert",
+       "type": "array"
+      },
+      "remove": {
+       "items": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "maxItems": 64,
+       "title": "Remove",
+       "type": "array"
+      },
+      "reset": {
+       "default": false,
+       "title": "Reset",
+       "type": "boolean"
+      }
+     },
+     "title": "SliceEdit",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "device_fields": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Device Fields"
+    },
+    "path": {
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "sample_fields": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Sample Fields"
+    },
+    "slices": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/SliceEdit"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    },
+    "track": {
+     "anyOf": [
+      {
+       "minimum": 0,
+       "type": "integer"
+      },
+      {
+       "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+       "type": "string"
+      }
+     ],
+     "title": "Track"
+    }
+   },
+   "required": [
+    "track",
+    "path"
+   ],
+   "title": "live_set_simplerArguments",
+   "type": "object"
+  },
+  "name": "live_set_simpler",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_simplerDictOutput",
+   "type": "object"
+  },
+  "title": "Set simpler"
+ }
+]
