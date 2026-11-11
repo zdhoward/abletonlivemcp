@@ -146,7 +146,12 @@ except ToolsetError as exc:  # reported by main(); importing for tests still wor
 
 def toolsets() -> dict:
     """What live_hello reports: enabled and available toolsets."""
-    return {"enabled": sorted(ENABLED), "available": list(TOOLSETS)}
+    return {
+        "enabled": sorted(ENABLED),
+        "available": list(TOOLSETS),
+        "how_to_enable": f"{TOOLSETS_ENV} in the MCP client config, or \"toolsets\" in the "
+        "bridge config; read once at server start, so start a new client session",
+    }
 
 
 class ToolFailure(ToolError, ValueError):

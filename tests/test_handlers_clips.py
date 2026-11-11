@@ -283,7 +283,7 @@ def test_probe_empty_session(env):
     song.tracks = []
     caps = handlers.probe(song, app)
     assert caps["clip.note_api_sample_count"] == 0
-    assert caps["clip.add_new_notes"] is False
+    assert caps["clip.add_new_notes"] is None  # unknown: no Session clip to sample
 
 
 def test_probe_slot_sampling_is_bounded(env, monkeypatch):
@@ -292,7 +292,7 @@ def test_probe_slot_sampling_is_bounded(env, monkeypatch):
     song.tracks[0].clip_slots[1].clip = ModernClip()
     caps = handlers.probe(song, app)
     assert caps["clip.note_api_sample_count"] == 0
-    assert caps["clip.add_new_notes"] is False
+    assert caps["clip.add_new_notes"] is None  # unknown: no Session clip to sample
 
 
 # ---- safety: nothing destructive exists --------------------------------------------------------

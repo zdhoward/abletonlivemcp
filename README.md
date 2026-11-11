@@ -122,6 +122,9 @@ tracks/mixer/scenes, clips/notes, device parameters/order, browser/load operatio
 planning/building and confirmed delete/duplicate) plus the 2-tool `automation` toolset (Session-clip
 envelopes) and 4-tool `arrangement` toolset (timeline clips and locators). Set
 `ABLETONLIVEMCP_TOOLSETS` to add more (`core`, `automation`, `arrangement` stay on), or `all` for 57 tools.
+Without the variable, a `"toolsets": "drums,racks"` key in `~/.abletonlivemcp/bridge.json` does the
+same. Either is read once when the server starts: start a new client session after a change
+(restarting the server process alone keeps the client's old tool list).
 Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `recording`,
 `editing`, `view`, `devices-advanced`, `files`. Resources and ten workflow prompts supplement tools.
 

@@ -146,7 +146,8 @@ def probe(song, app=None):
         if remaining == 0:
             break
     for member in ("add_new_notes", "set_notes", "get_notes_extended", "get_notes"):
-        caps[f"clip.{member}"] = any(hasattr(clip, member) for clip in clips)
+        # None = unknown (no Session clip sampled, e.g. an Arrangement-only Set), not missing
+        caps[f"clip.{member}"] = any(hasattr(clip, member) for clip in clips) if clips else None
     caps["clip.note_api_sample_count"] = len(clips)
     caps["Live.Clip.MidiNoteSpecification"] = _note_specification() is not None
     if app is not None:
