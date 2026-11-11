@@ -1,7 +1,8 @@
 # Restart Ableton Live unattended: no crash-recovery dialog, wait until the bridge answers.
-# Usage: powershell -File scripts\live_restart.ps1 [-Reinstall]
-# Basic Set is disposable (never saved), so a forced close loses nothing.
-param([switch]$Reinstall)
+# Usage: powershell -File scripts\live_restart.ps1 [-Reinstall] [-Force]
+# Basic Set is disposable (never saved), so a forced close loses nothing. Any other open Set
+# (the owner's tracks) makes the script refuse; -Force overrides only on the owner's word.
+param([switch]$Reinstall, [switch]$Force)
 $ErrorActionPreference = 'Continue'
 $repo = Split-Path -Parent $PSScriptRoot
 $prefs = "$env:APPDATA\Ableton\Live 12.2\Preferences"
@@ -11,6 +12,13 @@ $set = 'S:\AbletonMCP\projects\Basic Project\Basic.als'
 $live = Get-Process | Where-Object { $_.Name -like 'Ableton Live*' }
 if ($live) {
     $live | Select-Object Id, MainWindowTitle | Out-Host
+    $other = $live | Where-Object {
+        $_.MainWindowTitle -and $_.MainWindowTitle -notlike 'Basic*' -and $_.MainWindowTitle -notlike 'Untitled*'
+    }
+    if ($other -and -not $Force) {
+        Write-Error "Live has a non-Basic Set open ($($other.MainWindowTitle)); not closing it"
+        exit 4
+    }
     $live | ForEach-Object { [void]$_.CloseMainWindow() }
     Start-Sleep 4
     Get-Process | Where-Object { $_.Name -like 'Ableton Live*' } | Stop-Process -Force

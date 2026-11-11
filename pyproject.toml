@@ -41,6 +41,7 @@ exclude = ["/.gitignore", "**/__pycache__", "**/*.pyc", "**/*.pyo", "**/probe_p[
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]  # test the source tree, never a stale non-editable install
 
 [tool.ruff]
 line-length = 100
