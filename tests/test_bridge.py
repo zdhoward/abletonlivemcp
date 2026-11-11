@@ -8,6 +8,7 @@ import os
 import secrets
 import socket
 import subprocess
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -200,6 +201,70 @@ def test_config_is_private_and_fails_closed(private_config, monkeypatch):
         "config: temporary config/home; readers agree=True; missing/relative/empty/"
         "invalid-secret/insecure=closed; fallback=False; dispatch=0"
     )
+
+
+def _without_ctypes(monkeypatch, path="bridge_core_noctypes"):
+    for name in ("ctypes", "ctypes.wintypes", "msvcrt"):
+        monkeypatch.setitem(sys.modules, name, None)  # import raises ImportError
+    spec = importlib.util.spec_from_file_location(path, core.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_config_check_falls_back_when_ctypes_is_missing(private_config, monkeypatch, tmp_path):
+    config, secret = private_config
+    assert core.strict_acl_available() and "ctypes=yes" in core.module_diagnostic()
+    assert core._load_secret() == secret  # ctypes-present path unchanged
+    nc = _without_ctypes(monkeypatch)  # module still imports without ctypes/msvcrt
+    assert nc.strict_acl_available() == (os.name != "nt")
+    assert "ctypes=no" in nc.module_diagnostic() and secret.hex() not in nc.module_diagnostic()
+    assert nc._load_secret() == secret
+    original = config.read_bytes()
+    bad = {
+        "invalid-secret": b'{"secret":"zz"}',
+        "duplicate-key": b'{"secret":"%s","secret":"%s"}' % ((secret.hex().encode(),) * 2),
+        "oversized": b'{"secret":"%s","pad":"%s"}' % (secret.hex().encode(), b"x" * 9000),
+    }
+    for data in bad.values():
+        config.write_bytes(data)
+        with pytest.raises(ValueError):
+            nc._load_secret()
+    config.write_bytes(original)
+    link = tmp_path / "link.json"
+    try:
+        link.symlink_to(config)
+    except (OSError, NotImplementedError):
+        link = None  # no symlink privilege on this host
+    if link is not None:
+        monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", str(link))
+        with pytest.raises(ValueError):
+            nc._load_secret()
+        monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", str(config))
+    # Location rule: outside the profile and with no explicit override it is refused.
+    with open(config, "rb") as stream:
+        nc._windows_private(stream.fileno(), str(config))  # explicit override, unlinked parent
+        monkeypatch.delenv("ABLETONLIVEMCP_CONFIG")
+        with pytest.raises(ValueError):
+            nc._windows_private(stream.fileno(), str(config))
+        nc._windows_private(stream.fileno(), os.path.join(os.path.expanduser("~"), "x.json"))
+
+
+def test_remote_script_imports_without_ctypes_or_msvcrt(monkeypatch):
+    root = str(Path(__file__).resolve().parents[1] / "remote_script")
+    saved = {k: v for k, v in sys.modules.items() if k.split(".")[0] == "AbletonLiveMCP"}
+    for key in saved:
+        del sys.modules[key]
+    monkeypatch.syspath_prepend(root)
+    for name in ("ctypes", "ctypes.wintypes", "msvcrt"):
+        monkeypatch.setitem(sys.modules, name, None)
+    try:
+        for part in ("core", "safety", "operations", "handlers"):
+            importlib.import_module("AbletonLiveMCP." + part)
+    finally:
+        for key in [k for k in sys.modules if k.split(".")[0] == "AbletonLiveMCP"]:
+            del sys.modules[key]
+        sys.modules.update(saved)
 
 
 def test_mutual_authentication_envelopes_and_replay(private_config):

@@ -26,6 +26,18 @@ Readers live independently in `remote_script/AbletonLiveMCP/core.py` and
 `src/abletonlivemcp/bridge.py`; neither imports `src/abletonlivemcp/config.py`.
 Keep their wire/config helpers identical when reconciling M1a-01.
 
+**Live-side fallback without ctypes.** Live 12.2's embedded Windows Python has no
+`ctypes`, so the Remote Script cannot always run the DACL check below. When `ctypes`
+or `msvcrt` is not importable the Remote Script (and `safety.config_read_only`) logs
+one line at init and instead requires: the existing lstat/fstat identity, regular-file,
+not-a-link and not-a-reparse-point (`st_file_attributes`, also on the opened handle),
+size and duplicate-key checks; a valid 64-hex secret; and a location that is either
+under the current user's profile directory (`~`, realpath, case-insensitive) or is
+the explicit absolute `ABLETONLIVEMCP_CONFIG` path whose parent directory is not a
+link/reparse point. This fallback **cannot verify the ACL**: another principal with
+access to such a file is not detected on the Live side. The host side (`bridge.py`,
+normal Python) and the installer still enforce the owner-only DACL via ctypes.
+
 Both check the opened regular file and reject links/reparse points and replacement
 between lstat/open. POSIX requires current-user ownership and no group/other mode
 bits. Windows uses ctypes/GetSecurityInfo on the opened handle: owner must be the
