@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import runpy
 import subprocess
 import sys
 from pathlib import Path
@@ -14,7 +13,8 @@ import pytest
 def _hashes(directory):
     return {
         str(path.relative_to(directory)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(directory.rglob("*")) if path.is_file()
+        for path in sorted(directory.rglob("*"))
+        if path.is_file()
     }
 
 
@@ -31,7 +31,7 @@ def _scenario(root):
         for name in ("HOME", "USERPROFILE"):
             patch.setenv(name, str(home))
         patch.setenv("HOMEDRIVE", home.drive)
-        patch.setenv("HOMEPATH", str(home)[len(home.drive):])
+        patch.setenv("HOMEPATH", str(home)[len(home.drive) :])
         patch.setenv("ABLETONLIVEMCP_CONFIG", str(home / "private" / "bridge.json"))
         print(f"home={Path.home()} config={config.config_path()} cwd={Path.cwd()}")
         assert Path.home() == home
@@ -47,7 +47,8 @@ def _scenario(root):
         config._check_private(config.config_path())
         principal = (
             "current-user-only; protected DACL; full control"
-            if os.name == "nt" else "owner uid; mode 0600"
+            if os.name == "nt"
+            else "owner uid; mode 0600"
         )
         print(
             f"secret_present={secret_present} read_only_default={private['read_only']} "
@@ -70,36 +71,40 @@ def _scenario(root):
         install.install(library)
         backups = list(dest.parent.glob(f".{install.SCRIPT}.backup-*"))
         assert any(_hashes(backup) == cached for backup in backups)
+        assert not (dest / "config.py").exists()  # nothing in the Remote Script imports it
+        # Backups do not pile up: one more install leaves only the newest owned backup.
+        install.install(library)
+        assert len(list(dest.parent.glob(f".{install.SCRIPT}.backup-*"))) == 1
         restored = config.load_config()
+        # Readers agree: only `secret` is required; duplicate keys and oversize are refused.
+        text = config.config_path().read_text(encoding="utf-8")
+        config.config_path().write_text(json.dumps({"secret": private["secret"]}), "utf-8")
+        assert config.load_config()["secret"] == private["secret"]
+        for bad in (text[:-1] + ', "secret": "x"}', json.dumps({**private, "pad": "x" * 9000})):
+            config.config_path().write_text(bad, encoding="utf-8")
+            with pytest.raises(config.ConfigError):
+                config.load_config()
+        config.config_path().write_text(text, encoding="utf-8")
         secret_same = restored["secret"] == private["secret"]
         policy_same = restored["read_only"] == private["read_only"]
-        shared = runpy.run_path(str(dest / "config.py"))
-        discovery_same = shared["config_path"]() == config.config_path()
-        shared_value = shared["load_config"]()
-        shared_same = (
-            shared_value["secret"] == private["secret"]
-            and shared_value["read_only"] == private["read_only"]
-        )
-        assert secret_same and policy_same and discovery_same and shared_same
+        assert secret_same and policy_same
         print(
             f"secret_unchanged={secret_same} policy_unchanged={policy_same} "
-            f"shared_discovery={discovery_same} shared_config={shared_same} backup_preserved=True"
+            "no_config_copy=True backups_pruned_to=1"
         )
         with pytest.MonkeyPatch.context() as default:
             default.delenv("ABLETONLIVEMCP_CONFIG")
-            default_same = (
-                config.config_path() == shared["config_path"]()
-                == home / ".abletonlivemcp" / "bridge.json"
-            )
+            default_same = config.config_path() == home / ".abletonlivemcp" / "bridge.json"
             assert default_same
-        print(f"shared_default_discovery={default_same}")
+        print(f"default_discovery={default_same}")
 
         def attempt(label, fault_code):
             before = _hashes(dest)
             code = (
                 "import sys\nfrom pathlib import Path\n"
                 f"sys.path.insert(0, {str(Path(abletonlivemcp.__file__).parents[1])!r})\n"
-                "from abletonlivemcp import install\n" + fault_code
+                "from abletonlivemcp import install\n"
+                + fault_code
                 + f"\ninstall.main({[str(library)]!r})\n"
             )
             command = [sys.executable, "-c", code]
@@ -142,7 +147,8 @@ def _scenario(root):
         if os.name == "nt":
             result = subprocess.run(
                 ["cmd", "/c", "mklink", "/J", str(linked), str(library)],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             assert result.returncode == 0
         else:
@@ -163,7 +169,8 @@ def _scenario(root):
         if os.name == "nt":
             result = subprocess.run(
                 ["icacls", str(insecure), "/grant", "*S-1-1-0:(R)"],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             assert result.returncode == 0
         else:
@@ -186,17 +193,22 @@ def test_install_reinstall_and_failures(tmp_path):
     wheel = os.environ.get("ABLETONLIVEMCP_TEST_WHEEL")
     if wheel:
         command = [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys, runpy; sys.path.insert(0, sys.argv[1]); "
             "runpy.run_path(sys.argv[2], run_name='__main__')",
-            wheel, str(Path(__file__).absolute()), str(tmp_path),
+            wheel,
+            str(Path(__file__).absolute()),
+            str(tmp_path),
         ]
         result = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True)
         evidence = os.environ.get("ABLETONLIVEMCP_TEST_EVIDENCE")
         if evidence:
             Path(evidence).write_text(
                 f"command={subprocess.list2cmdline(command)}\nexit={result.returncode}\n"
-                + result.stdout + result.stderr, encoding="utf-8",
+                + result.stdout
+                + result.stderr,
+                encoding="utf-8",
             )
         assert result.returncode == 0, result.stdout + result.stderr
     else:

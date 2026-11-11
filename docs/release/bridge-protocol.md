@@ -14,9 +14,13 @@ Neither reader creates, modifies, repairs or prints it.
 The only consumed JSON field is `secret`: exactly 64 lowercase hexadecimal
 characters encoding 32 random bytes, decoded to bytes before HMAC. Unknown fields
 are allowed. In particular, `read_only` is reserved for M1a-01/M1b policy integration;
-this transport does not consume or enforce it. There is no required config version,
-port, host or protocol field. Config is at most 8192 bytes; malformed, duplicate-key
-or non-finite JSON is rejected.
+this transport does not consume or enforce it. The installer writes `version: 1` and
+`read_only`, but no reader requires them: every reader (installer `config.py`, the
+bridge client and the Remote Script) requires only `secret` and ignores the rest.
+There is no required port, host or protocol field. Config is at most 8192 bytes in
+every reader; malformed, duplicate-key or non-finite JSON is rejected. On Windows the
+ACL may grant access only to the owner, SYSTEM and Administrators (in every reader),
+so a repaired ACL does not make reinstall fail.
 
 Readers live independently in `remote_script/AbletonLiveMCP/core.py` and
 `src/abletonlivemcp/bridge.py`; neither imports `src/abletonlivemcp/config.py`.
