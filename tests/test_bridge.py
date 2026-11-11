@@ -359,13 +359,23 @@ def test_bounds_deadlines_shutdown_and_atomic_cancellation(private_config, monke
         f"overall={core.EXCHANGE_TIMEOUT}s wait={core.REQUEST_TIMEOUT}s"
     )
     calls = []
+    # Prove the byte bound independently of TCP close semantics. Windows may reset a
+    # connection closed with unread inbound bytes, discarding the diagnostic reply.
+    for suffix in (b"", b"\n"):
+        wire = core._Wire(None, time.monotonic() + 2)
+        wire.buf = b" " * (core.MAX_FRAME + 1) + suffix
+        with pytest.raises(core._FrameError) as oversized:
+            wire.read()
+        assert oversized.value.kind == "FrameTooLarge"
     with running(lambda m, p: calls.append(m) or "x" * core.MAX_FRAME) as server:
         with dial(server) as conn:
             try:
                 conn.sendall(b" " * (core.MAX_FRAME + 1) + b"\n")
             except ConnectionResetError:
                 pass
-            assert json.loads(closed(conn).split(b"\n")[0])["error"] == "FrameTooLarge"
+            diagnostic = closed(conn)
+            if diagnostic:
+                assert json.loads(diagnostic.split(b"\n")[0])["error"] == "FrameTooLarge"
         assert calls == []
         with pytest.raises(bridge.BridgeError) as error:
             bridge.BridgeClient(port=server.port).call("large")
