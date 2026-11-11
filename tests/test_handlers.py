@@ -12,11 +12,12 @@ from AbletonLiveMCP.safety import CLASSIFICATION, READ, WRITE, Safety  # noqa: E
 
 
 class Item:
-    def __init__(self, name, children=None, loadable=False):
+    def __init__(self, name, children=None, loadable=False, device=None):
         self.name = name
         self.children = children or []
         self.is_folder = bool(children)
         self.is_loadable = loadable
+        self.is_device = loadable if device is None else device
         self.uri = f"uri:{name}"
 
 
@@ -49,6 +50,13 @@ class Track:
         self.devices = [Dev()]
 
 
+class AudioTrack(Track):
+    def __init__(self, name):
+        super().__init__(name)
+        self.has_midi_input = False
+        self.devices = []
+
+
 class View:
     selected_track = None
 
@@ -74,6 +82,8 @@ class Song:
 class Browser:
     def __init__(self):
         self.loaded = None
+        self.calls = 0
+        self.hook = None  # what the fake "Live" does when a load starts
         self.audio_effects = Item(
             "root",
             [
@@ -87,6 +97,9 @@ class Browser:
 
     def load_item(self, item):
         self.loaded = item
+        self.calls += 1
+        if self.hook:
+            self.hook(item)
 
 
 class App:
@@ -139,21 +152,192 @@ def test_browser_search_budget_is_bounded(env, monkeypatch):
     assert d("browser_search", {"root": "audio_effects", "query": "zzz"})["budget_exhausted"]
 
 
-def test_load_item_selects_track_and_loads(env):
-    song, app, d = env
-    p = {"track": track_ref(d, 1), "expected_devices": ["Eq8"], "root": "audio_effects"}
-    r = d("load_item", {**p, "path": ["Dynamics", "Limiter"]})
-    assert song.view.selected_track is song.tracks[1]
-    assert app.browser.loaded.name == "Limiter" and r["loaded"] == "Limiter"
+class Wide:
+    """A huge child collection that counts how many children were actually pulled."""
+
+    def __init__(self, n):
+        self.n, self.yielded = n, 0
+
+    def __iter__(self):
+        for i in range(self.n):
+            self.yielded += 1
+            yield Item(f"n{i}", loadable=True)
 
 
-def test_load_item_rejects_folder_and_bad_track(env):
+def test_browser_bounds_pages_cursors_and_display_cap(env):
     _s, app, d = env
-    p = {"track": track_ref(d, 0), "expected_devices": ["Eq8"], "root": "audio_effects"}
+    clock = [0.0]
+    d.operations.cursors._clock = lambda: clock[0]
+    wide = Wide(450)
+    app.browser.plugins = Item("plugins", wide)
+    # listing: pages of <= 200, lazy (201 pulled for the first page, not 450)
+    page = d("browser_list", {"root": "plugins"})
+    print("\nlist page 1:", len(page["items"]), "pulled", wide.yielded, page["truncated"])
+    assert len(page["items"]) == 200 and page["truncated"] and wide.yielded == 201
+    sizes = [200]
+    while page["cursor"]:
+        page = d("browser_list", {"root": "plugins", "cursor": page["cursor"]})
+        sizes.append(len(page["items"]))
+    assert sizes == [200, 200, 50] and page["complete"] and not page["truncated"]
     with pytest.raises(ValueError):
-        d("load_item", {**p, "path": ["Dynamics"]})
-    assert d("load_item", {**p, "track": 9, "path": ["Reverb"]})["refused"]
-    assert app.browser.loaded is None
+        d("browser_list", {"root": "plugins", "limit": 201})
+    # search: 4000 visited per slice, then a cursor; a wide child loop cannot exceed it
+    wide = Wide(10000)
+    app.browser.plugins = Item("plugins", wide)
+    s = d("browser_search", {"root": "plugins", "query": "zzz"})
+    print("search slice 1:", s["visited"], "pulled", wide.yielded, s["budget_exhausted"])
+    assert s["visited"] == 4000 == wide.yielded and s["budget_exhausted"] and not s["complete"]
+    seen = s["visited"]
+    while s["cursor"]:
+        s = d("browser_search", {"root": "plugins", "cursor": s["cursor"]})
+        seen += s["visited"]
+    assert seen == 10000 and s["complete"] and wide.yielded == 10000
+    # result cap: 100 per slice, flagged truncated rather than silently cut
+    r = d("browser_search", {"root": "plugins", "query": "n", "limit": 100})
+    assert len(r["results"]) == 100 and r["truncated"] and r["cursor"]
+    with pytest.raises(ValueError):
+        d("browser_search", {"root": "plugins", "query": "n", "limit": 101})
+    # cursors: at most 4 live, single use, 30 s expiry
+    first = d("browser_list", {"root": "plugins", "limit": 1})["cursor"]
+    for _ in range(4):
+        d("browser_list", {"root": "plugins", "limit": 1})
+    assert len(d.operations.cursors) == 4
+    assert d("browser_list", {"root": "plugins", "cursor": first})["code"] == "unknown_cursor"
+    live = d("browser_list", {"root": "plugins", "limit": 1})["cursor"]
+    clock[0] += 31
+    assert d("browser_list", {"root": "plugins", "cursor": live})["code"] == "unknown_cursor"
+    # display sampling: 129 conversions per request in total, not 64 x 129
+    loc = {"track": 0, "device": 0}
+    ok = [{"parameter": 0, "values": [0.5] * 64}, {"parameter": 1, "values": [0.5] * 65}]
+    assert len(d("sample_parameters", {**loc, "requests": ok})["results"]) == 2
+    for requests in (
+        [{"parameter": 0, "values": [0.5] * 64}, {"parameter": 1, "values": [0.5] * 66}],
+        [{"parameter": 0, "values": [0.5] * 129}] * 64,
+    ):
+        with pytest.raises(ValueError, match="in total"):
+            d("sample_parameters", {**loc, "requests": requests})
+
+
+def test_load_state_contract(env, monkeypatch):
+    song, app, d = env
+    audio, other = AudioTrack("Audio"), AudioTrack("Other")
+    full = AudioTrack("Full")
+    full.devices = [Dev()]
+    song.tracks += [audio, other, full]
+    ops, now = d.operations, [0.0]
+    ops._clock = lambda: now[0]
+    app.browser.audio_effects.children.append(Item("Preset", loadable=True, device=False))
+    base = {"track": track_ref(d, 2), "root": "audio_effects", "path": ["Reverb"]}
+    refused = {
+        "midi track": {**base, "track": track_ref(d, 1)},
+        "occupied audio track": {**base, "track": track_ref(d, 4)},
+        "folder item": {**base, "path": ["Dynamics"]},
+        "preset item": {**base, "path": ["Preset"]},
+        "missing item": {**base, "path": ["Nope"]},
+        "unsupported root": {**base, "root": "samples"},
+        "bad 'after'": {**base, "after": "nope"},
+    }
+    print("\npre-load refusals:")
+    for name, params in refused.items():
+        r = d("load_item", params)
+        print(f"  {name}: {r['code']}")
+        assert r["refused"] and r["applied"] is False
+    assert app.browser.calls == 0 and song.view.selected_track is None
+
+    # start: pending, no device reference, nothing to write to yet; a second load is refused
+    app.browser.hook = lambda item: audio.devices.append(Dev())
+    op = d("load_item", base)
+    assert (op["state"], op["device"], op["may_have_applied"]) == ("pending", None, True)
+    assert song.view.selected_track is audio and app.browser.calls == 1
+    assert d("load_item", {**base, "track": track_ref(d, 3)})["code"] == "load_pending"
+    assert ops.tick() == 1 and d("operation", {"operation": op["operation"]})["state"] == "pending"
+    assert ops.tick() == 1  # no request arrived in between: idle ticks advance the load
+    done = d("operation", {"operation": op["operation"]})
+    print("ready:", done["state"], done["devices_after"], "calls", app.browser.calls)
+    assert done["state"] == "ready" and done["applied"] is True and done["devices_after"] == ["Eq8"]
+    assert d.safety.resolve("device", done["device"], song).obj is audio.devices[0]
+    # occupied now: a fresh load is refused; appending is refused until Live proves placement
+    assert d("load_item", {**base, "track": track_ref(d, 2)})["code"] == "target_occupied"
+    after = {**base, "after": op["operation"]}
+    assert d("load_item", after)["code"] == "append_unverified" and app.browser.calls == 1
+    monkeypatch.setattr(handlers, "APPEND_PLACEMENT_VERIFIED", True)
+    audio.devices.append(Dev())  # a user edit: no longer exactly the owned prefix
+    assert d("load_item", after)["code"] == "prefix_mismatch" and app.browser.calls == 1
+
+    # timeout is unknown, never absent: target quarantined, no retry; a late device is observed
+    app.browser.hook = None
+    t3 = {**base, "track": track_ref(d, 3)}
+    lost = d("load_item", t3)
+    now[0] += 21
+    ops.tick()
+    assert d("operation", {"operation": lost["operation"]})["reason"] == "timeout"
+    assert d("load_item", t3)["code"] == "quarantined" and app.browser.calls == 2
+    other.devices.append(Dev())
+    ops.tick(), ops.tick()
+    late = d("operation", {"operation": lost["operation"]})
+    assert (late["state"], late["reason"]) == ("ready", "late")
+
+    # never choose by count: two new devices at once are ambiguous, not "the last one"
+    third = AudioTrack("Third")
+    song.tracks.append(third)
+    app.browser.hook = lambda item: third.devices.extend([Dev(), Dev()])
+    amb = d("load_item", {**base, "track": track_ref(d, 5)})
+    ops.tick()
+    r = d("operation", {"operation": amb["operation"]})
+    print("ambiguous:", r["state"], r["reason"])
+    assert (r["state"], r["reason"], r["device"]) == ("unknown", "ambiguous_change", None)
+    assert d("load_item", {**base, "track": track_ref(d, 5)})["code"] == "quarantined"
+
+
+def test_entry_point_tick_and_disconnect_wiring(env):
+    import AbletonLiveMCP as package
+
+    song, app, d = env
+    audio = AudioTrack("Audio")
+    song.tracks.append(audio)
+    app.browser.hook = lambda item: audio.devices.append(Dev())
+    calls = []
+
+    class Base:  # stands in for Live's ControlSurface
+        def update_display(self):
+            calls.append("super.update_display")
+
+        def disconnect(self):
+            calls.append("super.disconnect")
+
+        def log_message(self, message):
+            calls.append(f"log:{message}")
+
+    class Server:
+        def drain(self):
+            calls.append("server.drain")
+
+        def stop(self):
+            calls.append("server.stop")
+
+    real_tick = d.operations.tick
+    d.operations.tick = lambda: calls.append("operations.tick") or real_tick()
+    entry_class = type("Entry", (package.AbletonLiveMCP, Base), {})
+    entry = entry_class.__new__(entry_class)  # skip Live-only __init__
+    entry._server, entry._dispatch = Server(), d
+    op = d("load_item", {"track": track_ref(d, 2), "root": "audio_effects", "path": ["Reverb"]})
+    for _ in range(2):  # empty request queue: only update_display runs
+        entry.update_display()
+    print("\nupdate_display order:", calls)
+    assert calls == ["super.update_display", "server.drain", "operations.tick"] * 2
+    assert d("operation", {"operation": op["operation"]})["state"] == "ready"
+    # a second load goes pending, then disconnect invalidates it and stops later ticks
+    audio.devices.clear()
+    gen = d.safety.generation
+    again = d("load_item", {"track": track_ref(d, 2), "root": "audio_effects", "path": ["Reverb"]})
+    calls.clear()
+    entry.disconnect()
+    print("disconnect order:", calls)
+    assert calls == ["server.stop", "super.disconnect"] and d.safety.generation == gen + 1
+    gone = d("operation", {"operation": again["operation"]})
+    assert (gone["state"], gone["reason"]) == ("unknown", "session_ended")
+    entry.update_display()
+    assert real_tick() == 0 and d("operation", {"operation": again["operation"]}) == gone
 
 
 def test_set_parameter_readback_and_guards(env):

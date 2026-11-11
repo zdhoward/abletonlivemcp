@@ -68,6 +68,7 @@ CLASSIFICATION = {
     "browser_roots": READ,
     "browser_list": READ,
     "browser_search": READ,
+    "operation": READ,
     "device_parameters": READ,
     "sample_parameter": READ,
     "sample_parameters": READ,
@@ -167,6 +168,11 @@ def _same(a, b):
         return bool(a == b)
     except Exception:  # noqa: BLE001
         return False
+
+
+def same_items(a, b):
+    """Equal length and pairwise identical-or-equal (no ``zip(strict=)``: Python 3.8 safe)."""
+    return len(a) == len(b) and all(_same(a[i], b[i]) for i in range(len(a)))
 
 
 def _at(seq, index, obj):

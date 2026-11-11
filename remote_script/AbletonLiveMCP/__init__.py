@@ -34,9 +34,17 @@ class AbletonLiveMCP(ControlSurface):
         super().update_display()
         if self._server is not None:
             self._server.drain()
+        if self._dispatch is not None:
+            try:  # advance pending loads even when no request arrived; never break Live's tick
+                self._dispatch.operations.tick()
+            except Exception:  # noqa: BLE001
+                self.log_message(
+                    "AbletonLiveMCP: operations tick failed\n" + traceback.format_exc()
+                )
 
     def disconnect(self):
         if self._dispatch is not None:
+            self._dispatch.operations.invalidate()  # pending loads become unknown; ticks stop
             self._dispatch.safety.invalidate()  # drop references and any lease
         if self._server is not None:
             self._server.stop()
