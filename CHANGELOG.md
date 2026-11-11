@@ -6,11 +6,17 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
+- Buildup demo preserves existing Arrangement MIDI and uses a separate instrument effects
+  bus with Wider, GHOST//PUMP, Auto Filter and the Set's instrument reverb/delay sends.
+  Note generation requires both an explicit flag and a MIDI pitch map; occupied slots refuse.
+- Session automation accepts 2-3 `points` with linear interpolation, using step insertion
+  and interior-event deletion instead of dense steps. Live retains coincident boundary
+  guards; `--shape` adjusts the demo's middle point. Native Bezier curvature is unavailable.
+
 - Session-to-Arrangement copying via `live_create_arrangement_clips` (`kind: from_session`,
   `scene`, `start`), with bounds/overlap validation and clip readback. Optional `replace`
   requires delete permission and refuses clips extending outside the destination. Arrangement
-  joins the default toolsets (36 default tools). Basic demo places all eight clips on the
-  timeline with PAD/Hats Frequency and Core Saturator Drive automation.
+  joins the default toolsets (36 default tools).
 - Targeted P-19 on Live 12.2: PAD Session copy/delete/restore did not crash; its Frequency
   track lane survived deleting the copy (visible UI and automation_state=1). Other P-19
   operations remain disabled. Restart helper quotes Basic's path and verifies its window title.

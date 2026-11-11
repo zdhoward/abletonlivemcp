@@ -98,3 +98,92 @@ Format: [severity] issue, evidence, suggested fix. Severity: bug / gap / ux / mi
 17. [UX] live_create_clips on an occupied slot fails the whole batch ("clip slot is occupied (not applied)"); a re-run of a demo script is not idempotent. Consider an `if_exists: skip|replace` option so workflows are repeatable from a fresh Basic.
 18. [UX] mcp client package differs by version (`is_error` vs `isError`); scripts/mcp_call.py handles both.
 19. [mine] I killed the running MCP server process to try to reload it; the host did not reload toolsets, so this only wasted a step. Do not restart servers to pick up config.
+
+## Owner corrections: note preservation, sparse automation and VST buildup
+
+- Saved Basic was inspected read-only through the ALS reader parser. It contains Arrangement
+  MIDI, no Session clips: Hats [16,32], Core [0,32], PAD [0,15]/[16,31], MainBass [16,32].
+  Hats uses MIDI 80. Owner confirms open G#4=80 and closed C4=72 in Live's C3=60 convention.
+  The repository exposes MIDI integers; its API dump identifies the native
+  Clip.note_number_to_name helper (scale/spelling-aware), not a GM kit map. No kick map
+  is confirmed; Core's saved 45/52 are historical notes, not a mapping claim.
+- Reopened Basic with the restart helper to discard the prior generated MIDI. Never saved
+  Basic. Every restart confirmed Basic's window title and actual Intro(0)/DROP(16) cues.
+- Zero-length insert_step calls returned 8 coincident events and constant volume 0.85:
+  not usable breakpoints. Two half-clip steps yielded 6 events; deleting interior events
+  in (0.0001,15.9999) left 4 events at two endpoint times, with interpolated values
+  0.1004375 / 0.275 / 0.45 / 0.625 / 0.7995625 at beats .01/4/8/12/15.99.
+- Added points (2-3, clear=true, full clip span) to live_set_automation. It inserts steps
+  then deletes interior boundaries. A seed extending beyond the source clip forces the
+  terminal breakpoint when the end value equals the original/default value: without this,
+  Pump A/B=1 coalesced away the endpoint and flattened after beat 8 (caught before copying).
+  The temporary seed's restoring event lies outside the copied clip span. Coincident
+  boundary guards remain; distinct breakpoint positions and raw event counts are reported
+  separately. Native Envelope has no interpolation/Bezier curvature setter.
+- Browser search found Wider VST/VST3 and GHOST//PUMP VST3. Loaded both real VST3s, no stock
+  substitutions. Wider exposes Device On + Amount; GHOST//PUMP exposes 20 parameters,
+  including Pump A/B, Rate, Sync, Shape A/B, Boost. The native PluginDevice API lists
+  get_parameter_names and read-only parameters, with no Configure/add-parameter method.
+  These installed plugins expose the required parameters without manual configuration.
+- To avoid copying empty Session carriers over the owner's Arrangement notes, the new demo
+  uses a separate Buildup FX audio bus for INSTRUMENTAL. It carries silent audio clips,
+  stock Auto Filter, Wider, GHOST//PUMP, sends to C-INSTR Verb (stock Reverb) and D-INSTR
+  Delay (stock Delay). No musical clips are replaced. Default path never creates notes.
+  Both returns read back Dry/Wet=100%; Reverb decay=2.50 s, Delay feedback=21%.
+  Explicit --create-notes requires a supplied pitch map and refuses occupied Session slots.
+- Buildup targets at 0/8/16: reverb send 0/.3/1, delay 0/.15/.5, Frequency 0/.195/.65,
+  Wider Amount 0/.15/.5, Pump A/B 0/.3/1; all reset at DROP. --shape changes the middle
+  fraction; segments are linear and owner-editable. Pump Boost is set to zero before
+  envelopes, so its init preset's +3 dB is not added. No parameter is manually set after
+  writing its envelope.
+- Validation so far: 401 existing tests passed; updated automation surface (7 checks), Ruff
+  and whitespace checks passed. No fake-Live tests added. bridge.json remains BOM-less
+  UTF-8, read_only=false; dev probes were not enabled. Final Live proof is recorded below.
+
+### Final installed build proof
+
+- Installed with C:\Python313\python.exe pip --user --force-reinstall --no-deps and
+  scripts/live_restart.ps1 -Reinstall; Basic window title and cues confirmed again.
+- tasks/buildup-final.log: every buildup envelope has exactly three distinct positions
+  (0,8,16). Native counts: reverb send 4, delay send 4, Frequency 5, Wider Amount 4,
+  Pump A 5, Pump B 5. All four interpolation samples per envelope passed, including
+  Pump A/B at .15/.3/.65/.999125 at beats 4/8/12/15.99. Drop envelopes read zero.
+- Carriers copied to exact Arrangement spans [0,16]/[16,32]. Readback confirmed all 24
+  original musical clips, their bounds and full note contents (including IDs) unchanged.
+  Note-writing mode was not run. All previous invented GM notes were discarded by reopening
+  saved Basic; original Hats clips use MIDI 80 and start at DROP.
+- PowerShell 5 reports redirected native stderr INFO lines as NativeCommandError; the
+  demo itself reached its final Done after every assertion, with no traceback. Subsequent
+  playback proof uses subprocess capture to preserve the actual Python exit code.
+- Direct Arrangement envelope event reads remain unavailable. Source event counts above
+  must not be presented as a separately measured timeline-lane event count. Timeline
+  behavior is qualified by the playback proof; native curve editing remains a Live UI step.
+- First playback range assertion failed because Song.start_playing restarted from the
+  stored start position, despite a stopped current_song_time seek to 12. Receipt showed
+  current_song_time=12 before play but settled=4.990869 and then position=9.524203 with
+  loop_start=12. The early frequency read therefore preceded the late loop. This was a
+  proof timing error, not evidence of curve conversion. Continue also resumed a prior
+  stop position (22+) after a stopped seek to 0. The final proof starts playback first,
+  seeks while running and verifies actual position is inside each sample loop before reads.
+- Final playback evidence: tasks/buildup-playback-running-seek.log. With actual positions
+  checked in loops [0,4], [12,16], [16,20], all six automated controls rise into their
+  expected late ranges and reset to zero at DROP; every device parameter reports
+  automation_state=1. Late Wider=47.30%, Pump A/B=69%, reverb send=.759728 and delay=.379878
+  were read in the late loop. DROP Frequency=20 Hz, Wider/Pump A/B=0, both sends=-inf dB.
+  Bus audio meters are active in every phase. Transport is restored stopped at Intro,
+  loop off, Arrangement active. This proves copied ramp/reset playback without claiming
+  an unavailable direct timeline event count or human listening evaluation.
+
+### Owner feedback supersedes the testing workflow and parallel-send design
+
+- Owner asked for quick FX/automation application, then "ready for preview". API checks
+  cannot evaluate sound. No more playback tests; use the owner's listening feedback.
+- Applied inline Reverb and Delay after the widening/pump chain on Buildup FX. Reverb
+  Dry/Wet rises 0/.35/1 at 0/8/16, Delay 0/.12/.4, filter 0/.3/.88, Wider 0/.2/.75;
+  existing Pump A/B rise remains. Reverb decay raw=.6, delay feedback raw=.3.
+- Reverb and Delay Device On are automated on during Intro, off at DROP. Dry/Wet resets
+  to zero too. Parallel instrument sends are zeroed so their tails do not wash over the
+  drop. Original MIDI is untouched. Applied via tasks/apply_airy_buildup.py; receipt log
+  tasks/airy-buildup-apply.log. No listening/test claims for this revised sound design.
+- Demo now follows this inline wet-to-dry direction and no longer runs a note comparison
+  or playback/automation test sequence by default. Await owner's preview feedback.
