@@ -18,8 +18,18 @@ async def main() -> int:
     failed = 0
     async with stdio_client(params) as (r, w), ClientSession(r, w) as s:
         await s.initialize()
-        names = [t.name for t in (await s.list_tools()).tools]
+        tools = (await s.list_tools()).tools
+        names = [t.name for t in tools]
         print("tools:", len(names), names)
+        for t in tools:
+            d = t.model_dump(by_alias=True)
+            a = d.get("annotations") or {}
+            keys = ("readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint")
+            flags = {k: a.get(k) for k in keys} if a else None
+            title = d.get("title") or a.get("title")
+            ok = bool(title) and flags is not None and d.get("outputSchema") is not None
+            print("PASS" if ok else "FAIL", "surface", t.name, "|", title, "|", flags, "| outputSchema:", d.get("outputSchema") is not None)
+            failed += not ok
         for name in READS:
             if name not in names:
                 print("FAIL missing tool", name)
