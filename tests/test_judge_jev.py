@@ -109,5 +109,5 @@ def test_selection_by_environment(monkeypatch):
     with pytest.raises(JudgeError):
         get_judge("jev")
     monkeypatch.setenv("OPENROUTER_API_KEY", "k")
-    assert get_judge().name == "jev"
+    assert get_judge().name == "rules"  # a key never silently selects a network judge
     assert get_judge("rules").name == "rules"

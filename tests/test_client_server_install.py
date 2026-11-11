@@ -26,7 +26,8 @@ def test_server_registers_tools():
     from abletonlivemcp.server import mcp
 
     names = {t.name for t in asyncio.run(mcp.list_tools())}
-    assert {"live_hello", "live_session_info", "live_tracks", "als_summary"} <= names
+    assert {"live_hello", "live_session_info", "live_tracks", "live_plan_chain"} <= names
+    assert "als_summary" not in names  # deferred tools are not registered in v1
 
 
 def test_install_copies_script_and_rejects_non_library(tmp_path, monkeypatch):
