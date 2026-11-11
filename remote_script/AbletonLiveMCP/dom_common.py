@@ -10,6 +10,20 @@ A read handler is ``handler(ctx, params)`` with ``targets`` ``None``; a write ha
 ``safety.TARGETS``). ``ctx`` carries ``song``, ``app``, ``safety``, ``operations`` and ``probe``
 (a zero-argument capabilities report). ``safety`` merges every module's ``METHODS`` at import;
 a duplicate or unclassified name fails the import.
+
+Reference issuing (T-005). ``reference_nodes(song, selector)`` turns index selectors (``track``
+as int, ``"return:N"`` or ``"master"``; ``path`` as a DevicePath; ``scene``, ``parameter``,
+``role``/``send``, ``take_lane``, ``arrangement``, ``cue``) into the root-to-leaf node path that
+``safety.Safety.issue`` stores, with a snapshot per level; ``safety._alive`` re-checks each level.
+Every domain module issues through it. Bridge methods here:
+
+- ``ref_issue`` (read): references for up to ``BATCH_LIMIT`` selectors in one call;
+- ``ref_check`` (read): whether references still validate (the refusal code when not); it
+  runs exactly the gate's ``resolve``, so a proof can show refusals without writing;
+- ``ref_lab`` (write, global, dev only): fixed structural edits for ``scripts/live_refs_test.py``.
+  Refused unless the config says ``"dev_probes": true`` and the request carries the lease; it
+  creates scratch tracks, returns, scenes, take lanes, arrangement clips and cues, loads a drum
+  kit onto its own track, and deletes or moves only objects under a root it created itself.
 """
 
 import math
@@ -40,8 +54,20 @@ LOAD_ROOTS = ("audio_effects", "plugins")
 # append first selects the track's last device (refused if that cannot be done and observed) and
 # the operation tick verifies per load that the single new device landed last.
 APPEND_PLACEMENT_VERIFIED = True
-
-METHODS = {}  # shared helpers only; no bridge methods live here
+MAX_DEVICE_DEPTH = 6  # device levels in a DevicePath (matches models.MAX_DEVICE_DEPTH)
+# ``mixer_device`` members a ``mixer_param`` reference may name (plus ``send`` by index). Fixed:
+# a role is never an attribute name taken from a request. Present in Live 12.2 per P-01; members
+# a given owner lacks (``crossfader`` on a regular track, for instance) fail to issue.
+MIXER_ROLES = (
+    "volume",
+    "panning",
+    "track_activator",
+    "crossfader",
+    "cue_volume",
+    "song_tempo",
+    "left_split_stereo",
+    "right_split_stereo",
+)
 
 
 class Refused(Exception):
@@ -166,3 +192,402 @@ def _live_version(app):
         return [app.get_major_version(), app.get_minor_version(), app.get_bugfix_version()]
     except Exception:  # noqa: BLE001
         return None
+
+
+# ---- reference issuing (T-005) ------------------------------------------------------------
+
+
+def _index(value, name, size):
+    if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < size:
+        raise ValueError(f"{name!r} must be an integer index 0..{size - 1}")
+    return value
+
+
+def _numbered(text, prefix):
+    """``"<prefix>N"`` -> N (ASCII digits only), else None."""
+    if isinstance(text, str) and text.startswith(prefix):
+        digits = text[len(prefix) :]
+        if digits.isascii() and digits.isdigit() and len(digits) <= 3:
+            return int(digits)
+    return None
+
+
+def owner_node(song, sel):
+    """A TrackSel (int, ``"return:N"`` or ``"master"``) -> its pinned reference node."""
+    if sel == "master":
+        return ("master", song.master_track, {})
+    n = _numbered(sel, "return:")
+    if n is not None:
+        returns = song.return_tracks
+        i = _index(n, "track", len(returns))
+        return ("return_track", returns[i], {"index": i})
+    tracks = song.tracks
+    i = _index(sel, "track", len(tracks))
+    return ("track", tracks[i], {"index": i})
+
+
+def _pad_node(device, step):
+    note = _numbered(step, "pad:")
+    if note is None or note > 127:
+        raise ValueError(f"chain step {step!r} must be a chain index or 'pad:0'..'pad:127'")
+    if not getattr(device, "can_have_drum_pads", False):
+        raise ValueError(f"{step!r}: the device is not a drum rack")
+    pads = device.drum_pads
+    for slot in range(len(pads)):
+        if pads[slot].note == note:
+            pad = pads[slot]
+            return ("drum_pad", pad, {"slot": slot, "note": note, "chains": tuple(pad.chains)})
+    raise ValueError(f"{step!r}: no drum pad with that note")
+
+
+def device_nodes(container, path):
+    """A DevicePath under ``container`` (track, return, master or chain) -> one node per level.
+    Even positions are device indices; odd positions a chain index or ``"pad:N"`` (the pad, and
+    its first chain when the path continues). Each device node snapshots its sibling layout."""
+    if not isinstance(path, list) or not 1 <= len(path) <= 2 * MAX_DEVICE_DEPTH:
+        raise ValueError(f"'path' must be a list of 1..{2 * MAX_DEVICE_DEPTH} steps")
+    nodes = []
+    for pos, step in enumerate(path):
+        if pos % 2 == 0:
+            devices = container.devices
+            i = _index(step, f"path[{pos}]", len(devices))
+            container = devices[i]
+            layout = tuple(d.class_name for d in devices)
+            nodes.append(("device", container, {"index": i, "layout": layout}))
+        elif isinstance(step, str):
+            pad = _pad_node(container, step)
+            nodes.append(pad)
+            container = pad[1]
+            if pos + 1 < len(path):
+                chains = container.chains
+                _index(0, f"path[{pos}] chain", len(chains))
+                container = chains[0]
+                nodes.append(("chain", container, {"index": 0, "count": len(chains)}))
+        else:
+            if not getattr(container, "can_have_chains", False):
+                raise ValueError(f"path[{pos}]: the device is not a rack")
+            chains = container.chains
+            i = _index(step, f"path[{pos}]", len(chains))
+            container = chains[i]
+            nodes.append(("chain", container, {"index": i, "count": len(chains)}))
+    return nodes
+
+
+def _mixer_node(mixer, p):
+    role = p.get("role")
+    if role == "send":
+        sends = mixer.sends
+        i = _index(p.get("send"), "send", len(sends))
+        return ("mixer_param", sends[i], {"role": "send", "index": i, "count": len(sends)})
+    if role not in MIXER_ROLES:
+        raise ValueError(f"'role' must be 'send' or one of {list(MIXER_ROLES)}")
+    try:
+        param = getattr(mixer, role)  # role is from the fixed MIXER_ROLES list
+    except AttributeError:
+        param = None
+    if param is None:
+        raise ValueError(f"this mixer has no {role!r}")
+    return ("mixer_param", param, {"role": role})
+
+
+def reference_nodes(song, p):
+    """Index selectors -> the node path for one reference of kind ``p["kind"]``. Raises
+    ValueError when the selectors do not name exactly an object of that kind."""
+    kind = p.get("kind")
+    if kind == "scene":
+        scenes = song.scenes
+        i = _index(p.get("scene"), "scene", len(scenes))
+        return [("scene", scenes[i], {"index": i})]
+    if kind == "cue":
+        cues = sorted(song.cue_points, key=lambda c: c.time)
+        c = cues[_index(p.get("cue"), "cue", len(cues))]
+        return [("cue", c, {"time": c.time})]
+    owner = owner_node(song, p.get("track"))
+    nodes = [owner]
+    if kind in ("slot", "clip"):
+        slots = owner[1].clip_slots
+        i = _index(p.get("scene"), "scene", min(len(slots), len(song.scenes)))
+        nodes.append(("slot", slots[i], {"index": i, "scene": song.scenes[i]}))
+        if kind == "clip":
+            if not slots[i].has_clip:
+                raise ValueError("clip slot is empty")
+            nodes.append(("clip", slots[i].clip, {}))
+    elif kind in ("device", "chain", "drum_pad", "param"):
+        nodes += device_nodes(owner[1], p.get("path"))
+        if kind == "param" and nodes[-1][0] == "device":
+            params = nodes[-1][1].parameters
+            i = _index(p.get("parameter"), "parameter", len(params))
+            q = params[i]
+            nodes.append(("param", q, {"index": i, "count": len(params), "name": q.name}))
+    elif kind == "mixer_param":
+        if p.get("path") is not None:
+            nodes += device_nodes(owner[1], p.get("path"))
+            if nodes[-1][0] != "chain":
+                raise ValueError("a mixer 'path' must end at a chain")
+        nodes.append(_mixer_node(nodes[-1][1].mixer_device, p))
+    elif kind in ("take_lane", "arr_clip"):
+        parent = owner[1]
+        if kind == "take_lane" or p.get("take_lane") is not None:
+            lanes = parent.take_lanes
+            i = _index(p.get("take_lane"), "take_lane", len(lanes))
+            parent = lanes[i]
+            nodes.append(("take_lane", parent, {"index": i}))
+        if kind == "arr_clip":
+            clips = sorted(parent.arrangement_clips, key=lambda c: c.start_time)
+            c = clips[_index(p.get("arrangement"), "arrangement", len(clips))]
+            nodes.append(("arr_clip", c, {"start": c.start_time}))
+    if nodes[-1][0] != kind:
+        raise ValueError(f"the selectors name a {nodes[-1][0]}, not a {kind!r}")
+    return nodes
+
+
+def _items(p, key):
+    items = p.get(key)
+    if not isinstance(items, list) or not 1 <= len(items) <= BATCH_LIMIT:
+        raise ValueError(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
+    if not all(isinstance(i, dict) for i in items):
+        raise ValueError(f"every item in {key!r} must be an object")
+    return items
+
+
+def ref_issue(ctx, p):
+    """References for a batch of index selectors (all or nothing)."""
+    out = []
+    for item in _items(p, "targets"):
+        nodes = reference_nodes(ctx.song, item)
+        name = getattr(nodes[-1][1], "name", None)
+        out.append(
+            {
+                "kind": nodes[-1][0],
+                "ref": ctx.safety.issue(*nodes),
+                "name": name if isinstance(name, str) else None,
+            }
+        )
+    return {"generation": ctx.safety.generation, "refs": out}
+
+
+def ref_check(ctx, p):
+    """Whether each ``{kind, ref}`` still passes the gate's own ``resolve`` (read-only)."""
+    results = []
+    for item in _items(p, "refs"):
+        try:
+            ctx.safety.resolve(item.get("kind"), item.get("ref"), ctx.song)
+            results.append({"valid": True})
+        except Refused as refusal:
+            results.append({"valid": False, "code": refusal.code})
+    return {"generation": ctx.safety.generation, "results": results}
+
+
+# ---- ref_lab: dev-only structural edits on scratch objects (scripts/live_refs_test.py) -------
+
+_LAB = {"generation": None, "owned": []}  # roots ref_lab created, in the current generation
+
+
+def _lab_owned(ctx):
+    if _LAB["generation"] != ctx.safety.generation:
+        _LAB["generation"], _LAB["owned"] = ctx.safety.generation, []
+    return _LAB["owned"]
+
+
+def _lab_new(before, after, what):
+    """The single member of ``after`` not in ``before``; RuntimeError otherwise."""
+    new = [x for x in after if not any(_same(x, b) for b in before)]
+    if len(new) != 1:
+        raise RuntimeError(f"could not identify the new {what} ({len(new)} candidates)")
+    return new[0]
+
+
+def _lab_target(ctx, p, kind_key="kind", ref_key="ref"):
+    """Resolve a reference through the gate's own check; its root must be a lab object."""
+    resolved = ctx.safety.resolve(p.get(kind_key), p.get(ref_key), ctx.song)
+    root = resolved.path[0][1]
+    if not any(_same(o, root) for o in _lab_owned(ctx)):
+        raise Refused("not_lab_owned", "ref_lab only edits objects under a root it created")
+    return resolved
+
+
+def _position(seq, obj):
+    for i in range(len(seq)):
+        if _same(seq[i], obj):
+            return i
+    raise RuntimeError("object not found in its parent")
+
+
+def _lab_create_track(ctx, p):
+    song = ctx.song
+    before = list(song.tracks)
+    if p.get("track_kind") == "audio":
+        song.create_audio_track(-1)
+    else:
+        song.create_midi_track(-1)
+    track = _lab_new(before, song.tracks, "track")
+    track.name = "ALMCP refs"
+    _lab_owned(ctx).append(track)
+    return {"track": _position(song.tracks, track)}
+
+
+def _lab_create_return(ctx, _p):
+    song = ctx.song
+    before = list(song.return_tracks)
+    song.create_return_track()
+    track = _lab_new(before, song.return_tracks, "return track")
+    track.name = "ALMCP refs"
+    _lab_owned(ctx).append(track)
+    return {"return": _position(song.return_tracks, track)}
+
+
+def _lab_create_scene(ctx, _p):
+    song = ctx.song
+    before = list(song.scenes)
+    song.create_scene(-1)
+    scene = _lab_new(before, song.scenes, "scene")
+    _lab_owned(ctx).append(scene)
+    return {"scene": _position(song.scenes, scene)}
+
+
+def _lab_create_take_lane(ctx, p):
+    track = _lab_target(ctx, p).obj
+    before = list(track.take_lanes)
+    track.create_take_lane()
+    lane = _lab_new(before, track.take_lanes, "take lane")
+    return {"take_lane": _position(track.take_lanes, lane)}
+
+
+def _lab_create_arr_clip(ctx, p):
+    parent = _lab_target(ctx, p).obj  # a lab MIDI track or one of its take lanes
+    start = _number(p.get("start"), "start", 0)
+    length = _number(p.get("length"), "length", 0, 64, exclusive=True)
+    before = list(parent.arrangement_clips)
+    parent.create_midi_clip(float(start), float(length))
+    clip = _lab_new(before, parent.arrangement_clips, "arrangement clip")
+    return {"start": clip.start_time}
+
+
+def _at_playhead(song, time_):
+    """Move the stopped playhead to ``time_``; returns the previous position."""
+    if song.is_playing:
+        raise Refused("transport_playing", "stop the transport before cue edits")
+    previous = song.current_song_time
+    song.current_song_time = time_
+    return previous
+
+
+def _lab_create_cue(ctx, p):
+    song = ctx.song
+    time_ = float(_number(p.get("time"), "time", 0))
+    before = list(song.cue_points)
+    previous = _at_playhead(song, time_)
+    try:
+        if song.is_cue_point_selected():  # a cue already sits there: toggling would delete it
+            raise Refused("cue_occupied", "a cue point already exists at that time")
+        song.set_or_delete_cue()
+    finally:
+        song.current_song_time = previous
+    cue = _lab_new(before, song.cue_points, "cue point")
+    _lab_owned(ctx).append(cue)
+    ordered = sorted(song.cue_points, key=lambda c: c.time)
+    return {"time": cue.time, "cue": _position(ordered, cue)}
+
+
+def _lab_load_kit(ctx, p):
+    """Load the first drum kit preset (``.adg``) under ``browser.drums`` (or the one named
+    ``kit``) onto an empty lab MIDI track. The device appears on a later tick; poll a read."""
+    track = _lab_target(ctx, p).obj
+    if not track.has_midi_input or len(track.devices):
+        raise Refused("unsupported_target", "load_kit needs an empty lab MIDI track")
+    wanted = p.get("kit")
+    stack, visited, item = [ctx.app.browser.drums], 0, None
+    while stack and item is None and visited < WALK_BUDGET:
+        node = stack.pop()
+        kids = list(getattr(node, "children", None) or ())
+        for child in reversed(kids):
+            visited += 1
+            name = child.name
+            if getattr(child, "is_loadable", False) and name.lower().endswith(".adg"):
+                if wanted is None or name == wanted:
+                    item = child
+            elif getattr(child, "is_folder", False):
+                stack.append(child)
+    if item is None:
+        raise Refused("kit_not_found", "no drum kit preset found within the walk budget")
+    ctx.song.view.selected_track = track
+    ctx.app.browser.load_item(item)
+    return {"kit": item.name}
+
+
+def _lab_delete(ctx, p):
+    resolved = _lab_target(ctx, p)
+    song, kind, obj = ctx.song, resolved.path[-1][0], resolved.obj
+    if kind == "track":
+        song.delete_track(_position(song.tracks, obj))
+    elif kind == "return_track":
+        song.delete_return_track(_position(song.return_tracks, obj))
+    elif kind == "scene":
+        song.delete_scene(_position(song.scenes, obj))
+    elif kind == "device":
+        parent = resolved.path[-2][1]  # track, return, master or chain
+        parent.delete_device(_position(parent.devices, obj))
+    elif kind == "drum_pad":
+        obj.delete_all_chains()
+    elif kind == "arr_clip":
+        resolved.path[0][1].delete_clip(obj)  # Track.delete_clip (12.2)
+    elif kind == "cue":
+        previous = _at_playhead(song, obj.time)
+        try:
+            if not song.is_cue_point_selected():
+                raise RuntimeError("cue point not selected at its own time")
+            song.set_or_delete_cue()
+        finally:
+            song.current_song_time = previous
+    else:  # chain, take_lane, mixer_param, master: Live 12.2 has no delete for these
+        raise Refused("unsupported", f"ref_lab cannot delete a {kind}")
+    return {"deleted": kind}
+
+
+def _lab_move_device(ctx, p):
+    device = _lab_target(ctx, p)
+    if device.path[-1][0] != "device":
+        raise ValueError("'ref' must be a device reference")
+    to = _lab_target(ctx, p, "to_kind", "to_ref")
+    target = to.obj
+    if to.path[-1][0] == "drum_pad":  # into the pad's first chain
+        target = target.chains[0]
+    elif to.path[-1][0] not in ("track", "chain"):
+        raise ValueError("'to_ref' must be a track, chain or drum pad reference")
+    position = _index(p.get("position"), "position", len(target.devices) + 1)
+    ctx.song.move_device(device.obj, target, position)
+    return {"moved": True, "position": position}
+
+
+LAB_ACTIONS = {
+    "create_track": _lab_create_track,
+    "create_return": _lab_create_return,
+    "create_scene": _lab_create_scene,
+    "create_take_lane": _lab_create_take_lane,
+    "create_arr_clip": _lab_create_arr_clip,
+    "create_cue": _lab_create_cue,
+    "load_kit": _lab_load_kit,
+    "delete": _lab_delete,
+    "move_device": _lab_move_device,
+}
+
+
+def ref_lab(ctx, p, _t):
+    if not ctx.safety.dev_probes_enabled():
+        raise Refused("dev_probes_disabled", 'ref_lab is off; set "dev_probes": true in the config')
+    if p.get("lease") is None:  # the gate matched any token; the lab always requires one
+        raise Refused("lease_required", "ref_lab runs only under the lease")
+    action = p.get("action")
+    run = LAB_ACTIONS.get(action) if isinstance(action, str) else None
+    if run is None:
+        raise ValueError(f"'action' must be one of {sorted(LAB_ACTIONS)}")
+    out = run(ctx, p)
+    out["generation"] = ctx.safety.generation
+    return out
+
+
+METHODS = {
+    "ref_issue": (ref_issue, READ, None),
+    "ref_check": (ref_check, READ, None),
+    "ref_lab": (ref_lab, WRITE, ()),
+}
