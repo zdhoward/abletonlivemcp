@@ -1,1 +1,64 @@
-[]
+[
+  {
+    "id": "library-knowledge",
+    "phase": "offline_mcp",
+    "tools": ["live_knowledge"],
+    "steps": [
+      {"tool": "live_knowledge", "args": {"action": "search", "query": "compression", "limit": 3},
+       "save": "kb", "assert": [{"path": "action", "equals": "search"}]},
+      {"tool": "live_knowledge", "args": {"action": "read", "page": "${kb.results.0.page}"},
+       "assert": [{"path": "provenance", "equals": "knowledge_base_reference_data"}]},
+      {"tool": "live_knowledge", "args": {"action": "search", "query": "compression", "page": "x"},
+       "expect": "refused:invalid_request"},
+      {"tool": "live_knowledge", "args": {"action": "read", "page": "../pyproject"},
+       "expect": "refused:invalid_request"}
+    ]
+  },
+  {
+    "id": "als-path-escape-refused",
+    "phase": "offline_mcp",
+    "tools": ["live_scan_projects"],
+    "steps": [
+      {"tool": "live_scan_projects", "args": {"roots": ["C:\\Windows\\..\\Windows\\System32"]},
+       "expect": "refused:invalid_request"}
+    ]
+  },
+  {
+    "id": "als-scan-usage",
+    "phase": "offline_mcp",
+    "tools": ["live_scan_projects", "live_usage_report"],
+    "steps": [
+      {"tool": "live_scan_projects", "args": {"limit": 50}, "save": "scan",
+       "assert": [{"path": "data.truncated", "equals": false}]},
+      {"tool": "live_usage_report", "args": {"kind": "devices", "scan_id": "${scan.data.scan_id}"}},
+      {"tool": "live_usage_report",
+       "args": {"kind": "plugins", "scan_id": "${scan.data.scan_id}", "sort": "recent"}},
+      {"tool": "live_usage_report", "args": {"kind": "samples", "scan_id": "${scan.data.scan_id}", "top": 5}}
+    ]
+  },
+  {
+    "id": "organize-labels-roundtrip",
+    "phase": "persistence_finish",
+    "tools": ["live_get_labels", "live_set_labels"],
+    "steps": [
+      {"tool": "live_set_labels",
+       "args": {"items": [
+         {"kind": "song", "labels": ["almcp-final"], "category": "proof"},
+         {"kind": "plugin", "key": "almcp-final:plugin", "labels": ["almcp-final"], "category": "proof"}
+       ]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_get_labels", "args": {"label": "almcp-final"},
+       "assert": [{"path": "data.set.0.kind", "equals": "song"},
+                  {"path": "data.global.0.key", "equals": "almcp-final:plugin"}]},
+      {"tool": "live_set_labels",
+       "args": {"mode": "remove", "items": [
+         {"kind": "song", "labels": ["almcp-final"], "category": ""},
+         {"kind": "plugin", "key": "almcp-final:plugin", "labels": ["almcp-final"], "category": ""}
+       ]},
+       "assert": [{"path": "status", "equals": "complete"}]},
+      {"tool": "live_set_labels",
+       "args": {"items": [{"kind": "track", "key": 0, "labels": ["x"], "expect_name": "no-such-track-name"}]},
+       "expect": "refused:name_mismatch"}
+    ]
+  }
+]
