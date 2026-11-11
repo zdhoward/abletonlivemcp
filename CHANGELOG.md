@@ -6,6 +6,16 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
+- `live_set_device_parameters` with display targets on two or more continuous parameters
+  ("100 Hz", "25 %") no longer returns "partial" with "at most 129 display values": sample
+  requests are grouped by the Remote Script's value budget.
+- `live_hello` reports `read_only` and `dev_probes`, and `toolsets.how_to_enable`. The bridge
+  config is re-read on every call; the read_only refusal says no restart is needed.
+- The `clip.*` note-API probe flags are `null` (unknown) when no Session clip was sampled, for
+  example on an Arrangement-only Set, instead of a misleading `false`.
+- README documents the `toolsets` key in the bridge config. pytest runs against `src/`.
+- The restart helper refuses to close Live while a non-Basic Set is open (`-Force` overrides).
+
 - Buildup demo preserves existing Arrangement MIDI and uses a separate instrument effects
   bus with Wider, GHOST//PUMP, Auto Filter and inline Reverb/Delay. Reverb reaches 100% wet;
   wet FX switch off at DROP, restoring the dry beat. Apply FX and invite owner preview.
