@@ -39,7 +39,8 @@ Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be v
 - [x] M0 Repo foundations: license (MIT), README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates, CI (lint+tests), `.gitignore`, pyproject. Repo stays private until the owner is happy with v1 (owner decision 2026-11-10). Research notes: `docs/research.md`.
 - [x] M1 Parity + v1 hardening (plan `docs/plans/v1-public-release.md` M1a + M1b, 2026-11-10). Authenticated bounded bridge, transactional installer, reference/generation/read-only safety layer, bounded browser + load state machine, plan/receipt chains, pruned tests. Real-Live proof (Live 12.2.0): clip/write/stdio scripts and the EQ Eight -> Compressor -> Saturator -> Reverb chain pass; see `docs/release/m1b-live-evidence.md` for the unproved list. 255 tests pass.
   - [x] Readable refusal for missing handler params; handshake `methods` (verified in real Live 2026-11-10).
-  - [ ] Target-reorder and second-process lease checks; optional Sol review (owner said wait).
+  - [x] Second-process lease check (real Live, 2026-11-10).
+  - [ ] Target-reorder check; optional Sol review (owner said wait).
 - [~] M2 Offline `.als` reader + usage index (UC1/UC6 foundation). Reader, usage scan and MCP tools (`als_summary`, `als_usage_index`) done (ebd1bd6, e6fb9c6). Sample extraction is synthetic-tested only; needs a real Set with audio clips.
   - [x] Extract sample filenames, relative paths, sizes, and conservative clip/note classifications (`referenced` / `potentially_triggered`); synthetic coverage includes clips, Simpler, DrumCell, and Drum Rack pads.
   - [x] Expose `scan_projects`, aggregate device classes/plugin formats and names/sample references, skip Backup directories, and retain corrupt/unreadable file errors.

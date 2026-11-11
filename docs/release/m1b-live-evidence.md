@@ -40,11 +40,11 @@ Observed: the four devices are direct children of the `audio_effects` root, so e
 - Missing handler parameter: `set_tempo` without `bpm` now returns `ValueError: missing required parameter 'bpm' (not applied)`.
 - Handshake advertises `dispatch.methods` (host accepted it; connection and reads work).
 - Reinstalled and relaunched Live 12.2.0; `live_write_test` and `live_chain_test` (EQ Eight, Compressor, Saturator, Reverb) pass again. `read_only` restored to `true`.
+- Second process vs lease: while process A held the lease, a separate process B's `lease_acquire` and un-tokened `set_tempo` were both refused `lease_held`; A released cleanly.
 
 ## Unproved or not run (do not treat as passed)
 
 - Target reorder refusal and a Live-object identity/equality check beyond the above observations.
-- A second *process* competing for the lease (acquire was tried from separate bridge calls only).
 - A UI/log observation of responsiveness during a load (no hang was seen, but it was not measured).
 - Loading from `plugins`, drum kits or racks, and any device not in the four above.
 - One `live_write_test` run aborted with "connection lost" a few seconds after Live launched; it did not recur in 3 reruns and the log showed no new error. Cause not established.
