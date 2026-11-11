@@ -10,7 +10,6 @@
   "inputSchema": {
    "$defs": {
     "ViewTarget": {
-     "additionalProperties": false,
      "properties": {
       "kind": {
        "enum": [
@@ -74,41 +73,32 @@
       "audition",
       "stop_audition"
      ],
-     "title": "Action",
      "type": "string"
     },
     "direction": {
-     "default": null,
      "enum": [
       "up",
       "down",
       "left",
       "right"
      ],
-     "title": "Direction",
      "type": "string"
     },
     "path": {
-     "default": null,
      "items": {
       "type": "string"
      },
      "maxItems": 8,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "root": {
-     "default": null,
-     "title": "Root",
      "type": "string"
     },
     "target": {
-     "$ref": "#/$defs/ViewTarget",
-     "default": null
+     "$ref": "#/$defs/ViewTarget"
     },
     "view": {
-     "default": null,
      "enum": [
       "Browser",
       "Arranger",
@@ -117,14 +107,12 @@
       "Detail/Clip",
       "Detail/DeviceChain"
      ],
-     "title": "View",
      "type": "string"
     }
    },
    "required": [
     "action"
    ],
-   "title": "live_viewArguments",
    "type": "object"
   },
   "name": "live_view",

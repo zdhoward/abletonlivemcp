@@ -11,12 +11,10 @@
    "properties": {
     "limit": {
      "default": 128,
-     "title": "Limit",
      "type": "integer"
     },
     "offset": {
      "default": 0,
-     "title": "Offset",
      "type": "integer"
     },
     "path": {
@@ -41,9 +39,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Path"
+     ]
     },
     "response_format": {
      "default": "concise",
@@ -51,7 +47,6 @@
       "concise",
       "detailed"
      ],
-     "title": "Response Format",
      "type": "string"
     },
     "track": {
@@ -64,14 +59,12 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track"
    ],
-   "title": "live_get_device_parametersArguments",
    "type": "object"
   },
   "name": "live_get_device_parameters",
@@ -100,9 +93,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Expect Name"
+     ]
     },
     "path": {
      "items": {
@@ -119,7 +110,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "position": {
@@ -130,9 +120,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Position"
+     ]
     },
     "to_path": {
      "anyOf": [
@@ -156,9 +144,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "To Path"
+     ]
     },
     "to_track": {
      "anyOf": [
@@ -170,8 +156,7 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "To Track"
+     ]
     },
     "track": {
      "anyOf": [
@@ -183,8 +168,7 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
@@ -192,7 +176,6 @@
     "path",
     "to_track"
    ],
-   "title": "live_move_deviceArguments",
    "type": "object"
   },
   "name": "live_move_device",
@@ -214,7 +197,6 @@
   "inputSchema": {
    "$defs": {
     "ParamWrite": {
-     "additionalProperties": false,
      "properties": {
       "parameter": {
        "anyOf": [
@@ -225,17 +207,14 @@
          "minimum": 0,
          "type": "integer"
         }
-       ],
-       "title": "Parameter"
+       ]
       },
       "re_enable_automation": {
        "default": false,
-       "title": "Re Enable Automation",
        "type": "boolean"
       },
       "reset": {
        "default": false,
-       "title": "Reset",
        "type": "boolean"
       },
       "value": {
@@ -255,30 +234,23 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Value"
+       ]
       }
      },
      "required": [
       "parameter"
      ],
-     "title": "ParamWrite",
      "type": "object"
     },
     "RawValue": {
-     "additionalProperties": false,
-     "description": "A stored (not displayed) parameter value; it is written as given and never claimed to\nbe a physical unit.",
      "properties": {
       "raw": {
-       "title": "Raw",
        "type": "number"
       }
      },
      "required": [
       "raw"
      ],
-     "title": "RawValue",
      "type": "object"
     }
    },
@@ -298,14 +270,12 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "settings": {
      "items": {
       "$ref": "#/$defs/ParamWrite"
      },
-     "title": "Settings",
      "type": "array"
     },
     "track": {
@@ -318,8 +288,7 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
@@ -327,7 +296,6 @@
     "path",
     "settings"
    ],
-   "title": "live_set_device_parametersArguments",
    "type": "object"
   },
   "name": "live_set_device_parameters",
@@ -349,7 +317,6 @@
   "inputSchema": {
    "$defs": {
     "DeviceEdit": {
-     "additionalProperties": false,
      "properties": {
       "collapsed": {
        "anyOf": [
@@ -359,9 +326,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Collapsed"
+       ]
       },
       "expect_name": {
        "anyOf": [
@@ -372,9 +337,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Expect Name"
+       ]
       },
       "name": {
        "anyOf": [
@@ -386,9 +349,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "on": {
        "anyOf": [
@@ -398,9 +359,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "On"
+       ]
       },
       "path": {
        "items": {
@@ -417,7 +376,6 @@
        },
        "maxItems": 12,
        "minItems": 1,
-       "title": "Path",
        "type": "array"
       },
       "track": {
@@ -430,15 +388,13 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "path"
      ],
-     "title": "DeviceEdit",
      "type": "object"
     }
    },
@@ -447,14 +403,12 @@
      "items": {
       "$ref": "#/$defs/DeviceEdit"
      },
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_set_devicesArguments",
    "type": "object"
   },
   "name": "live_set_devices",

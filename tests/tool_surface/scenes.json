@@ -10,7 +10,6 @@
   "inputSchema": {
    "$defs": {
     "NewScene": {
-     "additionalProperties": false,
      "properties": {
       "color_index": {
        "maximum": 69,
@@ -52,14 +51,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Scenes",
      "type": "array"
     }
    },
    "required": [
     "scenes"
    ],
-   "title": "live_create_scenesArguments",
    "type": "object"
   },
   "name": "live_create_scenes",
@@ -82,20 +79,16 @@
    "properties": {
     "include_slots": {
      "default": false,
-     "title": "Include Slots",
      "type": "boolean"
     },
     "scenes": {
-     "default": null,
      "items": {
       "minimum": 0,
       "type": "integer"
      },
-     "title": "Scenes",
      "type": "array"
     }
    },
-   "title": "live_get_scenesArguments",
    "type": "object"
   },
   "name": "live_get_scenes",
@@ -117,8 +110,6 @@
   "inputSchema": {
    "$defs": {
     "LaunchTarget": {
-     "additionalProperties": false,
-     "description": "clip/slot: track+scene; scene: scene; track: track (stop only).",
      "properties": {
       "kind": {
        "enum": [
@@ -158,7 +149,6 @@
       "fire",
       "stop"
      ],
-     "title": "Action",
      "type": "string"
     },
     "targets": {
@@ -167,7 +157,6 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Targets",
      "type": "array"
     }
    },
@@ -175,7 +164,6 @@
     "action",
     "targets"
    ],
-   "title": "live_launchArguments",
    "type": "object"
   },
   "name": "live_launch",
@@ -197,8 +185,6 @@
   "inputSchema": {
    "$defs": {
     "SceneEdit": {
-     "additionalProperties": false,
-     "description": "`tempo`/`signature` \"off\" disables the scene's own value.",
      "properties": {
       "color_index": {
        "maximum": 69,
@@ -262,14 +248,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_set_scenesArguments",
    "type": "object"
   },
   "name": "live_set_scenes",

@@ -10,7 +10,6 @@
   "inputSchema": {
    "$defs": {
     "NewArrangementClip": {
-     "additionalProperties": false,
      "properties": {
       "file": {
        "anyOf": [
@@ -21,9 +20,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "File"
+       ]
       },
       "kind": {
        "default": "midi",
@@ -32,14 +29,12 @@
         "audio",
         "from_session"
        ],
-       "title": "Kind",
        "type": "string"
       },
       "length": {
        "default": 4.0,
        "exclusiveMinimum": 0,
        "maximum": 1024,
-       "title": "Length",
        "type": "number"
       },
       "name": {
@@ -51,9 +46,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "notes": {
        "anyOf": [
@@ -67,14 +60,11 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Notes"
+       ]
       },
       "start": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "Start",
        "type": "number"
       },
       "take_lane": {
@@ -86,13 +76,10 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "minimum": 0,
-       "title": "Track",
        "type": "integer"
       }
      },
@@ -100,61 +87,51 @@
       "track",
       "start"
      ],
-     "title": "NewArrangementClip",
      "type": "object"
     },
     "Note": {
-     "additionalProperties": false,
      "properties": {
       "duration": {
        "exclusiveMinimum": 0,
        "maximum": 16384,
-       "title": "Duration",
        "type": "number"
       },
       "mute": {
        "default": false,
-       "title": "Mute",
        "type": "boolean"
       },
       "pitch": {
        "maximum": 127,
        "minimum": 0,
-       "title": "Pitch",
        "type": "integer"
       },
       "probability": {
        "default": 1,
        "maximum": 1,
        "minimum": 0,
-       "title": "Probability",
        "type": "number"
       },
       "release_velocity": {
        "default": 64,
        "maximum": 127,
        "minimum": 0,
-       "title": "Release Velocity",
        "type": "number"
       },
       "start_time": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "Start Time",
        "type": "number"
       },
       "velocity": {
        "default": 100,
        "maximum": 127,
        "minimum": 1,
-       "title": "Velocity",
        "type": "number"
       },
       "velocity_deviation": {
        "default": 0,
        "maximum": 127,
        "minimum": -127,
-       "title": "Velocity Deviation",
        "type": "number"
       }
      },
@@ -163,7 +140,6 @@
       "start_time",
       "duration"
      ],
-     "title": "Note",
      "type": "object"
     }
    },
@@ -172,14 +148,12 @@
      "items": {
       "$ref": "#/$defs/NewArrangementClip"
      },
-     "title": "Clips",
      "type": "array"
     }
    },
    "required": [
     "clips"
    ],
-   "title": "live_create_arrangement_clipsArguments",
    "type": "object"
   },
   "name": "live_create_arrangement_clips",
@@ -201,12 +175,9 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
-     "additionalProperties": false,
-     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
      "properties": {
       "arrangement": {
        "minimum": 0,
-       "title": "Arrangement",
        "type": "integer"
       },
       "take_lane": {
@@ -218,9 +189,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "anyOf": [
@@ -232,19 +201,16 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "arrangement"
      ],
-     "title": "ArrangementClipAddr",
      "type": "object"
     },
     "ArrangementEdit": {
-     "additionalProperties": false,
      "properties": {
       "clip": {
        "$ref": "#/$defs/ArrangementClipAddr"
@@ -259,9 +225,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Color Index"
+       ]
       },
       "expect_name": {
        "anyOf": [
@@ -272,9 +236,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Expect Name"
+       ]
       },
       "gain": {
        "anyOf": [
@@ -286,9 +248,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Gain"
+       ]
       },
       "launch_mode": {
        "anyOf": [
@@ -304,9 +264,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Launch Mode"
+       ]
       },
       "launch_quantization": {
        "anyOf": [
@@ -333,9 +291,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Launch Quantization"
+       ]
       },
       "legato": {
        "anyOf": [
@@ -345,9 +301,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Legato"
+       ]
       },
       "loop": {
        "anyOf": [
@@ -362,9 +316,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Loop"
+       ]
       },
       "looping": {
        "anyOf": [
@@ -374,9 +326,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Looping"
+       ]
       },
       "markers": {
        "anyOf": [
@@ -391,9 +341,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Markers"
+       ]
       },
       "move_to": {
        "anyOf": [
@@ -405,9 +353,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Move To"
+       ]
       },
       "muted": {
        "anyOf": [
@@ -417,9 +363,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Muted"
+       ]
       },
       "name": {
        "anyOf": [
@@ -430,9 +374,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "pitch_coarse": {
        "anyOf": [
@@ -444,9 +386,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Pitch Coarse"
+       ]
       },
       "pitch_fine": {
        "anyOf": [
@@ -458,9 +398,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Pitch Fine"
+       ]
       },
       "signature": {
        "anyOf": [
@@ -475,9 +413,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Signature"
+       ]
       },
       "split_at": {
        "anyOf": [
@@ -489,9 +425,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Split At"
+       ]
       },
       "velocity_amount": {
        "anyOf": [
@@ -503,9 +437,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Velocity Amount"
+       ]
       },
       "warp_mode": {
        "anyOf": [
@@ -524,9 +456,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Warp Mode"
+       ]
       },
       "warping": {
        "anyOf": [
@@ -536,15 +466,12 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Warping"
+       ]
       }
      },
      "required": [
       "clip"
      ],
-     "title": "ArrangementEdit",
      "type": "object"
     }
    },
@@ -553,14 +480,12 @@
      "items": {
       "$ref": "#/$defs/ArrangementEdit"
      },
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_edit_arrangement_clipsArguments",
    "type": "object"
   },
   "name": "live_edit_arrangement_clips",
@@ -597,9 +522,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Include"
+     ]
     },
     "range": {
      "anyOf": [
@@ -614,9 +537,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Range"
+     ]
     },
     "response_format": {
      "default": "concise",
@@ -624,7 +545,6 @@
       "concise",
       "detailed"
      ],
-     "title": "Response Format",
      "type": "string"
     },
     "tracks": {
@@ -647,12 +567,9 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Tracks"
+     ]
     }
    },
-   "title": "live_get_arrangementArguments",
    "type": "object"
   },
   "name": "live_get_arrangement",
@@ -674,7 +591,6 @@
   "inputSchema": {
    "$defs": {
     "CueAdd": {
-     "additionalProperties": false,
      "properties": {
       "name": {
        "anyOf": [
@@ -685,25 +601,20 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "time": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "Time",
        "type": "number"
       }
      },
      "required": [
       "time"
      ],
-     "title": "CueAdd",
      "type": "object"
     },
     "CueEdit": {
-     "additionalProperties": false,
      "properties": {
       "action": {
        "enum": [
@@ -711,12 +622,10 @@
         "jump",
         "delete"
        ],
-       "title": "Action",
        "type": "string"
       },
       "cue": {
        "minimum": 0,
-       "title": "Cue",
        "type": "integer"
       },
       "name": {
@@ -728,16 +637,13 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       }
      },
      "required": [
       "cue",
       "action"
      ],
-     "title": "CueEdit",
      "type": "object"
     }
    },
@@ -753,9 +659,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Add"
+     ]
     },
     "cues": {
      "anyOf": [
@@ -768,12 +672,9 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Cues"
+     ]
     }
    },
-   "title": "live_set_cue_pointsArguments",
    "type": "object"
   },
   "name": "live_set_cue_points",

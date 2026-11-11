@@ -18,36 +18,28 @@
       "capture_midi",
       "capture_and_insert_scene"
      ],
-     "title": "Action",
      "type": "string"
     },
     "destination": {
-     "default": null,
      "enum": [
       0,
       1,
       2
      ],
-     "title": "Destination",
      "type": "integer"
     },
     "length": {
-     "default": null,
      "exclusiveMinimum": 0,
      "maximum": 1024,
-     "title": "Length",
      "type": "number"
     },
     "value": {
-     "default": null,
-     "title": "Value",
      "type": "boolean"
     }
    },
    "required": [
     "action"
    ],
-   "title": "live_recordArguments",
    "type": "object"
   },
   "name": "live_record",

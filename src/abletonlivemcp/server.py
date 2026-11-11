@@ -203,6 +203,31 @@ def install(server: MCPServer, enabled: frozenset[str]) -> None:
 
 def _add(server: MCPServer, spec: ToolSpec) -> None:
     server.add_tool(spec.fn, name=spec.name, title=spec.title, annotations=spec.annotations)
+    tool = server._tool_manager.get_tool(spec.name)
+    if tool is not None:
+        # A property literally named "title" lives under "properties" and is never touched,
+        # because pruning only looks at schema nodes, not at the property-name mapping.
+        _prune_schema(tool.parameters)
+
+
+def _prune_schema(schema: dict, *, top: bool = True) -> None:
+    for sub in (schema.get("properties") or {}).values():
+        _prune_schema(sub, top=False)
+    for sub in (schema.get("$defs") or {}).values():
+        sub.pop("description", None)  # class docstrings: pydantic still validates, the model needn't read them
+        _prune_schema(sub, top=False)
+    schema.pop("title", None)
+    if schema.get("additionalProperties") is False:
+        del schema["additionalProperties"]  # still enforced by pydantic at call time
+    for sub in schema.get("anyOf", []) + schema.get("oneOf", []) + schema.get("allOf", []):
+        if isinstance(sub, dict):
+            _prune_schema(sub)
+    if isinstance(schema.get("items"), dict):
+        _prune_schema(schema["items"])
+    if isinstance(schema.get("additionalProperties"), dict):
+        _prune_schema(schema["additionalProperties"])
+    if "default" in schema and schema["default"] is None:
+        del schema["default"]
 
 
 # ---- confirmation for DESTRUCTIVE tools (T-007) -----------------------------------------------

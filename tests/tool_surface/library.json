@@ -14,14 +14,12 @@
       "search",
       "read"
      ],
-     "title": "Action",
      "type": "string"
     },
     "limit": {
      "default": 8,
      "maximum": 50,
      "minimum": 1,
-     "title": "Limit",
      "type": "integer"
     },
     "page": {
@@ -33,9 +31,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Page"
+     ]
     },
     "query": {
      "anyOf": [
@@ -46,9 +42,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Query"
+     ]
     },
     "section": {
      "anyOf": [
@@ -59,15 +53,12 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Section"
+     ]
     }
    },
    "required": [
     "action"
    ],
-   "title": "live_knowledgeArguments",
    "type": "object"
   },
   "name": "live_knowledge",

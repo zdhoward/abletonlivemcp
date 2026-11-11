@@ -10,7 +10,6 @@
   "inputSchema": {
    "properties": {
     "include": {
-     "default": null,
      "items": {
       "enum": [
        "transport",
@@ -26,11 +25,9 @@
       ],
       "type": "string"
      },
-     "title": "Include",
      "type": "array"
     }
    },
-   "title": "live_get_sessionArguments",
    "type": "object"
   },
   "name": "live_get_session",
@@ -51,7 +48,6 @@
   "description": "Handshake: protocol, Live version, build id, variant, generation, dialogs and CPU,\ncapability_report (supported/unverified/disabled/unsupported per ability) and toolsets.",
   "inputSchema": {
    "properties": {},
-   "title": "live_helloArguments",
    "type": "object"
   },
   "name": "live_hello",
@@ -73,8 +69,6 @@
   "inputSchema": {
    "$defs": {
     "Groove": {
-     "additionalProperties": false,
-     "description": "Song groove amount 0..1.3125, swing 0..1, groove-pool entries.",
      "properties": {
       "amount": {
        "maximum": 1.3125,
@@ -98,8 +92,6 @@
      "type": "object"
     },
     "GrooveEdit": {
-     "additionalProperties": false,
-     "description": "A groove-pool entry by index; amounts in percent (velocity -100..100).",
      "properties": {
       "expect_name": {
        "maxLength": 256,
@@ -136,7 +128,6 @@
      "type": "object"
     },
     "Link": {
-     "additionalProperties": false,
      "properties": {
       "enabled": {
        "type": "boolean"
@@ -148,8 +139,6 @@
      "type": "object"
     },
     "Loop": {
-     "additionalProperties": false,
-     "description": "Arrangement loop (beats) and punch switches.",
      "properties": {
       "length": {
        "exclusiveMinimum": 0,
@@ -172,8 +161,6 @@
      "type": "object"
     },
     "Quantization": {
-     "additionalProperties": false,
-     "description": "Live's enum indices (clip trigger 0..13, MIDI recording 0..8).",
      "properties": {
       "clip_trigger": {
        "maximum": 13,
@@ -189,7 +176,6 @@
      "type": "object"
     },
     "Scale": {
-     "additionalProperties": false,
      "properties": {
       "root_note": {
        "maximum": 11,
@@ -210,37 +196,27 @@
    },
    "properties": {
     "count_in": {
-     "default": null,
-     "title": "Count In",
      "type": "integer"
     },
     "groove": {
-     "$ref": "#/$defs/Groove",
-     "default": null
+     "$ref": "#/$defs/Groove"
     },
     "link": {
-     "$ref": "#/$defs/Link",
-     "default": null
+     "$ref": "#/$defs/Link"
     },
     "loop": {
-     "$ref": "#/$defs/Loop",
-     "default": null
+     "$ref": "#/$defs/Loop"
     },
     "metronome": {
-     "default": null,
-     "title": "Metronome",
      "type": "boolean"
     },
     "quantization": {
-     "$ref": "#/$defs/Quantization",
-     "default": null
+     "$ref": "#/$defs/Quantization"
     },
     "scale": {
-     "$ref": "#/$defs/Scale",
-     "default": null
+     "$ref": "#/$defs/Scale"
     },
     "signature": {
-     "default": null,
      "items": {
       "maximum": 99,
       "minimum": 1,
@@ -248,18 +224,14 @@
      },
      "maxItems": 2,
      "minItems": 2,
-     "title": "Signature",
      "type": "array"
     },
     "tempo": {
-     "default": null,
      "maximum": 999,
      "minimum": 20,
-     "title": "Tempo",
      "type": "number"
     }
    },
-   "title": "live_set_sessionArguments",
    "type": "object"
   },
   "name": "live_set_session",
@@ -295,19 +267,15 @@
       "nudge_down",
       "back_to_arranger"
      ],
-     "title": "Action",
      "type": "string"
     },
     "beats": {
-     "default": null,
-     "title": "Beats",
      "type": "number"
     }
    },
    "required": [
     "action"
    ],
-   "title": "live_transportArguments",
    "type": "object"
   },
   "name": "live_transport",
@@ -334,18 +302,15 @@
       "undo",
       "redo"
      ],
-     "title": "Action",
      "type": "string"
     },
     "steps": {
      "default": 1,
      "maximum": 10,
      "minimum": 1,
-     "title": "Steps",
      "type": "integer"
     }
    },
-   "title": "live_undoArguments",
    "type": "object"
   },
   "name": "live_undo",

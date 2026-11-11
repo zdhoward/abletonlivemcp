@@ -11,18 +11,15 @@
    "properties": {
     "accept_omissions": {
      "default": false,
-     "title": "Accept Omissions",
      "type": "boolean"
     },
     "plan_id": {
-     "title": "Plan Id",
      "type": "string"
     }
    },
    "required": [
     "plan_id"
    ],
-   "title": "live_build_chainArguments",
    "type": "object"
   },
   "name": "live_build_chain",
@@ -45,7 +42,6 @@
    "properties": {
     "append": {
      "default": false,
-     "title": "Append",
      "type": "boolean"
     },
     "chain_path": {
@@ -70,9 +66,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Chain Path"
+     ]
     },
     "preferences": {
      "anyOf": [
@@ -83,9 +77,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Preferences"
+     ]
     },
     "rack": {
      "anyOf": [
@@ -96,9 +88,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Rack"
+     ]
     },
     "stages": {
      "anyOf": [
@@ -112,9 +102,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Stages"
+     ]
     },
     "track": {
      "anyOf": [
@@ -126,14 +114,12 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track"
    ],
-   "title": "live_plan_chainArguments",
    "type": "object"
   },
   "name": "live_plan_chain",

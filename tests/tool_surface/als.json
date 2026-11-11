@@ -18,15 +18,12 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Folder Glob"
+     ]
     },
     "limit": {
      "default": 200,
      "maximum": 2000,
      "minimum": 1,
-     "title": "Limit",
      "type": "integer"
     },
     "roots": {
@@ -41,9 +38,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Roots"
+     ]
     },
     "since_days": {
      "anyOf": [
@@ -55,12 +50,9 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Since Days"
+     ]
     }
    },
-   "title": "live_scan_projectsArguments",
    "type": "object"
   },
   "name": "live_scan_projects",
@@ -87,14 +79,12 @@
       "devices",
       "plugins"
      ],
-     "title": "Kind",
      "type": "string"
     },
     "recent_days": {
      "default": 90,
      "maximum": 3650,
      "minimum": 1,
-     "title": "Recent Days",
      "type": "integer"
     },
     "scan_id": {
@@ -105,9 +95,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Scan Id"
+     ]
     },
     "sort": {
      "default": "projects",
@@ -115,21 +103,18 @@
       "projects",
       "recent"
      ],
-     "title": "Sort",
      "type": "string"
     },
     "top": {
      "default": 25,
      "maximum": 200,
      "minimum": 1,
-     "title": "Top",
      "type": "integer"
     }
    },
    "required": [
     "kind"
    ],
-   "title": "live_usage_reportArguments",
    "type": "object"
   },
   "name": "live_usage_report",

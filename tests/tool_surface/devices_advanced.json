@@ -24,7 +24,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "track": {
@@ -37,15 +36,13 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track",
     "path"
    ],
-   "title": "live_get_device_extrasArguments",
    "type": "object"
   },
   "name": "live_get_device_extras",
@@ -79,9 +76,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Compare"
+     ]
     },
     "path": {
      "items": {
@@ -98,7 +93,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "preset_index": {
@@ -109,9 +103,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Preset Index"
+     ]
     },
     "track": {
      "anyOf": [
@@ -123,15 +115,13 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track",
     "path"
    ],
-   "title": "live_set_device_extrasArguments",
    "type": "object"
   },
   "name": "live_set_device_extras",

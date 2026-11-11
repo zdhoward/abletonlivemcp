@@ -10,7 +10,6 @@
   "inputSchema": {
    "$defs": {
     "NewClip": {
-     "additionalProperties": false,
      "properties": {
       "color_index": {
        "anyOf": [
@@ -22,9 +21,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Color Index"
+       ]
       },
       "file": {
        "anyOf": [
@@ -35,9 +32,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "File"
+       ]
       },
       "kind": {
        "default": "midi",
@@ -45,14 +40,12 @@
         "midi",
         "audio"
        ],
-       "title": "Kind",
        "type": "string"
       },
       "length": {
        "default": 4.0,
        "exclusiveMinimum": 0,
        "maximum": 1024,
-       "title": "Length",
        "type": "number"
       },
       "name": {
@@ -64,9 +57,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "notes": {
        "anyOf": [
@@ -80,18 +71,14 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Notes"
+       ]
       },
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
        "minimum": 0,
-       "title": "Track",
        "type": "integer"
       }
      },
@@ -99,61 +86,51 @@
       "track",
       "scene"
      ],
-     "title": "NewClip",
      "type": "object"
     },
     "Note": {
-     "additionalProperties": false,
      "properties": {
       "duration": {
        "exclusiveMinimum": 0,
        "maximum": 16384,
-       "title": "Duration",
        "type": "number"
       },
       "mute": {
        "default": false,
-       "title": "Mute",
        "type": "boolean"
       },
       "pitch": {
        "maximum": 127,
        "minimum": 0,
-       "title": "Pitch",
        "type": "integer"
       },
       "probability": {
        "default": 1,
        "maximum": 1,
        "minimum": 0,
-       "title": "Probability",
        "type": "number"
       },
       "release_velocity": {
        "default": 64,
        "maximum": 127,
        "minimum": 0,
-       "title": "Release Velocity",
        "type": "number"
       },
       "start_time": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "Start Time",
        "type": "number"
       },
       "velocity": {
        "default": 100,
        "maximum": 127,
        "minimum": 1,
-       "title": "Velocity",
        "type": "number"
       },
       "velocity_deviation": {
        "default": 0,
        "maximum": 127,
        "minimum": -127,
-       "title": "Velocity Deviation",
        "type": "number"
       }
      },
@@ -162,7 +139,6 @@
       "start_time",
       "duration"
      ],
-     "title": "Note",
      "type": "object"
     }
    },
@@ -171,14 +147,12 @@
      "items": {
       "$ref": "#/$defs/NewClip"
      },
-     "title": "Clips",
      "type": "array"
     }
    },
    "required": [
     "clips"
    ],
-   "title": "live_create_clipsArguments",
    "type": "object"
   },
   "name": "live_create_clips",
@@ -200,12 +174,9 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
-     "additionalProperties": false,
-     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
      "properties": {
       "arrangement": {
        "minimum": 0,
-       "title": "Arrangement",
        "type": "integer"
       },
       "take_lane": {
@@ -217,9 +188,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "anyOf": [
@@ -231,24 +200,19 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "arrangement"
      ],
-     "title": "ArrangementClipAddr",
      "type": "object"
     },
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -261,15 +225,13 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     }
    },
@@ -292,13 +254,10 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Clips"
+     ]
     },
     "detail": {
      "default": false,
-     "title": "Detail",
      "type": "boolean"
     },
     "response_format": {
@@ -307,7 +266,6 @@
       "concise",
       "detailed"
      ],
-     "title": "Response Format",
      "type": "string"
     },
     "scene": {
@@ -318,9 +276,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Scene"
+     ]
     },
     "track": {
      "anyOf": [
@@ -335,12 +291,9 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Track"
+     ]
     }
    },
-   "title": "live_get_clipsArguments",
    "type": "object"
   },
   "name": "live_get_clips",
@@ -362,12 +315,9 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
-     "additionalProperties": false,
-     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
      "properties": {
       "arrangement": {
        "minimum": 0,
-       "title": "Arrangement",
        "type": "integer"
       },
       "take_lane": {
@@ -379,9 +329,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "anyOf": [
@@ -393,24 +341,19 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "arrangement"
      ],
-     "title": "ArrangementClipAddr",
      "type": "object"
     },
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -423,19 +366,16 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     },
     "ClipEdit": {
-     "additionalProperties": false,
      "properties": {
       "clip": {
        "anyOf": [
@@ -445,8 +385,7 @@
         {
          "$ref": "#/$defs/ArrangementClipAddr"
         }
-       ],
-       "title": "Clip"
+       ]
       },
       "color_index": {
        "anyOf": [
@@ -458,9 +397,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Color Index"
+       ]
       },
       "expect_name": {
        "anyOf": [
@@ -471,9 +408,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Expect Name"
+       ]
       },
       "gain": {
        "anyOf": [
@@ -485,9 +420,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Gain"
+       ]
       },
       "launch_mode": {
        "anyOf": [
@@ -503,9 +436,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Launch Mode"
+       ]
       },
       "launch_quantization": {
        "anyOf": [
@@ -532,9 +463,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Launch Quantization"
+       ]
       },
       "legato": {
        "anyOf": [
@@ -544,9 +473,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Legato"
+       ]
       },
       "loop": {
        "anyOf": [
@@ -561,9 +488,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Loop"
+       ]
       },
       "looping": {
        "anyOf": [
@@ -573,9 +498,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Looping"
+       ]
       },
       "markers": {
        "anyOf": [
@@ -590,9 +513,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Markers"
+       ]
       },
       "muted": {
        "anyOf": [
@@ -602,9 +523,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Muted"
+       ]
       },
       "name": {
        "anyOf": [
@@ -615,9 +534,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "pitch_coarse": {
        "anyOf": [
@@ -629,9 +546,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Pitch Coarse"
+       ]
       },
       "pitch_fine": {
        "anyOf": [
@@ -643,9 +558,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Pitch Fine"
+       ]
       },
       "signature": {
        "anyOf": [
@@ -660,9 +573,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Signature"
+       ]
       },
       "velocity_amount": {
        "anyOf": [
@@ -674,9 +585,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Velocity Amount"
+       ]
       },
       "warp_mode": {
        "anyOf": [
@@ -695,9 +604,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Warp Mode"
+       ]
       },
       "warping": {
        "anyOf": [
@@ -707,15 +614,12 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Warping"
+       ]
       }
      },
      "required": [
       "clip"
      ],
-     "title": "ClipEdit",
      "type": "object"
     }
    },
@@ -724,14 +628,12 @@
      "items": {
       "$ref": "#/$defs/ClipEdit"
      },
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_set_clipsArguments",
    "type": "object"
   },
   "name": "live_set_clips",

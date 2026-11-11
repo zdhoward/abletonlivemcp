@@ -10,12 +10,9 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
-     "additionalProperties": false,
-     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
      "properties": {
       "arrangement": {
        "minimum": 0,
-       "title": "Arrangement",
        "type": "integer"
       },
       "take_lane": {
@@ -27,9 +24,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "anyOf": [
@@ -41,20 +36,16 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "arrangement"
      ],
-     "title": "ArrangementClipAddr",
      "type": "object"
     },
     "AutoParam": {
-     "additionalProperties": false,
-     "description": "A device parameter (``device`` path + ``parameter`` index) or a mixer control.",
      "properties": {
       "device": {
        "anyOf": [
@@ -78,9 +69,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Device"
+       ]
       },
       "mixer": {
        "anyOf": [
@@ -97,9 +86,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Mixer"
+       ]
       },
       "parameter": {
        "anyOf": [
@@ -110,9 +97,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Parameter"
+       ]
       },
       "send": {
        "anyOf": [
@@ -123,21 +108,15 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Send"
+       ]
       }
      },
-     "title": "AutoParam",
      "type": "object"
     },
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -150,15 +129,13 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     }
    },
@@ -171,8 +148,7 @@
       {
        "$ref": "#/$defs/ArrangementClipAddr"
       }
-     ],
-     "title": "Clip"
+     ]
     },
     "parameter": {
      "$ref": "#/$defs/AutoParam"
@@ -183,7 +159,6 @@
       "concise",
       "detailed"
      ],
-     "title": "Response Format",
      "type": "string"
     },
     "sample_times": {
@@ -197,16 +172,13 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Sample Times"
+     ]
     }
    },
    "required": [
     "clip",
     "parameter"
    ],
-   "title": "live_get_automationArguments",
    "type": "object"
   },
   "name": "live_get_automation",
@@ -228,12 +200,9 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
-     "additionalProperties": false,
-     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
      "properties": {
       "arrangement": {
        "minimum": 0,
-       "title": "Arrangement",
        "type": "integer"
       },
       "take_lane": {
@@ -245,9 +214,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "anyOf": [
@@ -259,20 +226,16 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "arrangement"
      ],
-     "title": "ArrangementClipAddr",
      "type": "object"
     },
     "AutoParam": {
-     "additionalProperties": false,
-     "description": "A device parameter (``device`` path + ``parameter`` index) or a mixer control.",
      "properties": {
       "device": {
        "anyOf": [
@@ -296,9 +259,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Device"
+       ]
       },
       "mixer": {
        "anyOf": [
@@ -315,9 +276,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Mixer"
+       ]
       },
       "parameter": {
        "anyOf": [
@@ -328,9 +287,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Parameter"
+       ]
       },
       "send": {
        "anyOf": [
@@ -341,20 +298,15 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Send"
+       ]
       }
      },
-     "title": "AutoParam",
      "type": "object"
     },
     "AutomationEdit": {
-     "additionalProperties": false,
      "properties": {
       "clear": {
        "default": false,
-       "title": "Clear",
        "type": "boolean"
       },
       "clip": {
@@ -365,8 +317,7 @@
         {
          "$ref": "#/$defs/ArrangementClipAddr"
         }
-       ],
-       "title": "Clip"
+       ]
       },
       "delete_range": {
        "anyOf": [
@@ -381,9 +332,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Delete Range"
+       ]
       },
       "parameter": {
        "$ref": "#/$defs/AutoParam"
@@ -400,9 +349,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Ramps"
+       ]
       },
       "steps": {
        "anyOf": [
@@ -416,25 +363,19 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Steps"
+       ]
       }
      },
      "required": [
       "clip",
       "parameter"
      ],
-     "title": "AutomationEdit",
      "type": "object"
     },
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -447,45 +388,37 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     },
     "Ramp": {
-     "additionalProperties": false,
      "properties": {
       "end": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "End",
        "type": "number"
       },
       "from": {
-       "title": "From",
        "type": "number"
       },
       "start": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "Start",
        "type": "number"
       },
       "steps": {
        "default": 32,
        "maximum": 256,
        "minimum": 2,
-       "title": "Steps",
        "type": "integer"
       },
       "to": {
-       "title": "To",
        "type": "number"
       }
      },
@@ -495,25 +428,20 @@
       "from",
       "to"
      ],
-     "title": "Ramp",
      "type": "object"
     },
     "Step": {
-     "additionalProperties": false,
      "properties": {
       "length": {
        "exclusiveMinimum": 0,
-       "title": "Length",
        "type": "number"
       },
       "time": {
        "maximum": 16384,
        "minimum": 0,
-       "title": "Time",
        "type": "number"
       },
       "value": {
-       "title": "Value",
        "type": "number"
       }
      },
@@ -522,7 +450,6 @@
       "length",
       "value"
      ],
-     "title": "Step",
      "type": "object"
     }
    },
@@ -531,14 +458,12 @@
      "items": {
       "$ref": "#/$defs/AutomationEdit"
      },
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_set_automationArguments",
    "type": "object"
   },
   "name": "live_set_automation",

@@ -25,9 +25,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Kind"
+     ]
     },
     "label": {
      "anyOf": [
@@ -38,9 +36,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Label"
+     ]
     },
     "scope": {
      "default": "both",
@@ -49,11 +45,9 @@
       "global",
       "both"
      ],
-     "title": "Scope",
      "type": "string"
     }
    },
-   "title": "live_get_labelsArguments",
    "type": "object"
   },
   "name": "live_get_labels",
@@ -75,8 +69,6 @@
   "inputSchema": {
    "$defs": {
     "LabelItem": {
-     "additionalProperties": false,
-     "description": "One thing's labels. With ``mode: replace`` empty ``labels`` and no ``category`` clear the\nentry; ``add`` and ``remove`` change only the listed labels (``remove`` with ``category: \"\"``\ndrops the category too).",
      "properties": {
       "category": {
        "anyOf": [
@@ -87,9 +79,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Category"
+       ]
       },
       "expect_name": {
        "anyOf": [
@@ -100,9 +90,7 @@
          "type": "null"
         }
        ],
-       "default": null,
-       "description": "Track kinds: refuse unless named exactly so",
-       "title": "Expect Name"
+       "description": "Track kinds: refuse unless named exactly so"
       },
       "key": {
        "anyOf": [
@@ -116,9 +104,7 @@
          "type": "null"
         }
        ],
-       "default": null,
-       "description": "Track/return index; usage key for plugin/device/sample; none for song",
-       "title": "Key"
+       "description": "Track/return index; usage key for plugin/device/sample; none for song"
       },
       "kind": {
        "enum": [
@@ -129,7 +115,6 @@
         "device",
         "sample"
        ],
-       "title": "Kind",
        "type": "string"
       },
       "labels": {
@@ -140,14 +125,12 @@
         "type": "string"
        },
        "maxItems": 16,
-       "title": "Labels",
        "type": "array"
       }
      },
      "required": [
       "kind"
      ],
-     "title": "LabelItem",
      "type": "object"
     }
    },
@@ -158,7 +141,6 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Items",
      "type": "array"
     },
     "mode": {
@@ -168,14 +150,12 @@
       "add",
       "remove"
      ],
-     "title": "Mode",
      "type": "string"
     }
    },
    "required": [
     "items"
    ],
-   "title": "live_set_labelsArguments",
    "type": "object"
   },
   "name": "live_set_labels",

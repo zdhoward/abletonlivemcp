@@ -10,7 +10,6 @@
   "inputSchema": {
    "$defs": {
     "NewTrack": {
-     "additionalProperties": false,
      "properties": {
       "color_index": {
        "maximum": 69,
@@ -48,14 +47,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Tracks",
      "type": "array"
     }
    },
    "required": [
     "tracks"
    ],
-   "title": "live_create_tracksArguments",
    "type": "object"
   },
   "name": "live_create_tracks",
@@ -77,12 +74,9 @@
   "inputSchema": {
    "$defs": {
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -95,20 +89,16 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     },
     "StructTarget": {
-     "additionalProperties": false,
-     "description": "track: track=N; return: track=\"return:N\"; scene: scene; clip: track+scene or\ntrack+arrangement[+take_lane]; device: track+path. `to`: clip duplicate destination.",
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -182,14 +172,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_deleteArguments",
    "type": "object"
   },
   "name": "live_delete",
@@ -211,12 +199,9 @@
   "inputSchema": {
    "$defs": {
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -229,20 +214,16 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     },
     "StructTarget": {
-     "additionalProperties": false,
-     "description": "track: track=N; return: track=\"return:N\"; scene: scene; clip: track+scene or\ntrack+arrangement[+take_lane]; device: track+path. `to`: clip duplicate destination.",
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -316,14 +297,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_duplicateArguments",
    "type": "object"
   },
   "name": "live_duplicate",
@@ -345,7 +324,6 @@
   "inputSchema": {
    "properties": {
     "include": {
-     "default": null,
      "items": {
       "enum": [
        "mixer",
@@ -357,11 +335,9 @@
       ],
       "type": "string"
      },
-     "title": "Include",
      "type": "array"
     },
     "tracks": {
-     "default": null,
      "items": {
       "anyOf": [
        {
@@ -374,11 +350,9 @@
        }
       ]
      },
-     "title": "Tracks",
      "type": "array"
     }
    },
-   "title": "live_get_tracksArguments",
    "type": "object"
   },
   "name": "live_get_tracks",
@@ -400,8 +374,6 @@
   "inputSchema": {
    "$defs": {
     "MixerEdit": {
-     "additionalProperties": false,
-     "description": "dB values are matched within 0.05 dB; `volume`/`value` are raw 0..1.",
      "properties": {
       "activator": {
        "type": "boolean"
@@ -467,7 +439,6 @@
      "type": "object"
     },
     "SendEdit": {
-     "additionalProperties": false,
      "properties": {
       "db": {
        "maximum": 6,
@@ -496,14 +467,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_set_mixerArguments",
    "type": "object"
   },
   "name": "live_set_mixer",
@@ -525,8 +494,6 @@
   "inputSchema": {
    "$defs": {
     "Routing": {
-     "additionalProperties": false,
-     "description": "Display names exactly as listed by live_get_tracks(include=['routing']).",
      "properties": {
       "channel": {
        "maxLength": 256,
@@ -544,7 +511,6 @@
      "type": "object"
     },
     "TrackEdit": {
-     "additionalProperties": false,
      "properties": {
       "arm": {
        "type": "boolean"
@@ -611,14 +577,12 @@
      },
      "maxItems": 64,
      "minItems": 1,
-     "title": "Targets",
      "type": "array"
     }
    },
    "required": [
     "targets"
    ],
-   "title": "live_set_tracksArguments",
    "type": "object"
   },
   "name": "live_set_tracks",

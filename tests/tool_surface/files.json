@@ -10,12 +10,9 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
-     "additionalProperties": false,
-     "description": "An arrangement clip: index into ``track.arrangement_clips`` sorted by start (optionally\nin take lane ``take_lane``).",
      "properties": {
       "arrangement": {
        "minimum": 0,
-       "title": "Arrangement",
        "type": "integer"
       },
       "take_lane": {
@@ -27,9 +24,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Take Lane"
+       ]
       },
       "track": {
        "anyOf": [
@@ -41,24 +36,19 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "arrangement"
      ],
-     "title": "ArrangementClipAddr",
      "type": "object"
     },
     "ClipAddr": {
-     "additionalProperties": false,
-     "description": "A Session clip slot.",
      "properties": {
       "scene": {
        "minimum": 0,
-       "title": "Scene",
        "type": "integer"
       },
       "track": {
@@ -71,15 +61,13 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track",
       "scene"
      ],
-     "title": "ClipAddr",
      "type": "object"
     }
    },
@@ -92,11 +80,9 @@
       {
        "$ref": "#/$defs/ArrangementClipAddr"
       }
-     ],
-     "title": "Clip"
+     ]
     },
     "file": {
-     "title": "File",
      "type": "string"
     }
    },
@@ -104,7 +90,6 @@
     "clip",
     "file"
    ],
-   "title": "live_export_midiArguments",
    "type": "object"
   },
   "name": "live_export_midi",
@@ -126,7 +111,6 @@
   "inputSchema": {
    "properties": {
     "file": {
-     "title": "File",
      "type": "string"
     },
     "length": {
@@ -139,9 +123,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Length"
+     ]
     },
     "name": {
      "anyOf": [
@@ -152,9 +134,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Name"
+     ]
     },
     "scene": {
      "anyOf": [
@@ -165,9 +145,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Scene"
+     ]
     },
     "start": {
      "anyOf": [
@@ -179,13 +157,10 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Start"
+     ]
     },
     "track": {
      "minimum": 0,
-     "title": "Track",
      "type": "integer"
     }
    },
@@ -193,7 +168,6 @@
     "file",
     "track"
    ],
-   "title": "live_import_midiArguments",
    "type": "object"
   },
   "name": "live_import_midi",

@@ -10,14 +10,12 @@
   "inputSchema": {
    "properties": {
     "plan_id": {
-     "title": "Plan Id",
      "type": "string"
     }
    },
    "required": [
     "plan_id"
    ],
-   "title": "live_build_drum_rackArguments",
    "type": "object"
   },
   "name": "live_build_drum_rack",
@@ -39,7 +37,6 @@
   "inputSchema": {
    "$defs": {
     "ConvertTarget": {
-     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "anyOf": [
@@ -50,9 +47,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Arrangement"
+       ]
       },
       "path": {
        "anyOf": [
@@ -76,9 +71,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Path"
+       ]
       },
       "scene": {
        "anyOf": [
@@ -89,9 +82,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Scene"
+       ]
       },
       "track": {
        "anyOf": [
@@ -103,14 +94,12 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ],
-       "title": "Track"
+       ]
       }
      },
      "required": [
       "track"
      ],
-     "title": "ConvertTarget",
      "type": "object"
     }
    },
@@ -124,7 +113,6 @@
       "sliced_simpler_to_drum_rack",
       "devices_to_drum_pad"
      ],
-     "title": "Action",
      "type": "string"
     },
     "midi_type": {
@@ -134,7 +122,6 @@
       "harmony",
       "melody"
      ],
-     "title": "Midi Type",
      "type": "string"
     },
     "target": {
@@ -145,7 +132,6 @@
     "action",
     "target"
    ],
-   "title": "live_convertArguments",
    "type": "object"
   },
   "name": "live_convert",
@@ -168,7 +154,6 @@
    "properties": {
     "include_empty": {
      "default": false,
-     "title": "Include Empty",
      "type": "boolean"
     },
     "path": {
@@ -186,7 +171,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "track": {
@@ -199,15 +183,13 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track",
     "path"
    ],
-   "title": "live_get_drum_rackArguments",
    "type": "object"
   },
   "name": "live_get_drum_rack",
@@ -243,7 +225,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "track": {
@@ -256,15 +237,13 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track",
     "path"
    ],
-   "title": "live_get_simplerArguments",
    "type": "object"
   },
   "name": "live_get_simpler",
@@ -286,12 +265,10 @@
   "inputSchema": {
    "$defs": {
     "DrumRole": {
-     "additionalProperties": false,
      "properties": {
       "note": {
        "maximum": 127,
        "minimum": 0,
-       "title": "Note",
        "type": "integer"
       },
       "path": {
@@ -300,12 +277,10 @@
        },
        "maxItems": 8,
        "minItems": 1,
-       "title": "Path",
        "type": "array"
       },
       "root": {
        "default": "samples",
-       "title": "Root",
        "type": "string"
       }
      },
@@ -313,7 +288,6 @@
       "note",
       "path"
      ],
-     "title": "DrumRole",
      "type": "object"
     }
    },
@@ -322,11 +296,9 @@
      "items": {
       "$ref": "#/$defs/DrumRole"
      },
-     "title": "Pads",
      "type": "array"
     },
     "track": {
-     "title": "Track",
      "type": "integer"
     }
    },
@@ -334,7 +306,6 @@
     "track",
     "pads"
    ],
-   "title": "live_plan_drum_rackArguments",
    "type": "object"
   },
   "name": "live_plan_drum_rack",
@@ -356,18 +327,15 @@
   "inputSchema": {
    "$defs": {
     "PadCopy": {
-     "additionalProperties": false,
      "properties": {
       "destination": {
        "maximum": 127,
        "minimum": 0,
-       "title": "Destination",
        "type": "integer"
       },
       "source": {
        "maximum": 127,
        "minimum": 0,
-       "title": "Source",
        "type": "integer"
       }
      },
@@ -375,11 +343,9 @@
       "source",
       "destination"
      ],
-     "title": "PadCopy",
      "type": "object"
     },
     "PadEdit": {
-     "additionalProperties": false,
      "properties": {
       "choke_group": {
        "anyOf": [
@@ -391,13 +357,10 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Choke Group"
+       ]
       },
       "clear": {
        "default": false,
-       "title": "Clear",
        "type": "boolean"
       },
       "expect_name": {
@@ -410,9 +373,7 @@
          "type": "null"
         }
        ],
-       "default": null,
-       "description": "required with clear: the pad's current name",
-       "title": "Expect Name"
+       "description": "required with clear: the pad's current name"
       },
       "mute": {
        "anyOf": [
@@ -422,9 +383,7 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Mute"
+       ]
       },
       "name": {
        "anyOf": [
@@ -436,14 +395,11 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Name"
+       ]
       },
       "note": {
        "maximum": 127,
        "minimum": 0,
-       "title": "Note",
        "type": "integer"
       },
       "solo": {
@@ -454,15 +410,12 @@
         {
          "type": "null"
         }
-       ],
-       "default": null,
-       "title": "Solo"
+       ]
       }
      },
      "required": [
       "note"
      ],
-     "title": "PadEdit",
      "type": "object"
     }
    },
@@ -475,8 +428,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null
+     ]
     },
     "pads": {
      "anyOf": [
@@ -489,9 +441,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Pads"
+     ]
     },
     "path": {
      "items": {
@@ -508,7 +458,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "track": {
@@ -521,15 +470,13 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track",
     "path"
    ],
-   "title": "live_set_drum_padsArguments",
    "type": "object"
   },
   "name": "live_set_drum_pads",
@@ -551,11 +498,9 @@
   "inputSchema": {
    "$defs": {
     "SliceEdit": {
-     "additionalProperties": false,
      "properties": {
       "clear": {
        "default": false,
-       "title": "Clear",
        "type": "boolean"
       },
       "insert": {
@@ -564,7 +509,6 @@
         "type": "integer"
        },
        "maxItems": 64,
-       "title": "Insert",
        "type": "array"
       },
       "remove": {
@@ -573,16 +517,13 @@
         "type": "integer"
        },
        "maxItems": 64,
-       "title": "Remove",
        "type": "array"
       },
       "reset": {
        "default": false,
-       "title": "Reset",
        "type": "boolean"
       }
      },
-     "title": "SliceEdit",
      "type": "object"
     }
    },
@@ -596,9 +537,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Device Fields"
+     ]
     },
     "path": {
      "items": {
@@ -615,7 +554,6 @@
      },
      "maxItems": 12,
      "minItems": 1,
-     "title": "Path",
      "type": "array"
     },
     "sample_fields": {
@@ -627,9 +565,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null,
-     "title": "Sample Fields"
+     ]
     },
     "slices": {
      "anyOf": [
@@ -639,8 +575,7 @@
       {
        "type": "null"
       }
-     ],
-     "default": null
+     ]
     },
     "track": {
      "anyOf": [
@@ -652,15 +587,13 @@
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
       }
-     ],
-     "title": "Track"
+     ]
     }
    },
    "required": [
     "track",
     "path"
    ],
-   "title": "live_set_simplerArguments",
    "type": "object"
   },
   "name": "live_set_simpler",
