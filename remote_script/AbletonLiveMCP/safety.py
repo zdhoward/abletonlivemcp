@@ -146,7 +146,7 @@ def config_read_only():
             ):
                 return True
             if os.name == "nt":
-                _windows_private(stream.fileno())
+                _windows_private(stream.fileno(), path)
             elif info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
                 return True
             raw = stream.read(8193)

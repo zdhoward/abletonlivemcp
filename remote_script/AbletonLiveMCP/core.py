@@ -1,7 +1,6 @@
 """Authenticated loopback bridge. Only drain() invokes application code (stdlib only)."""
 
 import collections
-import ctypes
 import hashlib
 import hmac
 import json
@@ -33,10 +32,66 @@ _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _METHOD = re.compile(r"[A-Za-z][A-Za-z0-9_.]{0,127}\Z")
 
 
-def _windows_private(fd):
+_MODULES = ("ctypes", "msvcrt", "subprocess", "hmac", "hashlib", "secrets")
+
+
+def module_diagnostic():
+    """One log line: which optional stdlib modules this embedded Python has. No secrets."""
+    found = []
+    for name in _MODULES:
+        try:
+            __import__(name)
+            found.append(name + "=yes")
+        except ImportError:
+            found.append(name + "=no")
+    return "AbletonLiveMCP: python modules " + " ".join(found)
+
+
+def strict_acl_available():
+    """True when the full Windows DACL check can run (ctypes importable, or not Windows)."""
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes  # noqa: F401
+        import msvcrt  # noqa: F401
+        from ctypes import wintypes  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _is_link(path):
+    info = os.lstat(path)
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & 0x400)
+
+
+def _under(path, root):
+    path = os.path.normcase(os.path.realpath(path))
+    root = os.path.normcase(os.path.realpath(root))
+    return path == root or path.startswith(root.rstrip("/\\") + os.sep)
+
+
+def _windows_fallback(fd, path):
+    """Weaker check when ctypes is missing: the ACL cannot be verified, but fail closed on
+    reparse points, a location outside the user's profile, or a linked parent directory."""
+    if not path:
+        raise ValueError("cannot verify config location without its path")
+    if getattr(os.fstat(fd), "st_file_attributes", 0) & 0x400:
+        raise ValueError("config must not be a reparse point")
+    if _under(path, os.path.expanduser("~")):
+        return
+    if os.environ.get("ABLETONLIVEMCP_CONFIG") is None or _is_link(os.path.dirname(path)):
+        raise ValueError("config must live under the user profile or an unlinked explicit folder")
+
+
+def _windows_private(fd, path=None):
     """Check the opened file's owner/DACL, without shelling out or trusting mode bits."""
-    import msvcrt
-    from ctypes import wintypes
+    try:
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+    except ImportError:  # Live's embedded Python on Windows has no ctypes
+        return _windows_fallback(fd, path)
 
     adv = ctypes.WinDLL("advapi32", use_last_error=True)
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -140,7 +195,7 @@ def _load_secret():
         ):
             raise ValueError("config changed while opening")
         if os.name == "nt":
-            _windows_private(stream.fileno())
+            _windows_private(stream.fileno(), path)
         elif info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
             raise ValueError("config permissions must be owner-only")
         raw = stream.read(8193)

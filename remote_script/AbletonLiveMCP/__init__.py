@@ -7,7 +7,7 @@ try:  # present only inside Live; absent when tests import this package
 except ImportError:  # pragma: no cover
     ControlSurface = object
 
-from .core import BridgeServer
+from .core import BridgeServer, module_diagnostic, strict_acl_available
 from .handlers import make_dispatch
 
 PORT = 9877
@@ -19,6 +19,12 @@ class AbletonLiveMCP(ControlSurface):
         self._server = None
         self._dispatch = None
         try:
+            self.log_message(module_diagnostic())
+            if not strict_acl_available():
+                self.log_message(
+                    "AbletonLiveMCP: strict config permission check unavailable in this Python "
+                    "(no ctypes); using weaker location/link checks, ACL not verified"
+                )
             import Live
 
             # Pass the supplier, not a captured Song: the Set can be replaced while we run.
