@@ -55,8 +55,13 @@ def test_server_registers_tools():
     assert {"live_hello", "live_session_info", "live_tracks", "als_summary"} <= names
 
 
-def test_install_copies_script_and_rejects_non_library(tmp_path):
-    with pytest.raises(SystemExit):
+def test_install_copies_script_and_rejects_non_library(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", str(home / "bridge.json"))
+    with pytest.raises(install.InstallError):
         install.install(tmp_path)
     (tmp_path / "Presets").mkdir()
     dest = install.install(tmp_path)
