@@ -16,19 +16,19 @@
     "tools": ["live_create_clips", "live_set_clips", "live_get_clips"],
     "steps": [
       {"tool": "live_create_clips", "save": "c",
-       "args": {"clips": [{"track": "${fx.applied.0.index}", "scene": 0, "length": 4,
+       "args": {"clips": [{"track": "${fx.applied.0.track}", "scene": 0, "length": 4,
                            "name": "ALMCP-FINAL clip",
                            "notes": [{"pitch": 60, "start_time": 0, "duration": 1},
                                      {"pitch": 64, "start_time": 1, "duration": 1, "probability": 0.5}]}]},
        "assert": [{"path": "status", "equals": "complete"}]},
       {"tool": "live_set_clips",
-       "args": {"targets": [{"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "loop": [2, 6],
+       "args": {"targets": [{"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "loop": [2, 6],
                              "markers": [2, 6], "launch_quantization": "1/4"}]},
        "assert": [{"path": "applied.0.loop.0", "approx": 2.0}]},
-      {"tool": "live_get_clips", "args": {"clips": [{"track": "${fx.applied.0.index}", "scene": 0}], "detail": true},
+      {"tool": "live_get_clips", "args": {"clips": [{"track": "${fx.applied.0.track}", "scene": 0}], "detail": true},
        "assert": [{"path": "clips.0.launch_quantization", "equals": "1/4"}]},
       {"tool": "live_set_clips", "expect": "refused",
-       "args": {"targets": [{"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "gain": 0.5}]}}
+       "args": {"targets": [{"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "gain": 0.5}]}}
     ]
   },
   {
@@ -37,20 +37,20 @@
     "needs": ["clips-create-set-get"],
     "tools": ["live_get_notes", "live_edit_notes"],
     "steps": [
-      {"tool": "live_get_notes", "save": "n", "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0}},
+      {"tool": "live_get_notes", "save": "n", "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}},
        "assert": [{"path": "total", "equals": 2}]},
       {"tool": "live_edit_notes",
-       "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0},
+       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0},
                 "modify": [{"note_id": "${n.notes.0.note_id}", "velocity": 70, "release_velocity": 30}],
                 "transpose": {"semitones": 2, "ids": ["${n.notes.1.note_id}"]},
                 "quantize": {"grid": 0.25},
                 "duplicate_region": {"start": 0, "length": 2, "dest": 2},
                 "add": [{"pitch": 72, "start_time": 6, "duration": 1}]},
        "assert": [{"path": "status", "equals": "complete"}, {"path": "note_count", "equals": 5}]},
-      {"tool": "live_get_notes", "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0}},
+      {"tool": "live_get_notes", "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}},
        "assert": [{"path": "past_clip_end", "equals": 1}, {"path": "notes.0.velocity", "approx": 70}]},
       {"tool": "live_edit_notes", "expect": "refused",
-       "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "remove_ids": [999999]}}
+       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "remove_ids": [999999]}}
     ]
   },
   {
@@ -60,15 +60,15 @@
     "tools": ["live_set_automation", "live_get_automation"],
     "steps": [
       {"tool": "live_set_automation",
-       "args": {"targets": [{"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "parameter": {"mixer": "volume"},
+       "args": {"targets": [{"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "parameter": {"mixer": "volume"},
                              "ramps": [{"start": 0, "end": 4, "from": 0.2, "to": 0.8, "steps": 8}]}]},
        "assert": [{"path": "status", "equals": "complete"}]},
       {"tool": "live_get_automation",
-       "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "parameter": {"mixer": "volume"},
+       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "parameter": {"mixer": "volume"},
                 "sample_times": [0.1]},
        "assert": [{"path": "samples.0.value", "approx": 0.2, "tol": 0.01}]},
       {"tool": "live_set_automation", "expect": "refused:unsupported",
-       "args": {"targets": [{"clip": {"track": "${fx.applied.0.index}", "arrangement": 0},
+       "args": {"targets": [{"clip": {"track": "${fx.applied.0.track}", "arrangement": 0},
                              "parameter": {"mixer": "volume"}, "clear": true}]}}
     ]
   },
@@ -79,9 +79,10 @@
     "tools": ["live_export_midi", "live_import_midi"],
     "steps": [
       {"tool": "live_export_midi", "save": "mid",
-       "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "file": "C:/Users/ZECHS/AppData/Local/Temp/${ledger:clips-midi}.mid"}},
-      {"tool": "live_import_midi", "args": {"file": "${mid.file}", "track": "${fx.applied.0.index}", "scene": 1,
-                                            "name": "ALMCP-FINAL import"},
+       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "file": "C:/Users/ZECHS/AppData/Local/Temp/${ledger:clips-midi}.mid"}},
+      {"tool": "live_import_midi", "own": {"label": "clips-import", "kind": "clip"},
+       "args": {"file": "${mid.file}", "track": "${fx.applied.0.track}", "scene": 1,
+                "name": "${ledger:clips-import}"},
        "assert": [{"path": "file.notes", "equals": 5}]}
     ]
   },
@@ -92,9 +93,9 @@
     "tools": ["live_duplicate", "live_delete"],
     "steps": [
       {"tool": "live_duplicate",
-       "args": {"targets": [{"kind": "clip", "track": "${fx.applied.0.index}", "scene": 0, "expect_name": "ALMCP-FINAL clip"}]}},
+       "args": {"targets": [{"kind": "clip", "track": "${fx.applied.0.track}", "scene": 0, "expect_name": "ALMCP-FINAL clip"}]}},
       {"tool": "live_delete", "confirm": "accept",
-       "args": {"targets": [{"kind": "clip", "track": "${fx.applied.0.index}", "scene": 1, "expect_name": "ALMCP-FINAL import"}]}}
+       "args": {"targets": [{"kind": "clip", "track": "${fx.applied.0.track}", "scene": 1, "expect_name": "${ledger:clips-import}"}]}}
     ]
   },
   {
@@ -104,18 +105,18 @@
     "tools": ["live_create_arrangement_clips", "live_get_arrangement", "live_edit_arrangement_clips"],
     "steps": [
       {"tool": "live_create_arrangement_clips",
-       "args": {"clips": [{"track": "${fx.applied.0.index}", "start": 0, "length": 8, "name": "ALMCP-FINAL arr",
+       "args": {"clips": [{"track": "${fx.applied.0.track}", "start": 0, "length": 8, "name": "ALMCP-FINAL arr",
                            "notes": [{"pitch": 48, "start_time": 0, "duration": 2}]}]},
        "assert": [{"path": "status", "equals": "complete"}]},
-      {"tool": "live_get_arrangement", "args": {"tracks": ["${fx.applied.0.index}"], "include": ["clips"]},
+      {"tool": "live_get_arrangement", "args": {"tracks": ["${fx.applied.0.track}"], "include": ["clips"]},
        "assert": [{"path": "tracks.0.clips.0.name", "equals": "ALMCP-FINAL arr"}]},
       {"tool": "live_edit_arrangement_clips",
-       "args": {"targets": [{"clip": {"track": "${fx.applied.0.index}", "arrangement": 0}, "markers": [1, 7]}]},
+       "args": {"targets": [{"clip": {"track": "${fx.applied.0.track}", "arrangement": 0}, "markers": [1, 7]}]},
        "assert": [{"path": "applied.0.markers.0", "approx": 1.0}]},
       {"tool": "live_edit_arrangement_clips", "expect": "refused:unsupported",
-       "args": {"targets": [{"clip": {"track": "${fx.applied.0.index}", "arrangement": 0}, "split_at": 4}]}},
+       "args": {"targets": [{"clip": {"track": "${fx.applied.0.track}", "arrangement": 0}, "split_at": 4}]}},
       {"tool": "live_create_arrangement_clips", "expect": "refused",
-       "args": {"clips": [{"track": "${fx.applied.0.index}", "start": 4, "length": 4}]}}
+       "args": {"clips": [{"track": "${fx.applied.0.track}", "start": 4, "length": 4}]}}
     ]
   },
   {
@@ -125,7 +126,7 @@
     "tools": ["live_set_cue_points", "live_get_operation"],
     "steps": [
       {"tool": "live_set_cue_points", "save": "cue", "args": {"add": [{"time": 4, "name": "ALMCP-FINAL cue"}]}},
-      {"tool": "live_get_operation", "args": {"operation": "${cue.applied.0.operation}", "wait": 5}},
+      {"tool": "live_get_operation", "args": {"operation": "${cue.applied.0.operation}"}},
       {"tool": "live_get_arrangement", "args": {"include": ["cues"]}}
     ]
   },
@@ -136,7 +137,7 @@
     "tools": ["live_edit_audio_clip"],
     "steps": [
       {"tool": "live_edit_audio_clip", "expect": "refused",
-       "args": {"clip": {"track": "${fx.applied.0.index}", "scene": 0}, "gain": 0.5}}
+       "args": {"clip": {"track": "${fx.applied.0.track}", "scene": 0}, "gain": 0.5}}
     ]
   }
 ]

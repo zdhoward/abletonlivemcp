@@ -84,6 +84,7 @@ LEDGER_JSON = REPO / "docs" / "release" / "v2-fast-track-ledger.json"
 SCRATCH_PREFIX = "ALMCP-FINAL"
 EXPECTS = re.compile(r"^(ok|refused|refused:[a-z_]+|ok_or_unsupported)$")
 TEMPLATE = re.compile(r"\$\{([^}]+)\}")
+RETURN_PREFIX = re.compile(r"^[A-Z]{1,2}-")
 
 
 class ManifestError(ValueError):
@@ -156,6 +157,7 @@ class Run:
     confirm: str = "decline"
     confirmations: list = field(default_factory=list)
     case_id: str = ""
+    unsupported: set = field(default_factory=set)  # save names whose step was refused unsupported
 
     def own(self, label: str, kind: str) -> str:
         """Record a scratch object this proof creates; returns the name to give it."""
@@ -185,15 +187,10 @@ class Run:
             if label not in self.ledger:
                 raise Stop(f"no scratch object labelled {label!r}")
             return self.ledger[label]["name"]
-        value = self.saved
-        for part in key.split("."):
-            if isinstance(value, list) and part.isdigit():
-                value = value[int(part)]
-            elif isinstance(value, dict) and part in value:
-                value = value[part]
-            else:
-                raise Stop(f"saved value {key!r} not found")
-        return value
+        try:
+            return _path(self.saved, key)
+        except (KeyError, IndexError, TypeError, ValueError):
+            raise Stop(f"saved value {key!r} not found") from None
 
     async def elicit(self, _ctx, params):
         """Deterministic confirmation: accept only what the step asked for, on owned names."""
@@ -202,9 +199,16 @@ class Run:
         # must carry a ledger-owned name, so an unnamed or foreign target is never accepted.
         names = re.findall(r"expect_name=(None|'[^']*'|\"[^\"]*\")", message)
         owned = self.owned_names()
+
+        def is_owned(quoted: str) -> bool:
+            # Live names a return track "<letter>-<name>" (e.g. "G-ALMCP-FINAL ..."): the
+            # letter prefix Live adds is not part of the scratch name the ledger recorded.
+            name = quoted[1:-1]
+            return name in owned or RETURN_PREFIX.sub("", name, count=1) in owned
+
         action = self.confirm
         if action == "accept" and (
-            not names or any(n == "None" or n[1:-1] not in owned for n in names)
+            not names or any(n == "None" or not is_owned(n) for n in names)
         ):
             action = "decline"
         self.confirmations.append(
@@ -217,8 +221,23 @@ class Run:
 
 
 def _path(data, dotted: str):
-    for part in dotted.split(".") if dotted else []:
-        data = data[int(part)] if isinstance(data, list) else data[part]
+    """Walk ``a.0.b``; a dict key may itself contain dots (``song.count_in``), so the longest
+    key that matches the next parts wins. Raises KeyError/IndexError/ValueError when missing."""
+    parts = dotted.split(".") if dotted else []
+    i = 0
+    while i < len(parts):
+        if isinstance(data, list):
+            data, i = data[int(parts[i])], i + 1
+            continue
+        if not isinstance(data, dict):
+            raise TypeError(f"{'.'.join(parts[:i])} is not a container")
+        for j in range(len(parts), i, -1):
+            key = ".".join(parts[i:j])
+            if key in data:
+                data, i = data[key], j
+                break
+        else:
+            raise KeyError(parts[i])
     return data
 
 
@@ -239,6 +258,23 @@ def _check_asserts(chk: Checks, label: str, result, asserts: list[dict]) -> None
             chk.require(ok, f"{label} {a['path']} ~= {a['approx']} (tol {tol})", repr(got))
 
 
+LEASE_WAIT = 70.0  # the bridge lease lives at most 60 s (a chain/drum build by another client)
+
+
+async def _call_waiting_for_lease(run: Run, tool: str, args: dict):
+    """One tool call; ``refused:lease_held`` (nothing applied: another client is mid-build)
+    is retried until the lease can have expired, then raised like any refusal."""
+    deadline = time.monotonic() + LEASE_WAIT
+    while True:
+        try:
+            return await run.h.tool(tool, args)
+        except Refused as exc:
+            if exc.code != "lease_held" or time.monotonic() >= deadline:
+                raise
+            print(f"info {tool}: lease held by another client; retrying")
+            await asyncio.sleep(3)
+
+
 async def run_step(run: Run, chk: Checks, case: dict, n: int, step: dict) -> str:
     """One step; returns ``ok`` or ``unsupported`` (a supported refusal). Raises Stop on a
     required failure."""
@@ -246,16 +282,27 @@ async def run_step(run: Run, chk: Checks, case: dict, n: int, step: dict) -> str
     if "own" in step:
         run.own(step["own"]["label"], step["own"].get("kind", "object"))
     run.confirm = step.get("confirm", "decline")
-    args = run.resolve(step.get("args", {}))
+    try:
+        args = run.resolve(step.get("args", {}))
+    except Stop:
+        # A step fed by an earlier supported refusal (nothing saved) is skipped, not failed.
+        used = {m.split(".")[0] for m in TEMPLATE.findall(json.dumps(step.get("args", {})))}
+        if used & run.unsupported:
+            chk.info(label, "skipped: its input came from a supported refusal")
+            return "unsupported"
+        raise
     expect = step.get("expect", "ok")
     try:
-        result = await run.h.tool(step["tool"], args)
+        result = await _call_waiting_for_lease(run, step["tool"], args)
     except Refused as exc:
-        if expect == "refused" or expect == f"refused:{exc.code}":
+        transient = exc.code in ("lease_held", "lease_expired")  # never the refusal under test
+        if (expect == "refused" and not transient) or expect == f"refused:{exc.code}":
             chk.require(True, label, f"refused {exc.code} as expected")
             return "ok"
         if expect == "ok_or_unsupported" and exc.code == "unsupported":
             chk.info(label, f"supported refusal: {exc}")
+            if step.get("save"):
+                run.unsupported.add(step["save"])
             return "unsupported"
         chk.require(False, label, f"unexpected refusal {exc}", fatal=True)
     if expect.startswith("refused"):
@@ -426,6 +473,15 @@ def _select(cases: list[dict], only: str | None) -> list[dict]:
     unknown = wanted - {c["id"] for c in cases}
     if unknown:
         raise ManifestError(f"--only names unknown scenario(s) {sorted(unknown)}")
+    # Saved values and the scratch ledger live only in this run, so every scenario a selected
+    # one needs (transitively: fixtures included) runs again too.
+    by_id = {c["id"]: c for c in cases}
+    todo = list(wanted)
+    while todo:
+        for dep in by_id[todo.pop()].get("needs", []):
+            if dep not in wanted:
+                wanted.add(dep)
+                todo.append(dep)
     return [c for c in cases if c["id"] in wanted]
 
 

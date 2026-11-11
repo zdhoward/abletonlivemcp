@@ -214,7 +214,7 @@ def _prune_schema(schema: dict, *, top: bool = True) -> None:
     for sub in (schema.get("properties") or {}).values():
         _prune_schema(sub, top=False)
     for sub in (schema.get("$defs") or {}).values():
-        sub.pop("description", None)  # class docstrings: pydantic still validates, the model needn't read them
+        sub.pop("description", None)  # class docstrings are noise to the model
         _prune_schema(sub, top=False)
     schema.pop("title", None)
     if schema.get("additionalProperties") is False:

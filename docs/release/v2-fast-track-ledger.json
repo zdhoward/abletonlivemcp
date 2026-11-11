@@ -1,0 +1,36 @@
+{
+ "ledger": {
+  "dev-audio": {
+   "name": "ALMCP-FINAL 1111-100326 dev-audio",
+   "kind": "track",
+   "scenario": "dev-fixture"
+  },
+  "dev-audio2": {
+   "name": "ALMCP-FINAL 1111-100326 dev-audio2",
+   "kind": "track",
+   "scenario": "dev-fixture"
+  },
+  "dev-drums": {
+   "name": "ALMCP-FINAL 1111-100326 dev-drums",
+   "kind": "track",
+   "scenario": "dev-fixture"
+  },
+  "dev-return": {
+   "name": "ALMCP-FINAL 1111-100326 dev-return",
+   "kind": "track",
+   "scenario": "dev-fixture"
+  },
+  "dev-device": {
+   "name": "ALMCP-FINAL 1111-100326 dev-device",
+   "kind": "device",
+   "scenario": "dev-delete-device"
+  }
+ },
+ "confirmations": [
+  {
+   "scenario": "dev-delete-device",
+   "asked": "Confirm the destructive operation Delete (live_delete).\nTargets (1):\n1. kind='device', track=23, path=[0]; expect_name='ALMCP-FINAL 1111-100326 dev-device'\nNothing is applied unless you tick Apply and accept.",
+   "answer": "accept"
+  }
+ ]
+}

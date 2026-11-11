@@ -1,0 +1,314 @@
+{
+ "date": "2026-11-11 10:06",
+ "live_version": "12.2.0",
+ "exit": 1,
+ "coverage_gaps": [],
+ "results": [
+  {
+   "id": "control-hello",
+   "phase": "connection",
+   "status": "pass",
+   "checks": 3,
+   "failures": [],
+   "seconds": 4.26
+  },
+  {
+   "id": "clips-fixture",
+   "phase": "shared_fixture",
+   "status": "pass",
+   "checks": 1,
+   "failures": [],
+   "seconds": 4.45
+  },
+  {
+   "id": "control-fixture",
+   "phase": "shared_fixture",
+   "status": "pass",
+   "checks": 10,
+   "failures": [],
+   "seconds": 16.33
+  },
+  {
+   "id": "dev-fixture",
+   "phase": "shared_fixture",
+   "status": "pass",
+   "checks": 4,
+   "failures": [],
+   "seconds": 17.2
+  },
+  {
+   "id": "dev-browser",
+   "phase": "browser_devices",
+   "status": "pass",
+   "checks": 4,
+   "failures": [],
+   "seconds": 6.58
+  },
+  {
+   "id": "dev-extras",
+   "phase": "browser_devices",
+   "status": "unsupported",
+   "checks": 1,
+   "failures": [],
+   "seconds": 3.56
+  },
+  {
+   "id": "dev-load-audio",
+   "phase": "browser_devices",
+   "status": "pass",
+   "checks": 4,
+   "failures": [],
+   "seconds": 7.83
+  },
+  {
+   "id": "dev-load-return",
+   "phase": "browser_devices",
+   "status": "pass",
+   "checks": 1,
+   "failures": [],
+   "seconds": 5.43
+  },
+  {
+   "id": "dev-move",
+   "phase": "browser_devices",
+   "status": "pass",
+   "checks": 3,
+   "failures": [],
+   "seconds": 2.61
+  },
+  {
+   "id": "dev-params",
+   "phase": "browser_devices",
+   "status": "pass",
+   "checks": 6,
+   "failures": [],
+   "seconds": 12.23
+  },
+  {
+   "id": "dev-set-devices",
+   "phase": "browser_devices",
+   "status": "pass",
+   "checks": 3,
+   "failures": [],
+   "seconds": 5.65
+  },
+  {
+   "id": "automation-session",
+   "phase": "musical_edits",
+   "status": "pass",
+   "checks": 5,
+   "failures": [],
+   "seconds": 6.22
+  },
+  {
+   "id": "clips-create-set-get",
+   "phase": "musical_edits",
+   "status": "pass",
+   "checks": 7,
+   "failures": [],
+   "seconds": 14.1
+  },
+  {
+   "id": "midi-file-round-trip",
+   "phase": "musical_edits",
+   "status": "pass",
+   "checks": 3,
+   "failures": [],
+   "seconds": 8.46
+  },
+  {
+   "id": "notes-read-edit",
+   "phase": "musical_edits",
+   "status": "pass",
+   "checks": 9,
+   "failures": [],
+   "seconds": 13.0
+  },
+  {
+   "id": "control-tracks-mixer",
+   "phase": "assembly",
+   "status": "fail",
+   "checks": 2,
+   "failures": [
+    "control-tracks-mixer#1 live_set_tracks: unexpected refusal ValueError: Error executing tool live_set_tracks: ValueError: targets[0]: output routing type must be one of ['Hats', 'Core', 'PAD', 'MainBass', 'ALMCP-FINAL 1111-094749 clips-midi', 'ALMCP-FINAL 1111-094749 dev-drums', 'No Output'] (not applied)"
+   ],
+   "seconds": 7.74
+  },
+  {
+   "id": "dev-chain",
+   "phase": "assembly",
+   "status": "pass",
+   "checks": 5,
+   "failures": [],
+   "seconds": 30.6
+  },
+  {
+   "id": "dev-chain-on-return",
+   "phase": "assembly",
+   "status": "pass",
+   "checks": 1,
+   "failures": [],
+   "seconds": 6.36
+  },
+  {
+   "id": "dev-convert",
+   "phase": "assembly",
+   "status": "pass",
+   "checks": 1,
+   "failures": [],
+   "seconds": 4.62
+  },
+  {
+   "id": "dev-drums",
+   "phase": "assembly",
+   "status": "fail",
+   "checks": 6,
+   "failures": [
+    "dev-drums#7 live_set_drum_pads: unexpected refusal target_occupied: Error executing tool live_set_drum_pads: refused:target_occupied: the destination pad is not empty; clear it first (not applied)"
+   ],
+   "seconds": 25.39
+  },
+  {
+   "id": "dev-fx-rack",
+   "phase": "assembly",
+   "status": "unsupported",
+   "checks": 0,
+   "failures": [],
+   "seconds": 8.53
+  },
+  {
+   "id": "dev-rack",
+   "phase": "assembly",
+   "status": "pass",
+   "checks": 6,
+   "failures": [],
+   "seconds": 17.9
+  },
+  {
+   "id": "arrangement-clips",
+   "phase": "arrangement_control",
+   "status": "pass",
+   "checks": 8,
+   "failures": [],
+   "seconds": 17.81
+  },
+  {
+   "id": "arrangement-cues",
+   "phase": "arrangement_control",
+   "status": "pass",
+   "checks": 3,
+   "failures": [],
+   "seconds": 8.28
+  },
+  {
+   "id": "audio-clip-edit",
+   "phase": "arrangement_control",
+   "status": "pass",
+   "checks": 1,
+   "failures": [],
+   "seconds": 4.42
+  },
+  {
+   "id": "control-record-view",
+   "phase": "arrangement_control",
+   "status": "pass",
+   "checks": 6,
+   "failures": [],
+   "seconds": 20.65
+  },
+  {
+   "id": "control-session-transport",
+   "phase": "arrangement_control",
+   "status": "pass",
+   "checks": 13,
+   "failures": [],
+   "seconds": 45.81
+  },
+  {
+   "id": "clips-duplicate-delete",
+   "phase": "safety_destructive",
+   "status": "fail",
+   "checks": 1,
+   "failures": [
+    "clips-duplicate-delete#1 live_delete: unexpected refusal not_confirmed: Error executing tool live_delete: refused:not_confirmed: the human did not confirm live_delete (decline) (not applied)"
+   ],
+   "seconds": 4.14
+  },
+  {
+   "id": "control-duplicate-delete",
+   "phase": "safety_destructive",
+   "status": "blocked",
+   "checks": 0,
+   "failures": [
+    "needs ['control-undo']"
+   ],
+   "seconds": 0
+  },
+  {
+   "id": "control-undo",
+   "phase": "safety_destructive",
+   "status": "blocked",
+   "checks": 0,
+   "failures": [
+    "needs ['control-tracks-mixer']"
+   ],
+   "seconds": 0
+  },
+  {
+   "id": "dev-delete-device",
+   "phase": "safety_destructive",
+   "status": "pass",
+   "checks": 3,
+   "failures": [],
+   "seconds": 5.12
+  },
+  {
+   "id": "als-path-escape-refused",
+   "phase": "offline_mcp",
+   "status": "pass",
+   "checks": 1,
+   "failures": [],
+   "seconds": 0.0
+  },
+  {
+   "id": "als-scan-usage",
+   "phase": "offline_mcp",
+   "status": "pass",
+   "checks": 5,
+   "failures": [],
+   "seconds": 3.24
+  },
+  {
+   "id": "library-knowledge",
+   "phase": "offline_mcp",
+   "status": "pass",
+   "checks": 6,
+   "failures": [],
+   "seconds": 0.01
+  },
+  {
+   "id": "mcp-prompts-list-get",
+   "phase": "offline_mcp",
+   "status": "pass",
+   "checks": 11,
+   "failures": [],
+   "seconds": 0.01
+  },
+  {
+   "id": "mcp-resources-read",
+   "phase": "offline_mcp",
+   "status": "pass",
+   "checks": 14,
+   "failures": [],
+   "seconds": 3.64
+  },
+  {
+   "id": "organize-labels-roundtrip",
+   "phase": "persistence_finish",
+   "status": "pass",
+   "checks": 8,
+   "failures": [],
+   "seconds": 9.47
+  }
+ ]
+}

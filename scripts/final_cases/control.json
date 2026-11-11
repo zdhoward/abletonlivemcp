@@ -45,12 +45,12 @@
        "assert": [{"path": "status", "equals": "complete"}]},
       {"tool": "live_set_tracks", "expect": "ok_or_unsupported",
        "args": {"targets": [{"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
-                             "output_routing": {"type": "Master"}}]}},
+                             "output_routing": {"type": "No Output"}}]}},
       {"tool": "live_set_mixer",
        "args": {"targets": [
          {"track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}",
           "volume_db": -6, "pan": -0.25, "sends": [{"send": 0, "db": -12}], "crossfade": "A"},
-         {"track": "${ret.applied.0.track}", "expect_name": "${ledger:ctl-ret}", "volume_db": -3}]},
+         {"track": "${ret.applied.0.track}", "expect_name": "${ret.applied.0.name}", "volume_db": -3}]},
        "assert": [{"path": "status", "equals": "complete"}, {"path": "mismatched", "equals": []}]}
     ]
   },
@@ -135,7 +135,7 @@
        "args": {"targets": [
          {"kind": "track", "track": "${dup.items.1.result.applied.0.track}", "expect_name": "${ledger:ctl-trk-copy}"},
          {"kind": "track", "track": "${trk.applied.0.track}", "expect_name": "${ledger:ctl-trk}"},
-         {"kind": "return", "track": "${ret.applied.0.track}", "expect_name": "${ledger:ctl-ret}"},
+         {"kind": "return", "track": "${ret.applied.0.track}", "expect_name": "${ret.applied.0.name}"},
          {"kind": "scene", "scene": "${dup.items.0.result.applied.0.scene}", "expect_name": "${ledger:ctl-scn-copy}"},
          {"kind": "scene", "scene": "${scn.applied.0.scene}", "expect_name": "${ledger:ctl-scn}"}]},
        "assert": [{"path": "status", "equals": "complete"}]}

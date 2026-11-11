@@ -87,13 +87,23 @@ class Scratch:
 
 
 def _unwrap(data):
-    if isinstance(data, dict) and data.get("provenance") == "live_object_text_untrusted":
+    # Some write receipts are flat with the provenance marker alongside (no "data" wrapper).
+    if (
+        isinstance(data, dict)
+        and data.get("provenance") == "live_object_text_untrusted"
+        and "data" in data
+    ):
         return data["data"]
     return data
 
 
 def _error_code(text: str) -> str | None:
-    """`refused:<code>: ...` or `<code>: ...` (the server's stable error text) -> code."""
+    """`refused:<code>: ...` or `<code>: ...` (the server's stable error text) -> code.
+
+    The MCP SDK prefixes every tool error with ``Error executing tool <name>: `` (once per
+    wrapping layer); those prefixes are stripped first."""
+    while text.startswith("Error executing tool ") and ": " in text:
+        text = text.split(": ", 1)[1]
     head = text.split(":")
     if head[0] == "refused" and len(head) > 1:
         return head[1].strip()

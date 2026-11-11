@@ -21,3 +21,7 @@
 ## 2026-11-10 - Don't over-test with fakes
 - Correction: stop testing against a fake Ableton; roughly one test per feature while developing.
 - Rule: prove features in real Live via scripts/live_*.py. Add at most one small test per feature. Do not grow the fake-based suite.
+
+## 2026-11-11 - Scope creep and agent overuse
+- Correction: owner asked for a simple MCP; I ran probes per API, per-feature fake tests and many high-effort agents, burning ~15 h of usage across accounts.
+- Rules: obey "testing at the end" in every brief (no fake tests, no per-area proofs); default to Sonnet/medium, not Opus/high; ask before changing an owner instruction ("use Sol to help" means alongside, not replacing); never run two agents against one Live (index shifts cause false failures); don't enable `dev_probes`/`read_only:false` without restoring it, tests read the real config.
