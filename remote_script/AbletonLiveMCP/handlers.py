@@ -11,7 +11,8 @@ import math
 from itertools import islice
 
 from .core import PROTOCOL_VERSION
-from .safety import CLASSIFICATION, CONTROL, READ, Refused, Safety
+from .operations import Operations
+from .safety import CLASSIFICATION, CONTROL, READ, Refused, Safety, _same, same_items
 
 BROWSER_ROOTS = (
     "instruments",
@@ -25,11 +26,18 @@ BROWSER_ROOTS = (
     "packs",
     "current_project",
 )
-WALK_BUDGET = 4000  # max browser nodes visited per call (main-thread safety)
-LIST_LIMIT = 200
+WALK_BUDGET = 4000  # max browser nodes visited per call/slice (main-thread safety)
+LIST_LIMIT = 200  # max items per listing page
+SEARCH_LIMIT = 100  # max results per search slice
+PATH_LIMIT = 8  # max browser path depth
 NOTE_LIMIT = 2000
-SAMPLE_LIMIT = 129
+SAMPLE_LIMIT = 129  # max display conversions per bridge request (all requests together)
 BATCH_LIMIT = 64
+LOAD_ROOTS = ("audio_effects", "plugins")
+# Appending after existing devices needs Live's insertion point (selected device) to be proven.
+# Until M1b-05 verifies it in real Live, every load onto a non-empty track is refused.
+APPEND_PLACEMENT_VERIFIED = False
+_END = object()
 
 
 def _scene(song, params):
@@ -141,13 +149,48 @@ def _root(app, params):
     return getattr(app.browser, name)
 
 
-def _children(item):
-    return list(getattr(item, "children", []) or [])
+def _iter_children(item):
+    """Lazy iterator over ``item.children``. The single native ``children`` access cannot be
+    preempted, but nothing is copied and every caller stops after its own bounded count."""
+    kids = getattr(item, "children", None)
+    return iter(kids) if kids is not None else iter(())
 
 
-def _handlers(song, app, safety):  # noqa: C901 - flat table of small handlers
+def _find_child(node, name, unique, budget=WALK_BUDGET):
+    """Scan ``node``'s children for ``name`` visiting at most ``budget`` nodes.
+    Returns ``(matches, exhausted)``: first match only (or up to two when ``unique``) and whether
+    the budget ended the scan before the children did."""
+    matches, visited = [], 0
+    for child in _iter_children(node):
+        if visited >= budget:
+            return matches, True
+        visited += 1
+        if child.name == name:
+            matches.append(child)
+            if not unique or len(matches) == 2:
+                break
+    return matches, False
+
+
+def _walk_path(item, names):
+    if not isinstance(names, list) or len(names) > PATH_LIMIT:
+        raise ValueError(f"'path' must be a list of at most {PATH_LIMIT} names")
+    for name in names:
+        if not isinstance(name, str):
+            raise ValueError("'path' must contain only strings")
+        match, exhausted = _find_child(item, name, False)
+        if not match:
+            if exhausted:
+                raise Refused("browser_budget", f"path walk exceeded {WALK_BUDGET} nodes")
+            raise ValueError(f"no child named {name!r}")
+        item = match[0]
+    return item
+
+
+def _handlers(song, app, safety, operations=None):  # noqa: C901 - flat table of small handlers
     """Handler table bound to one Song. Reads take ``(p)``; writes take ``(p, t)`` where ``t``
     holds the targets the gate already resolved and validated."""
+    operations = operations or Operations(safety)
 
     def hello(_p):
         return {
@@ -185,61 +228,123 @@ def _handlers(song, app, safety):  # noqa: C901 - flat table of small handlers
     def browser_roots(_p):
         return [r for r in BROWSER_ROOTS if hasattr(app.browser, r)]
 
+    def _count(p, key, default, maximum):
+        value = p.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
+            raise ValueError(f"'{key}' must be an integer 1..{maximum}")
+        return value
+
     def browser_list(p):
-        item = _root(app, p)
-        for name in p.get("path") or []:
-            match = [c for c in _children(item) if c.name == name]
-            if not match:
-                raise ValueError(f"no child named {name!r}")
-            item = match[0]
-        kids = _children(item)
+        """One page (<= LIST_LIMIT items). ``cursor`` continues a truncated listing."""
+        limit = _count(p, "limit", LIST_LIMIT, LIST_LIMIT)
+        if p.get("cursor") is None:
+            node, offset = _walk_path(_root(app, p), p.get("path") or []), 0
+        else:
+            node, offset = operations.cursors.take(p["cursor"], "list")
+        page = list(islice(_iter_children(node), offset, offset + limit + 1))
+        more = len(page) > limit
         return {
-            "truncated": len(kids) > LIST_LIMIT,
-            "items": [_item_info(c) for c in kids[:LIST_LIMIT]],
+            "complete": not more,
+            "truncated": more,
+            "cursor": operations.cursors.put("list", (node, offset + limit)) if more else None,
+            "items": [_item_info(c) for c in page[:limit]],
         }
 
     def browser_search(p):
-        query = str(p.get("query", "")).strip().lower()
-        if not query:
-            raise ValueError("'query' is required")
-        limit = min(int(p.get("limit", 25)), 100)
+        """Depth-first slice of at most WALK_BUDGET visited nodes / ``limit`` results. When it
+        stops early it returns ``cursor``; ``complete`` is true only when the walk finished."""
+        limit = _count(p, "limit", 25, SEARCH_LIMIT)
+        if p.get("cursor") is None:
+            query = str(p.get("query", "")).strip().lower()
+            if not query:
+                raise ValueError("'query' is required")
+            stack = [([], _iter_children(_root(app, p)))]
+        else:
+            query, stack = operations.cursors.take(p["cursor"], "search")
         found, visited = [], 0
-        stack = [([], _root(app, p))]
         while stack and len(found) < limit and visited < WALK_BUDGET:
-            path, node = stack.pop()
-            for child in _children(node):
-                visited += 1
-                if query in child.name.lower():
-                    found.append({**_item_info(child), "path": path + [child.name]})
-                if getattr(child, "is_folder", False) or _children(child):
-                    stack.append((path + [child.name], child))
+            path, kids = stack[-1]
+            child = next(kids, _END)
+            if child is _END:
+                stack.pop()
+                continue
+            visited += 1
+            if query in child.name.lower():
+                found.append({**_item_info(child), "path": path + [child.name]})
+            if getattr(child, "is_folder", False):  # only folders are descended into
+                stack.append((path + [child.name], _iter_children(child)))
+        done = not stack
         return {
-            "results": found[:limit],
+            "results": found,
             "visited": visited,
-            "budget_exhausted": visited >= WALK_BUDGET,
+            "complete": done,
+            "truncated": not done and len(found) >= limit,
+            "budget_exhausted": not done and visited >= WALK_BUDGET,
+            "cursor": None if done else operations.cursors.put("search", (query, stack)),
         }
 
+    def operation(p):
+        return operations.get(p.get("operation"))
+
     # ---- writes (each returns a readback) ------------------------------------------
+    def _load_target(track, p):
+        """Preconditions that must hold before any browser call. Raises Refused."""
+        if p.get("root") not in LOAD_ROOTS:
+            raise Refused("unsupported_root", f"only {list(LOAD_ROOTS)} items can be loaded")
+        if not any(_same(x, track) for x in song.tracks):
+            raise Refused("unsupported_target", "target must be a regular track of the Set")
+        if track.has_midi_input or getattr(track, "is_foldable", False):
+            raise Refused("unsupported_target", "target must be a regular audio track")
+        operations.check_can_load(track)
+        after = p.get("after")
+        if after is None:
+            if len(track.devices):
+                raise Refused("target_occupied", "track already has devices; only empty tracks")
+            return
+        prior = operations.prior(after)
+        if (
+            prior is None
+            or prior.state != "ready"
+            or prior.generation != safety.generation
+            or not _same(prior.track, track)
+            or not same_items(prior.after, track.devices)
+        ):
+            raise Refused("prefix_mismatch", "track is not exactly the ready prefix of 'after'")
+        if not APPEND_PLACEMENT_VERIFIED:
+            raise Refused("append_unverified", "appending after devices is not verified in Live")
+
     def load_item(p, t):
-        """Load a browser item (by root+path) onto a track. Live loads onto the selected track."""
+        """Start a native load of one supported audio-effect device onto an empty (or owned
+        prefix) audio track and return an operation record. Completion is observed on later
+        display ticks (``operation`` reads it); this never retries and never waits."""
         track = t["track"].obj
-        expected = p.get("expected_devices")
-        if not isinstance(expected, list) or expected != [d.class_name for d in track.devices]:
-            raise Refused(
-                "stale_layout", "'expected_devices' (class names) must equal the track's devices"
-            )
-        item = _root(app, p)
-        for name in p.get("path") or []:
-            match = [c for c in _children(item) if c.name == name]
-            if len(match) != 1:
-                raise ValueError(f"{len(match)} children named {name!r}; expected exactly 1")
-            item = match[0]
-        if not getattr(item, "is_loadable", False):
-            raise ValueError(f"{item.name!r} is not loadable")
-        before = len(track.devices)
+        _load_target(track, p)
+        item = _walk_path_unique(_root(app, p), p.get("path"))
+        if not getattr(item, "is_loadable", False) or getattr(item, "is_device", False) is not True:
+            raise Refused("unsupported_item", f"{item.name!r} is not a loadable device")
         song.view.selected_track = track
-        app.browser.load_item(item)
-        return {"loaded": item.name, "devices_before": before, "devices_after": len(track.devices)}
+        op = operations.begin(track, item.name, p["root"])
+        try:
+            app.browser.load_item(item)
+        except Exception as exc:  # noqa: BLE001 - outcome is established by observation
+            operations.native_error(op, exc)
+        return operations.snapshot(op)
+
+    def _walk_path_unique(root, names):
+        if not isinstance(names, list) or not 1 <= len(names) <= PATH_LIMIT:
+            raise ValueError(f"'path' must be a list of 1..{PATH_LIMIT} names")
+        item = root
+        for name in names:
+            if not isinstance(name, str):
+                raise ValueError("'path' must contain only strings")
+            matches, exhausted = _find_child(item, name, True)
+            if exhausted:
+                raise Refused("browser_budget", f"path walk exceeded {WALK_BUDGET} nodes")
+            if len(matches) != 1:
+                code = "item_not_found" if not matches else "ambiguous_item"
+                raise Refused(code, f"{len(matches)} children named {name!r}; expected exactly 1")
+            item = matches[0]
+        return item
 
     def device_parameters(p):
         track = _track(song, p)
@@ -309,8 +414,9 @@ def _handlers(song, app, safety):  # noqa: C901 - flat table of small handlers
     def set_device_parameters(p, t):
         """Write several parameters (by reference). Everything is validated before any write."""
         plan = []
-        for w, target in zip(_batch(p, "writes"), t["writes"], strict=True):
-            q = target.obj
+        items = _batch(p, "writes")
+        for i, w in enumerate(items):  # t["writes"] was built from the same list by the gate
+            q = t["writes"][i].obj
             plan.append((q, _checked_write(q, w.get("value"))))
         return {"results": [_write(q, v) for q, v in plan]}
 
@@ -322,10 +428,13 @@ def _handlers(song, app, safety):  # noqa: C901 - flat table of small handlers
     def sample_parameters(p):
         """Like sample_parameter for many parameters of one device in a single round trip."""
         dev = _device(_track(song, p), p)
+        requests = _batch(p, "requests")
+        total = sum(len(r["values"]) for r in requests if isinstance(r.get("values"), list))
+        if total > SAMPLE_LIMIT:  # one cap for the whole request, not per entry
+            raise ValueError(f"at most {SAMPLE_LIMIT} display values in total per request")
         return {
             "results": [
-                _sampled(_param(dev, r.get("parameter")), r.get("values"))
-                for r in _batch(p, "requests")
+                _sampled(_param(dev, r.get("parameter")), r.get("values")) for r in requests
             ]
         }
 
@@ -522,6 +631,7 @@ def _handlers(song, app, safety):  # noqa: C901 - flat table of small handlers
         "browser_list": browser_list,
         "browser_search": browser_search,
         "load_item": load_item,
+        "operation": operation,
         "device_parameters": device_parameters,
         "set_device_parameter": set_device_parameter,
         "set_device_parameters": set_device_parameters,
@@ -556,12 +666,13 @@ def make_dispatch(song_supplier, app, safety=None):
         fixed = song_supplier
         song_supplier = lambda: fixed  # noqa: E731
     safety = safety or Safety(song_supplier)
+    operations = Operations(safety)
     bound = {"song": None, "table": None}
 
     def table():
         song = safety.song()  # bumps generation / clears refs and lease on Set change
         if bound["song"] is not song:
-            bound["song"], bound["table"] = song, _handlers(song, app, safety)
+            bound["song"], bound["table"] = song, _handlers(song, app, safety, operations)
         return bound["table"]
 
     def dispatch(method, params):
@@ -586,6 +697,7 @@ def make_dispatch(song_supplier, app, safety=None):
             return refusal.result()
 
     dispatch.safety = safety
+    dispatch.operations = operations
     dispatch.methods = sorted(CLASSIFICATION)
     return dispatch
 
