@@ -44,6 +44,33 @@ def _handlers(song, app, safety, operations=None):
     return {name: functools.partial(handler, ctx) for name, handler in HANDLERS.items()}
 
 
+# Writes that open their own undo steps and call Song.undo themselves (the P-03 probe); an outer
+# step around them would swallow the very entries they test.
+OWN_UNDO_STEPS = frozenset({"probe_run"})
+
+
+def _one_undo_step(song, work):
+    """Run one write as a single Live undo step (P-03: go), so one Song.undo reverts the whole
+    call and never a user's earlier edit. ``end_undo_step`` runs in a ``finally``, so a failing
+    write never leaves the step open. A Song without the API (or a ``begin`` that fails) runs
+    the write ungrouped, and the reply then makes no ``undo_steps`` claim."""
+    begin = getattr(song, "begin_undo_step", None)
+    end = getattr(song, "end_undo_step", None)
+    if not (callable(begin) and callable(end)):
+        return work()
+    try:
+        begin()
+    except Exception:
+        return work()
+    try:
+        result = work()
+    finally:
+        end()
+    if isinstance(result, dict) and not result.get("refused"):
+        result = {**result, "undo_steps": 1}
+    return result
+
+
 class _Params(dict):
     """Request params; a missing required key is a readable refusal, not a handler crash."""
 
@@ -86,7 +113,10 @@ def make_dispatch(song_supplier, app, safety=None):
             if kind == READ:
                 return table()[method](params)
             targets = safety.authorize(method, params)  # policy, lease, Set, targets
-            return table()[method](params, targets)
+            handler = table()[method]
+            if method in OWN_UNDO_STEPS:
+                return handler(params, targets)
+            return _one_undo_step(bound["song"], lambda: handler(params, targets))
         except Refused as refusal:
             return refusal.result()
 
