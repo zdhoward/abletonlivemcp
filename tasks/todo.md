@@ -40,7 +40,8 @@ Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be v
 - [x] M1 Parity + v1 hardening (plan `docs/plans/v1-public-release.md` M1a + M1b, 2026-11-10). Authenticated bounded bridge, transactional installer, reference/generation/read-only safety layer, bounded browser + load state machine, plan/receipt chains, pruned tests. Real-Live proof (Live 12.2.0): clip/write/stdio scripts and the EQ Eight -> Compressor -> Saturator -> Reverb chain pass; see `docs/release/m1b-live-evidence.md` for the unproved list. 255 tests pass.
   - [x] Readable refusal for missing handler params; handshake `methods` (verified in real Live 2026-11-10).
   - [x] Second-process lease check (real Live, 2026-11-10).
-  - [ ] Target-reorder check; optional Sol review (owner said wait).
+  - [-] Target-reorder check in real Live: not provable through the bridge (no delete/move handler), needs UI input into Live. `stale_target` is covered by 3 fake-based asserts in `tests/test_handlers.py`; stays listed as unproved in the evidence doc. Revisit only if a move/delete tool is added.
+  - [ ] Optional Sol review (owner said wait).
 - [~] M2 Offline `.als` reader + usage index (UC1/UC6 foundation). Reader, usage scan and MCP tools (`als_summary`, `als_usage_index`) done (ebd1bd6, e6fb9c6). Sample extraction is synthetic-tested only; needs a real Set with audio clips.
   - [x] Extract sample filenames, relative paths, sizes, and conservative clip/note classifications (`referenced` / `potentially_triggered`); synthetic coverage includes clips, Simpler, DrumCell, and Drum Rack pads.
   - [x] Expose `scan_projects`, aggregate device classes/plugin formats and names/sample references, skip Backup directories, and retain corrupt/unreadable file errors.
