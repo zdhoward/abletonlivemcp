@@ -37,7 +37,10 @@ line saying so at startup.
 
 ## Goals
 
-- Everything [ahujasid/ableton-mcp](https://github.com/ahujasid/ableton-mcp) can do (sessions, tracks, clips, devices, browser loading).
+- Cover what the other Ableton MCP servers do (sessions, tracks, clips, mixer, devices, browser loading) and go
+  further, with verified writes (every change is read back and reported as stored), read-only by default, and
+  fewer, batched calls. Parity is tracked in [`docs/plans/v2-detailed-plan.md`](docs/plans/v2-detailed-plan.md) as it lands;
+  today's surface is a subset (no arrangement, mixer or note-edit tools yet).
 - Build drum racks in a standard layout from the one-shots you actually use in recent projects.
 - Set up scenes and plugin stacks; replicate a described vocal chain with the plugins you own.
 - Group an FX chain into a rack and label/map macros from a plain-language spec.

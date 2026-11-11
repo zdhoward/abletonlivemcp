@@ -42,7 +42,7 @@ Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be v
   - [x] Second-process lease check (real Live, 2026-11-10).
   - [-] Target-reorder check in real Live: not provable through the bridge (no delete/move handler), needs UI input into Live. `stale_target` is covered by 3 fake-based asserts in `tests/test_handlers.py`; stays listed as unproved in the evidence doc. Revisit only if a move/delete tool is added.
   - [ ] Optional Sol review (owner said wait).
-- [~] M2 Offline `.als` reader + usage index (UC1/UC6 foundation). Reader, usage scan and MCP tools (`als_summary`, `als_usage_index`) done (ebd1bd6, e6fb9c6). Sample extraction is synthetic-tested only; needs a real Set with audio clips.
+- [~] M2 Offline `.als` reader + usage index (UC1/UC6 foundation). Reader and usage scan done (ebd1bd6, e6fb9c6); their MCP tools (`als_summary`, `als_usage_index`) were unregistered for v1 and return in roadmap P4 after hardening. Sample extraction is synthetic-tested only; needs a real Set with audio clips.
   - [x] Extract sample filenames, relative paths, sizes, and conservative clip/note classifications (`referenced` / `potentially_triggered`); synthetic coverage includes clips, Simpler, DrumCell, and Drum Rack pads.
   - [x] Expose `scan_projects`, aggregate device classes/plugin formats and names/sample references, skip Backup directories, and retain corrupt/unreadable file errors.
   - [x] Verify synthetic coverage, full pytest/Ruff, and read-only real-project scan (2026-11-10): `S:/AbletonMCP/projects` contained one Set, no errors, 11 device instances including four VST3 Nexus instances, and no sample references. Real audio-clip/sample schema validation still needs a Set containing samples.

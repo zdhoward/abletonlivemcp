@@ -4,7 +4,7 @@ Built by `/study` on 2026-11-10 for the Ableton Live MCP server. Each page organ
 
 ## Using and extending this folder
 
-**Reading.** Use the MCP tools `knowledge_list`, `knowledge_search` (by words, returns sections) and `knowledge_read` (a page, or one section by heading). They rescan this folder on every call, so a page added a minute ago is found at once.
+**Reading.** (Status: the `knowledge_*` tools are implemented in `src/abletonlivemcp/knowledge.py` but not registered in the v1 server; they return as `knowledge://` resources in roadmap phase P3.) The tools are `knowledge_list`, `knowledge_search` (by words, returns sections) and `knowledge_read` (a page, or one section by heading). They rescan this folder on every call, so a page added a minute ago is found at once.
 
 **Adding a page** (several threads and agents write here at the same time):
 - Drop any `.md` file in this folder. Subfolders are fine (for example `knowledge/gemini/`, `knowledge/plugins/`). The page name is its path without `.md`.

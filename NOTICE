@@ -1,0 +1,8 @@
+AbletonLiveMCP
+Copyright (c) Zach Howard. Licensed under the MIT License (see LICENSE).
+
+This project was inspired by, and aims for functional parity with, ahujasid/ableton-mcp (MIT,
+https://github.com/ahujasid/ableton-mcp). It is an independent implementation with its own protocol and safety
+layer. GPL-licensed projects (for example Ziforge/ableton-liveapi-tools and DawVert) were read as references only;
+no code from them is included. Ableton and Live are trademarks of Ableton AG; this project is not affiliated with
+or endorsed by Ableton.
