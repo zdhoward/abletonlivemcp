@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "id": "mcp-prompts-list-get",
+    "phase": "offline_mcp",
+    "tools": [],
+    "needs": [],
+    "steps": [],
+    "hook": "mcp.check_prompts"
+  },
+  {
+    "id": "mcp-resources-read",
+    "phase": "offline_mcp",
+    "tools": [],
+    "needs": [],
+    "steps": [],
+    "hook": "mcp.check_resources"
+  }
+]
