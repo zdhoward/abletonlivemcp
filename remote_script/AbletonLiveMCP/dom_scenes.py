@@ -277,7 +277,19 @@ def launch_state(ctx, p):
         nodes = reference_nodes(ctx.song, item)
         kind, obj = nodes[-1][0], nodes[-1][1]
         row = {"kind": kind, "name": _get(obj, "name")}
-        if kind in ("clip", "slot", "scene"):
+        if kind == "scene":
+            # Live's Scene has no is_playing; derive it from the scene's own clip slots. An
+            # unnamed scene reads "" in the API, so report its number as shown in Live.
+            at = item.get("scene")
+            tracks = ctx.song.tracks
+            slots = [t.clip_slots[at] for t in tracks if at is not None and at < len(t.clip_slots)]
+            row["scene"] = at
+            row["name"] = row["name"] or None
+            row["is_playing"] = any(_get(s, "is_playing") is True for s in slots)
+            row["is_triggered"] = bool(_get(obj, "is_triggered")) or any(
+                _get(s, "is_triggered") is True for s in slots
+            )
+        elif kind in ("clip", "slot"):
             row["is_playing"] = _get(obj, "is_playing")
             row["is_triggered"] = _get(obj, "is_triggered")
         if kind in ("track", "return_track"):
