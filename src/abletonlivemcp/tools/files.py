@@ -1,14 +1,13 @@
 """Toolset `files`: MIDI file import/export through the host SMF codec (``midi_file``).
 
-Paths are confined to file roots: ``ABLETONLIVEMCP_FILE_ROOTS`` (os.pathsep-separated) or, by
-default, the user's home and the temp directory. Export writes new files only.
+Paths are confined to explicitly configured ``ABLETONLIVEMCP_FILE_ROOTS`` directories
+(os.pathsep-separated). No default roots are granted. Export writes new files only.
 """
 
 from __future__ import annotations
 
 import math
 import os
-import tempfile
 from pathlib import Path
 from typing import Annotated
 
@@ -23,8 +22,12 @@ NOTE_PAGE = 1000
 
 def file_roots() -> list[Path]:
     raw = os.environ.get("ABLETONLIVEMCP_FILE_ROOTS")
-    roots = raw.split(os.pathsep) if raw else [str(Path.home()), tempfile.gettempdir()]
-    return [Path(r).resolve() for r in roots if r.strip()]
+    if not raw or not raw.strip():
+        raise ValueError("set ABLETONLIVEMCP_FILE_ROOTS to explicit MIDI import/export folders")
+    roots = [Path(r) for r in raw.split(os.pathsep) if r.strip()]
+    if not roots or any(not root.is_absolute() for root in roots):
+        raise ValueError("ABLETONLIVEMCP_FILE_ROOTS must contain absolute folder paths")
+    return [r.resolve() for r in roots]
 
 
 def confined(path: str, suffixes=(".mid", ".midi")) -> Path:

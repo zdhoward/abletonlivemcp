@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "abletonlivemcp"
-version = "0.9.0"
+version = "0.10.0"
 description = "MCP server that lets LLMs assist in Ableton Live: racks, macros, organization, and chain building."
 readme = "README.md"
 license = { text = "MIT" }
@@ -32,10 +32,11 @@ exclude =["**/__pycache__", "**/*.pyc", "**/*.pyo"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "remote_script/AbletonLiveMCP" = "abletonlivemcp/_remote_script/AbletonLiveMCP"
+"NOTICE" = "abletonlivemcp/NOTICE"
 
 [tool.hatch.build.targets.sdist]
-include = ["/pyproject.toml", "/README.md", "/LICENSE", "/src", "/remote_script/AbletonLiveMCP", "/tests"]
-exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo"]
+include = ["/pyproject.toml", "/README.md", "/LICENSE", "/NOTICE", "/src", "/remote_script/AbletonLiveMCP"]
+exclude = ["/.gitignore", "**/__pycache__", "**/*.pyc", "**/*.pyo"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

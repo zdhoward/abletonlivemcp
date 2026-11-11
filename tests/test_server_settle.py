@@ -19,7 +19,7 @@ class FakeBridge:
 def test_transport_and_clip_launches_read_back_after_settling(monkeypatch):
     fake, slept = FakeBridge(), []
     monkeypatch.setattr(server, "_bridge", fake)
-    monkeypatch.setattr(server, "_writable", lambda: None)
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
     monkeypatch.setattr(server.time, "sleep", slept.append)
 
     assert server.live_transport("play")["settled"] == {

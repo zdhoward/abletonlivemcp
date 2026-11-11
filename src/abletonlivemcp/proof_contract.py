@@ -85,8 +85,11 @@ LEGACY_TOOLS: dict[str, tuple[str, ...]] = {}  # every batch has landed; none re
 
 CORE_LIMIT = 30
 ALL_LIMIT = 58
-CORE_LISTING_BYTES = 40_000  # UTF-8 bytes of the serialized core list_tools result
-CORE_LISTING_TARGET = 36_000  # headroom target, reported but not enforced
+# Typed response contracts add ~23 KB of useful structure. Track input cost separately
+# so output coverage cannot silently pay for an increasingly complex request surface.
+CORE_INPUT_BYTES = 30_000
+CORE_LISTING_BYTES = 68_000  # serialized tools, including concrete output schemas
+CORE_LISTING_TARGET = 64_000
 
 # The nine ordered phases of the single end-of-project proof (fast-track plan). Scenario files
 # in scripts/final_cases/*.json name one of these as their ``phase``.

@@ -23,7 +23,7 @@ class DeleteTarget(BatchTarget):
 
 
 def _surface(applied: list, monkeypatch) -> MCPServer:
-    monkeypatch.setattr(server, "_writable", lambda: None)
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
 
     def live_fake_delete(targets: list[DeleteTarget], keep_empty: bool = False) -> dict:
         """Remove tracks (test double)."""

@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "ViewTarget": {
+     "additionalProperties": false,
      "properties": {
       "kind": {
        "enum": [
@@ -118,7 +119,48 @@
   "name": "live_view",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_viewDictOutput",
+   "properties": {
+    "action": {
+     "type": "string"
+    },
+    "data": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "focused": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "visible": {
+     "additionalProperties": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "type": "object"
+    }
+   },
    "type": "object"
   },
   "title": "View"

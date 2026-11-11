@@ -47,8 +47,66 @@
   },
   "name": "live_get_rack",
   "outputSchema": {
+   "$defs": {
+    "Rack": {
+     "additionalProperties": true,
+     "properties": {
+      "chains": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "chains_truncated": {
+       "type": "boolean"
+      },
+      "class_name": {
+       "type": "string"
+      },
+      "drum_rack": {
+       "type": "boolean"
+      },
+      "macros": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "mapping": {
+       "type": "string"
+      },
+      "name": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "name",
+      "class_name",
+      "drum_rack",
+      "macros",
+      "chains",
+      "chains_truncated",
+      "mapping"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_rackDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Rack"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get rack"
@@ -64,6 +122,7 @@
   "inputSchema": {
    "$defs": {
     "ChainEdit": {
+     "additionalProperties": false,
      "properties": {
       "index": {
        "minimum": 0,
@@ -128,6 +187,7 @@
      "type": "object"
     },
     "MacroSet": {
+     "additionalProperties": false,
      "properties": {
       "macro": {
        "maximum": 16,
@@ -158,6 +218,7 @@
      "type": "object"
     },
     "RawValue": {
+     "additionalProperties": false,
      "properties": {
       "raw": {
        "type": "number"
@@ -169,6 +230,7 @@
      "type": "object"
     },
     "Variation": {
+     "additionalProperties": false,
      "properties": {
       "action": {
        "enum": [
@@ -282,8 +344,173 @@
   },
   "name": "live_set_rack",
   "outputSchema": {
+   "$defs": {
+    "ParameterResult": {
+     "additionalProperties": true,
+     "properties": {
+      "actual": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "actual_raw": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "exact": {
+       "type": "boolean"
+      },
+      "name": {
+       "type": "string"
+      },
+      "off_target": {
+       "type": "boolean"
+      },
+      "original": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "raw": {
+       "type": "boolean"
+      },
+      "requested": {}
+     },
+     "required": [
+      "name",
+      "requested",
+      "actual",
+      "actual_raw",
+      "exact",
+      "off_target",
+      "raw"
+     ],
+     "type": "object"
+    },
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_rackDictOutput",
+   "properties": {
+    "macros": {
+     "items": {
+      "$ref": "#/$defs/ParameterResult"
+     },
+     "type": "array"
+    },
+    "problems": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "rack": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "status"
+   ],
    "type": "object"
   },
   "title": "Set rack"

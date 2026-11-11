@@ -1,16 +1,61 @@
+# Public source and reproducible checks only. Personal work stays local.
+/*
+!/.gitignore
+!/pyproject.toml
+!/README.md
+!/LICENSE
+!/NOTICE
+!/CHANGELOG.md
+!/SECURITY.md
+!/CONTRIBUTING.md
+!/CODE_OF_CONDUCT.md
+!/src/
+!/remote_script/
+/remote_script/*
+!/remote_script/AbletonLiveMCP/
+!/tests/
+!/.github/
+
+# Public documentation and artwork.
+!/assets/
+/assets/*
+!/assets/icon.svg
+!/docs/
+/docs/*
+!/docs/validation.md
+!/docs/permissions.md
+!/docs/data/
+/docs/data/*
+!/docs/data/live-12.2-api.json
+
+# Only the reusable proof/test dependencies and distribution check are public.
+!/scripts/
+/scripts/*
+!/scripts/check_distribution.py
+!/scripts/live_harness.py
+!/scripts/live_v2_final.py
+!/scripts/live_final_cleanup.py
+!/scripts/live_probe_run.py
+!/scripts/final_cases/
+
+# Generated files and secrets, including inside permitted directories.
 __pycache__/
 *.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 .venv/
 venv/
 dist/
 build/
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
 .env
 .env.*
+*.pem
+*.key
+bridge.json
+*.log
 
-# Local Ableton material must never be committed (projects, samples, presets)
+# Personal Ableton projects, presets and audio.
 *.als
 *.alc
 *.adg
@@ -18,18 +63,6 @@ build/
 *.wav
 *.aif
 *.aiff
-/local/
-/HANDOFF.md
-/PROJECT_LOG.md
-/tasks/
-/research/raw/
-/docs/plans/
-/docs/release/
-/docs/original-prompt.md
-/docs/vision.md
-/docs/research.md
-/docs/research-deep-review.md
-/docs/research/
-/docs/data/plugin-params-probe.json
-/scripts/live_restart.ps1
+*.flac
+*.mp3
 !tests/fixtures/**

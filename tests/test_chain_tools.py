@@ -175,7 +175,7 @@ class Bridge:
 def live(monkeypatch, tmp_path):
     bridge = Bridge()
     monkeypatch.setattr(server._bridge, "call", bridge.call)
-    monkeypatch.setattr(server, "_writable", lambda: None)
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
     monkeypatch.setattr(chain, "POLL", 0)
     monkeypatch.setenv("ABLETONLIVEMCP_PREFS", str(tmp_path / "none.json"))
     monkeypatch.setattr(server, "_plans", chain.PlanStore())
@@ -332,7 +332,7 @@ def test_policy_refusal_and_bridge_refusal_are_errors_that_say_not_applied(live,
         server.live_create_tracks([NewTrack(kind="audio")])
     assert live.calls == []  # refused before any bridge call
 
-    monkeypatch.setattr(server, "_writable", lambda: None)
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
     live.script["session_info"] = [{"generation": live.generation}]
     live.script["create_tracks"] = [
         {"refused": True, "applied": False, "code": "stale_generation", "message": "moved"}

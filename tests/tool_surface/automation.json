@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -46,6 +47,7 @@
      "type": "object"
     },
     "AutoParam": {
+     "additionalProperties": false,
      "properties": {
       "device": {
        "anyOf": [
@@ -114,6 +116,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -184,7 +187,47 @@
   "name": "live_get_automation",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_get_automationDictOutput",
+   "properties": {
+    "clip_length": {
+     "type": "number"
+    },
+    "events": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "has_envelope": {
+     "type": "boolean"
+    },
+    "has_envelopes": {
+     "type": "boolean"
+    },
+    "parameter": {
+     "type": "string"
+    },
+    "range": {
+     "items": {
+      "type": "number"
+     },
+     "type": "array"
+    },
+    "samples": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "parameter",
+    "range",
+    "has_envelopes",
+    "has_envelope",
+    "clip_length"
+   ],
    "type": "object"
   },
   "title": "Get automation"
@@ -200,6 +243,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -236,6 +280,7 @@
      "type": "object"
     },
     "AutoParam": {
+     "additionalProperties": false,
      "properties": {
       "device": {
        "anyOf": [
@@ -304,6 +349,7 @@
      "type": "object"
     },
     "AutomationEdit": {
+     "additionalProperties": false,
      "properties": {
       "clear": {
        "default": false,
@@ -373,6 +419,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -398,6 +445,7 @@
      "type": "object"
     },
     "Ramp": {
+     "additionalProperties": false,
      "properties": {
       "end": {
        "maximum": 16384,
@@ -431,6 +479,7 @@
      "type": "object"
     },
     "Step": {
+     "additionalProperties": false,
      "properties": {
       "length": {
        "exclusiveMinimum": 0,
@@ -468,8 +517,90 @@
   },
   "name": "live_set_automation",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_automationDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Set automation"

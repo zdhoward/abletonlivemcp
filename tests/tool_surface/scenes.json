@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "NewScene": {
+     "additionalProperties": false,
      "properties": {
       "color_index": {
        "maximum": 69,
@@ -61,8 +62,107 @@
   },
   "name": "live_create_scenes",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_create_scenesDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Create scenes"
@@ -93,8 +193,46 @@
   },
   "name": "live_get_scenes",
   "outputSchema": {
+   "$defs": {
+    "Scenes": {
+     "additionalProperties": true,
+     "properties": {
+      "generation": {
+       "type": "integer"
+      },
+      "scene_count": {
+       "type": "integer"
+      },
+      "scenes": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "generation",
+      "scene_count",
+      "scenes"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_scenesDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Scenes"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get scenes"
@@ -110,6 +248,7 @@
   "inputSchema": {
    "$defs": {
     "LaunchTarget": {
+     "additionalProperties": false,
      "properties": {
       "kind": {
        "enum": [
@@ -168,8 +307,107 @@
   },
   "name": "live_launch",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_launchDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Launch"
@@ -185,6 +423,7 @@
   "inputSchema": {
    "$defs": {
     "SceneEdit": {
+     "additionalProperties": false,
      "properties": {
       "color_index": {
        "maximum": 69,
@@ -258,8 +497,107 @@
   },
   "name": "live_set_scenes",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_scenesDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Set scenes"

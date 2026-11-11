@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -46,6 +47,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -71,6 +73,7 @@
      "type": "object"
     },
     "Note": {
+     "additionalProperties": false,
      "properties": {
       "duration": {
        "exclusiveMinimum": 0,
@@ -124,6 +127,7 @@
      "type": "object"
     },
     "NoteMod": {
+     "additionalProperties": false,
      "properties": {
       "duration": {
        "anyOf": [
@@ -230,6 +234,7 @@
      "type": "object"
     },
     "NoteRange": {
+     "additionalProperties": false,
      "properties": {
       "pitch_from": {
        "default": 0,
@@ -258,6 +263,7 @@
      "type": "object"
     },
     "Quantize": {
+     "additionalProperties": false,
      "properties": {
       "amount": {
        "default": 1.0,
@@ -292,6 +298,7 @@
      "type": "object"
     },
     "Region": {
+     "additionalProperties": false,
      "properties": {
       "dest": {
        "maximum": 16384,
@@ -320,6 +327,7 @@
      "type": "object"
     },
     "Transpose": {
+     "additionalProperties": false,
      "properties": {
       "ids": {
        "anyOf": [
@@ -460,8 +468,90 @@
   },
   "name": "live_edit_notes",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_edit_notesDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Edit notes"
@@ -477,6 +567,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -513,6 +604,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -551,18 +643,26 @@
     },
     "limit": {
      "default": 500,
+     "maximum": 1000,
+     "minimum": 1,
      "type": "integer"
     },
     "offset": {
      "default": 0,
+     "maximum": 1000000,
+     "minimum": 0,
      "type": "integer"
     },
     "pitch_from": {
      "default": 0,
+     "maximum": 127,
+     "minimum": 0,
      "type": "integer"
     },
     "pitch_span": {
      "default": 128,
+     "maximum": 128,
+     "minimum": 1,
      "type": "integer"
     },
     "response_format": {
@@ -576,6 +676,7 @@
     "time_from": {
      "anyOf": [
       {
+       "minimum": -16384,
        "type": "number"
       },
       {
@@ -586,6 +687,8 @@
     "time_span": {
      "anyOf": [
       {
+       "exclusiveMinimum": 0,
+       "maximum": 65536,
        "type": "number"
       },
       {
@@ -602,7 +705,41 @@
   "name": "live_get_notes",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_get_notesDictOutput",
+   "properties": {
+    "clip_end": {
+     "type": "number"
+    },
+    "next_offset": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "notes": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "past_clip_end": {
+     "type": "integer"
+    },
+    "total": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "notes",
+    "total",
+    "next_offset",
+    "clip_end",
+    "past_clip_end"
+   ],
    "type": "object"
   },
   "title": "Get notes"

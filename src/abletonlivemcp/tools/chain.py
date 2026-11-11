@@ -2,41 +2,55 @@
 
 from __future__ import annotations
 
+from pydantic import TypeAdapter
+
 from .. import chain, server
 from ..chain import ChainError
 from ..models import DevicePath, TrackSel
+from ..models_chain_inputs import ChainStages, Preferences
 from ..models_devices import FxRack
 from ..preferences import load_preferences
 from ..resolve import plan_chain
 from ..server import _call, _create, _read
 
+_STAGES = TypeAdapter(ChainStages)
+_PREFERENCES = TypeAdapter(Preferences)
 
-def _preferences(preferences: dict | None) -> dict:
-    return {**load_preferences(), **{k.lower(): v for k, v in (preferences or {}).items()}}
+
+def _preferences(preferences: Preferences | None) -> dict:
+    override = _PREFERENCES.validate_python(preferences) if preferences is not None else {}
+    return {**load_preferences(), **override}
 
 
 @_read
 def live_plan_chain(
     track: TrackSel,
-    stages: list[dict] | None = None,
+    stages: ChainStages | None = None,
     chain_path: DevicePath | None = None,
     append: bool = False,
-    rack: dict | None = None,
-    preferences: dict | None = None,
+    rack: FxRack | None = None,
+    preferences: Preferences | None = None,
 ) -> dict:
-    """Dry run. Target: track, return, master or a chain/pad (chain_path); occupied needs
-    append. Stage: {"role": eq|compressor|saturation|reverb, "intent"} or {"device", "params",
-    "root"?, "path"?}; instruments first, empty MIDI target only. Value "-18 dB" or {"raw": x}.
-    rack {"groups": [{macro, label?, value?, targets: [{device, parameter, min?, max?}]}]}
-    wraps the existing effects in an Audio Effect Rack (manual mapping steps)."""
+    """Dry-run a multi-device chain; use live_load_item for one browser item. Choose role +
+    intent or exact device + params per stage; values use display units ("-18 dB") or {"raw": x}.
+    Target: track/return/master or chain/pad; occupied needs append, instruments need empty MIDI.
+    Alternatively rack wraps existing effects with manual mapping steps. Review the plan and
+    omissions, then use live_build_chain; planning never changes Live."""
     if rack is not None:
-        if stages or chain_path or append:
-            raise ChainError("rack mode wraps the existing devices: no stages/chain_path/append")
+        if stages or chain_path or append or preferences is not None:
+            raise ChainError(
+                "rack mode wraps existing devices: no stages/chain_path/append/preferences"
+            )
         groups = [g.model_dump() for g in FxRack.model_validate(rack).groups]
         plan = chain.make_rack_plan(_call, track, (), groups)
     else:
         plan = chain.make_plan(
-            _call, stages or [], track, _preferences(preferences), plan_chain,
+            _call,
+            [
+                s.model_dump(exclude_unset=True, exclude_none=True)
+                for s in _STAGES.validate_python(stages or [])
+            ],
+            track, _preferences(preferences), plan_chain,
             tuple(chain_path or ()), append,
         )  # fmt: skip
     server._plans.add(plan)

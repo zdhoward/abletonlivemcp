@@ -52,8 +52,58 @@
   },
   "name": "live_get_labels",
   "outputSchema": {
+   "$defs": {
+    "Labels": {
+     "additionalProperties": true,
+     "properties": {
+      "corrupt": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "scope": {
+       "enum": [
+        "set",
+        "global",
+        "both"
+       ],
+       "type": "string"
+      },
+      "set": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "scope"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_labelsDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Labels"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get labels"
@@ -69,6 +119,7 @@
   "inputSchema": {
    "$defs": {
     "LabelItem": {
+     "additionalProperties": false,
      "properties": {
       "category": {
        "anyOf": [
@@ -160,8 +211,76 @@
   },
   "name": "live_set_labels",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_labelsDictOutput",
+   "properties": {
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error"
+   ],
    "type": "object"
   },
   "title": "Set labels"

@@ -11,7 +11,13 @@ offline usage, labels, resources and prompts. Tool coverage does not prove every
 
 The offline suite covers protocol authentication/bounds, installer safety, path confinement,
 bounded XML parsing, schemas, confirmations and tool contracts. CI runs Python 3.10 and 3.13
-on Windows and Linux. The default 30-tool listing stays below 40,000 serialized UTF-8 bytes.
+on Windows and Linux. The 0.10 development contracts keep request schemas below 30,000 UTF-8
+bytes and the complete 30-tool listing below 68,000 bytes, including typed output schemas.
+
+Distribution CI builds wheel and source archives, checks their allowed contents and embedded
+Remote Script completeness, then installs the wheel in an isolated environment and initializes
+the stdio MCP server from outside the checkout. This check lists tools without connecting to Live.
+Personal knowledge and development artifacts are excluded from both package formats.
 
 ## Known limits
 

@@ -21,6 +21,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from abletonlivemcp import proof_contract, server
 from abletonlivemcp.models import ClipAddr, DevicePath, ParamSel, TrackSel
+from abletonlivemcp.output_models import TOOL_OUTPUTS
 
 SNAPSHOTS = Path(__file__).parent / "tool_surface"
 PRESETS = [server.READ, server.CREATE, server.OVERWRITE, server.CONTROL, server.DESTRUCTIVE]
@@ -84,9 +85,27 @@ def _utf8_size(listing) -> int:
 
 
 def test_core_listing_fits_the_utf8_byte_budget():
-    size = _utf8_size(_listing({"core"}))
+    listing = _listing({"core"})
+    size = _utf8_size(listing)
     limit = proof_contract.CORE_LISTING_BYTES
     assert size <= limit, f"core list_tools is {size} UTF-8 bytes (limit {limit})"
+    inputs = sum(_utf8_size(t["inputSchema"]) for t in listing)
+    assert inputs <= proof_contract.CORE_INPUT_BYTES
+
+
+def test_output_contracts_cover_tools_and_preserve_unknown_receipt_data():
+    assert set(TOOL_OUTPUTS) == set(server.SPECS)
+    assert all(t["outputSchema"].get("properties") for t in _listing(server.TOOLSETS))
+    receipt = {
+        "status": "partial", "items": [
+            {"index": 0, "outcome": "unknown", "error": "lost response", "future": 1}
+        ], "stopped_at": 0, "error": "read state before retry", "applied": [],
+        "future": {"preserve": True},
+    }
+    adapter = TypeAdapter(TOOL_OUTPUTS["live_create_clips"])
+    assert adapter.dump_python(adapter.validate_python(receipt), mode="json") == receipt
+    with pytest.raises(ValidationError):
+        adapter.validate_python({**receipt, "status": "success"})
 
 
 def test_tool_counts_stay_within_the_caps():

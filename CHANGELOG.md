@@ -4,6 +4,16 @@ All notable changes to this project are recorded here. Format: [Keep a Changelog
 versioning: [SemVer](https://semver.org). Versions below 1.0 may change tool names; renames keep an alias for one
 minor version once the first public release is tagged.
 
+## [0.10.0] - Unreleased
+
+- Advertise typed outputs for all tools and bounded chain, browser, and note inputs.
+- Add local transport/edit/files/delete permissions and optional read-only discovery.
+- Require explicit MIDI file roots instead of granting home/temp access by default.
+- Keep personal knowledge and development material local; check runtime-only archives
+  and clean stdio wheel installation in CI. Preserve tests and their support files in Git.
+- Existing private configs without a permission list retain their previous behavior;
+  new configurations start read-only with transport/edit permissions only.
+
 ## [0.9.0] - 2026-11-11
 
 First public beta for hands-on testing. Tested on Ableton Live 12.2/Windows; see

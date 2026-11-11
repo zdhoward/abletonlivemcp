@@ -5,7 +5,7 @@
 An MCP server that lets Claude (or any MCP-capable LLM) assist you inside Ableton Live, with control
 as close to native as possible. Not an autonomous producer: you stay in charge, the LLM does the tedious parts.
 
-> **v0.9.0 beta.** Built for Ableton Live 12.2 on Windows. Ready for hands-on testing;
+> **v0.10.0 development beta.** Built for Ableton Live 12.2 on Windows. Ready for hands-on testing;
 > [validation and limitations](docs/validation.md) describe what was checked.
 
 ## Install and upgrade
@@ -29,7 +29,9 @@ python -m pip install .
    Live resets that slot to None if the script fails to load; check `Log.txt` if so.
 3. **Writes are off by default.** `bridge.json` ships with `"read_only": true`, so every write is
    refused. Set it to `false` (and nothing else) when you want the assistant to change your Set.
-   Live re-reads the file on every write; no restart needed.
+   Live re-reads the file on every write; no restart needed. New configurations also limit
+   writes to `transport` and `edit`; MIDI file operations and structural deletion need their
+   own permissions. See [local permissions](docs/permissions.md).
 
 **Upgrading from an older build** (before the authenticated bridge): the old script speaks a
 different protocol and the new server refuses it. The installer refuses a folder it did not
@@ -74,10 +76,10 @@ Destructive operations also require an MCP client that supports form elicitation
 
 ## Knowledge base
 
-[`knowledge/`](knowledge/INDEX.md) holds sourced notes on FX chains (vocals, drums, busses, guitar/bass,
-keys/synths, mastering). It is **not shipped** in the package. Enable the `library` toolset and
-set `ABLETONLIVEMCP_KNOWLEDGE` to a local knowledge directory to use `live_knowledge` and knowledge resources.
-Anyone can add a Markdown page there; see the index for the two-line convention.
+Knowledge notes are personal, optional local reference material. They are excluded from Git and
+from both package formats. Enable the `library` toolset and set `ABLETONLIVEMCP_KNOWLEDGE` to your
+own Markdown directory to use `live_knowledge` and knowledge resources. Keep private notes outside
+the public source tree (the local `knowledge/` directory is also ignored).
 
 ## Toolsets and limits
 
@@ -96,6 +98,9 @@ for tested paths and limitations; a listed tool does not imply every action is s
 Offline scans use `ABLETONLIVEMCP_ALS_ROOTS`; MIDI files use `ABLETONLIVEMCP_FILE_ROOTS`
 (both separated with the platform path separator). Global labels use `ABLETONLIVEMCP_DATA_DIR`.
 Writes remain off by default and destructive tools require client form elicitation.
+Set `ABLETONLIVEMCP_READ_ONLY_TOOLS=1` to list only read tools. This is a discovery filter;
+the private bridge configuration still enforces access. MIDI file roots must be explicitly
+configured; the home and temporary directories are no longer allowed by default.
 
 ## Development
 
@@ -105,6 +110,25 @@ ruff check . && pytest
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed MIT. No telemetry.
+
+## Distribution
+
+The repository retains source, public documentation, tests, CI and their reusable proof helpers.
+Personal knowledge, research, task notes and one-off development scripts stay local. The root
+`.gitignore` uses an explicit public-file allowlist; add new public files deliberately.
+
+Wheels and source archives contain only the runtime source, Remote Script, package metadata and
+license/attribution files. They do not contain tests, scripts, knowledge notes or research.
+Developer probe modules remain part of the Remote Script because its installer/imports require
+them; their execution is disabled unless explicitly enabled in the private configuration.
+
+To build and verify a clean installation without touching Live:
+
+```sh
+python -m pip install build
+python -m build
+python scripts/check_distribution.py dist --smoke
+```
 
 ---
 

@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "NewArrangementClip": {
+     "additionalProperties": false,
      "properties": {
       "file": {
        "anyOf": [
@@ -90,6 +91,7 @@
      "type": "object"
     },
     "Note": {
+     "additionalProperties": false,
      "properties": {
       "duration": {
        "exclusiveMinimum": 0,
@@ -158,8 +160,90 @@
   },
   "name": "live_create_arrangement_clips",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_create_arrangement_clipsDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Create arrangement clips"
@@ -175,6 +259,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -211,6 +296,7 @@
      "type": "object"
     },
     "ArrangementEdit": {
+     "additionalProperties": false,
      "properties": {
       "clip": {
        "$ref": "#/$defs/ArrangementClipAddr"
@@ -490,8 +576,90 @@
   },
   "name": "live_edit_arrangement_clips",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_edit_arrangement_clipsDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Edit arrangement clips"
@@ -574,8 +742,62 @@
   },
   "name": "live_get_arrangement",
   "outputSchema": {
+   "$defs": {
+    "Arrangement": {
+     "additionalProperties": true,
+     "properties": {
+      "cues": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "current_song_time": {
+       "type": "number"
+      },
+      "loop": {
+       "items": {
+        "type": "number"
+       },
+       "type": "array"
+      },
+      "song_length": {
+       "type": "number"
+      },
+      "tracks": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "truncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "song_length",
+      "loop",
+      "current_song_time"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_arrangementDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Arrangement"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get arrangement"
@@ -591,6 +813,7 @@
   "inputSchema": {
    "$defs": {
     "CueAdd": {
+     "additionalProperties": false,
      "properties": {
       "name": {
        "anyOf": [
@@ -615,6 +838,7 @@
      "type": "object"
     },
     "CueEdit": {
+     "additionalProperties": false,
      "properties": {
       "action": {
        "enum": [
@@ -679,8 +903,90 @@
   },
   "name": "live_set_cue_points",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_cue_pointsDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Set cue points"

@@ -288,6 +288,32 @@ def config_dev_probes():
     return config is not None and config.get("dev_probes") is True
 
 
+PERMISSIONS = frozenset({"transport", "edit", "files", "delete"})
+
+
+def config_permissions():
+    """Same local capability contract as the host; invalid explicit lists grant nothing."""
+    config = _read_config()
+    if config is None:
+        return frozenset()
+    if "permissions" not in config:
+        return PERMISSIONS  # backwards compatibility for existing private configurations
+    value = config["permissions"]
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        return frozenset()
+    return frozenset(value) if not set(value) - PERMISSIONS else frozenset()
+
+
+def method_permission(method):
+    if method.startswith("delete_"):
+        return "delete"
+    if method in {
+        "transport", "play", "stop", "launch", "fire_scene", "fire_clip", "view", "select"
+    }:
+        return "transport"
+    return "edit"
+
+
 def _at(seq, index, obj):
     try:
         return 0 <= index < len(seq) and _same(seq[index], obj)
@@ -378,9 +404,15 @@ class Safety:
         policy=config_read_only,
         clock=time.monotonic,
         dev_probes=config_dev_probes,
+        permissions=None,
     ):
         self._supplier, self._policy, self._clock = song_supplier, policy, clock
         self._dev_probes = dev_probes
+        # An injected policy is a complete test/embedding policy. Production uses the
+        # private config for both switches; custom embedders can inject capabilities too.
+        self._permissions = permissions or (
+            config_permissions if policy is config_read_only else lambda: PERMISSIONS
+        )
         self._song = None
         # Random start: Live reloads the script on a Set change and a fresh instance must never
         # share a generation with the previous one, or a stale client's number would match.
@@ -506,6 +538,9 @@ class Safety:
         """Run checks 1-4 for a write; return resolved targets by param name. Raises Refused."""
         if self.read_only():
             raise Refused("read_only", "bridge is read-only; enable writes in the local config")
+        permission = method_permission(method)
+        if permission not in self._permissions():
+            raise Refused("permission_denied", f"{method} requires local permission {permission}")
         self.check_lease(params.get("lease"))
         song = self.song()
         specs = TARGETS[method]

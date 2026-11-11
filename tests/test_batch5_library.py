@@ -391,7 +391,7 @@ def fake(monkeypatch, data_dir):
     monkeypatch.setattr(organize, "_call", bridge.call)
     monkeypatch.setattr(organize, "_generation", lambda: 7)
     monkeypatch.setattr(
-        server, "_writable", lambda: None
+        server, "_writable", lambda *_args: None
     )  # the host's read_only gate is tested elsewhere
 
     def refs(selectors):

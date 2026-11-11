@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
+from pydantic import Field
+
 from ..models import ClipRef, ExpectName, ResponseFormat
 from ..models_clips import Ids, NoteMod, NoteRange, Notes, Quantize, Region, Transpose
 from ..server import _call, _overwrite, _read, clip_selector, issue_refs, shape
@@ -10,12 +14,12 @@ from ..server import _call, _overwrite, _read, clip_selector, issue_refs, shape
 @_read
 def live_get_notes(
     clip: ClipRef,
-    pitch_from: int = 0,
-    pitch_span: int = 128,
-    time_from: float | None = None,
-    time_span: float | None = None,
-    limit: int = 500,
-    offset: int = 0,
+    pitch_from: Annotated[int, Field(ge=0, le=127)] = 0,
+    pitch_span: Annotated[int, Field(ge=1, le=128)] = 128,
+    time_from: Annotated[float, Field(ge=-16384, allow_inf_nan=False)] | None = None,
+    time_span: Annotated[float, Field(gt=0, le=65536, allow_inf_nan=False)] | None = None,
+    limit: Annotated[int, Field(ge=1, le=1000)] = 500,
+    offset: Annotated[int, Field(ge=0, le=1000000)] = 0,
     response_format: ResponseFormat = "detailed",
 ) -> dict:
     """Notes by time with note_id (detailed adds probability, velocity_deviation,

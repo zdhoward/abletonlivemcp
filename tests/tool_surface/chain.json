@@ -24,8 +24,166 @@
   },
   "name": "live_build_chain",
   "outputSchema": {
+   "$defs": {
+    "PlanTarget": {
+     "additionalProperties": true,
+     "properties": {
+      "devices": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "generation": {
+       "type": "integer"
+      },
+      "kind": {
+       "type": "string"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "track",
+      "path",
+      "kind",
+      "name",
+      "generation",
+      "devices"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_build_chainDictOutput",
+   "properties": {
+    "already_built": {
+     "type": "boolean"
+    },
+    "completed": {
+     "items": {
+      "type": "integer"
+     },
+     "type": "array"
+    },
+    "intent_fulfilled": {
+     "type": "boolean"
+    },
+    "manual_steps": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "mode": {
+     "type": "string"
+    },
+    "omitted": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "plan_id": {
+     "type": "string"
+    },
+    "stages": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial",
+      "failed",
+      "pending"
+     ],
+     "type": "string"
+    },
+    "stop_reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "target": {
+     "$ref": "#/$defs/PlanTarget"
+    },
+    "unknown": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "plan_id",
+    "mode",
+    "status",
+    "intent_fulfilled",
+    "target",
+    "completed",
+    "stopped_at",
+    "stop_reason",
+    "omitted",
+    "unknown",
+    "stages",
+    "unverified",
+    "manual_steps"
+   ],
    "type": "object"
   },
   "title": "Build chain"
@@ -37,8 +195,292 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Dry run. Target: track, return, master or a chain/pad (chain_path); occupied needs\nappend. Stage: {\"role\": eq|compressor|saturation|reverb, \"intent\"} or {\"device\", \"params\",\n\"root\"?, \"path\"?}; instruments first, empty MIDI target only. Value \"-18 dB\" or {\"raw\": x}.\nrack {\"groups\": [{macro, label?, value?, targets: [{device, parameter, min?, max?}]}]}\nwraps the existing effects in an Audio Effect Rack (manual mapping steps).",
+  "description": "Dry-run a multi-device chain; use live_load_item for one browser item. Choose role +\nintent or exact device + params per stage; values use display units (\"-18 dB\") or {\"raw\": x}.\nTarget: track/return/master or chain/pad; occupied needs append, instruments need empty MIDI.\nAlternatively rack wraps existing effects with manual mapping steps. Review the plan and\nomissions, then use live_build_chain; planning never changes Live.",
   "inputSchema": {
+   "$defs": {
+    "DeviceStage": {
+     "additionalProperties": false,
+     "properties": {
+      "device": {
+       "maxLength": 256,
+       "minLength": 1,
+       "type": "string"
+      },
+      "params": {
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "maxLength": 256,
+          "type": "string"
+         },
+         {
+          "type": "number"
+         },
+         {
+          "type": "boolean"
+         },
+         {
+          "$ref": "#/$defs/RawValue"
+         }
+        ]
+       },
+       "maxProperties": 64,
+       "propertyNames": {
+        "maxLength": 120,
+        "minLength": 1
+       },
+       "type": "object"
+      },
+      "path": {
+       "anyOf": [
+        {
+         "items": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+         },
+         "maxItems": 8,
+         "minItems": 1,
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "root": {
+       "anyOf": [
+        {
+         "enum": [
+          "audio_effects",
+          "plugins",
+          "max_for_live",
+          "user_library",
+          "packs",
+          "current_project",
+          "user_folders",
+          "instruments",
+          "sounds",
+          "drums",
+          "samples",
+          "midi_effects"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "device"
+     ],
+     "type": "object"
+    },
+    "FxRack": {
+     "additionalProperties": false,
+     "properties": {
+      "groups": {
+       "items": {
+        "$ref": "#/$defs/MacroGroup"
+       },
+       "maxItems": 16,
+       "type": "array"
+      }
+     },
+     "type": "object"
+    },
+    "IntentValue": {
+     "additionalProperties": false,
+     "properties": {
+      "level": {
+       "anyOf": [
+        {
+         "enum": [
+          "short",
+          "medium",
+          "long"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "value": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "type": "object"
+    },
+    "MacroGroup": {
+     "additionalProperties": false,
+     "properties": {
+      "label": {
+       "anyOf": [
+        {
+         "maxLength": 60,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "macro": {
+       "maximum": 16,
+       "minimum": 1,
+       "type": "integer"
+      },
+      "targets": {
+       "items": {
+        "$ref": "#/$defs/MacroTarget"
+       },
+       "maxItems": 8,
+       "type": "array"
+      },
+      "value": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/RawValue"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "macro"
+     ],
+     "type": "object"
+    },
+    "MacroTarget": {
+     "additionalProperties": false,
+     "properties": {
+      "device": {
+       "description": "index among the wrapped devices",
+       "minimum": 0,
+       "type": "integer"
+      },
+      "max": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "min": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "parameter": {
+       "maxLength": 120,
+       "type": "string"
+      }
+     },
+     "required": [
+      "device",
+      "parameter"
+     ],
+     "type": "object"
+    },
+    "RawValue": {
+     "additionalProperties": false,
+     "properties": {
+      "raw": {
+       "type": "number"
+      }
+     },
+     "required": [
+      "raw"
+     ],
+     "type": "object"
+    },
+    "RoleStage": {
+     "additionalProperties": false,
+     "properties": {
+      "intent": {
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "maxLength": 256,
+          "type": "string"
+         },
+         {
+          "type": "number"
+         },
+         {
+          "type": "boolean"
+         },
+         {
+          "$ref": "#/$defs/IntentValue"
+         }
+        ]
+       },
+       "maxProperties": 32,
+       "propertyNames": {
+        "maxLength": 120,
+        "minLength": 1
+       },
+       "type": "object"
+      },
+      "role": {
+       "enum": [
+        "compressor",
+        "eq",
+        "saturation",
+        "reverb"
+       ],
+       "type": "string"
+      }
+     },
+     "required": [
+      "role"
+     ],
+     "type": "object"
+    }
+   },
    "properties": {
     "append": {
      "default": false,
@@ -71,7 +513,24 @@
     "preferences": {
      "anyOf": [
       {
-       "additionalProperties": true,
+       "additionalProperties": {
+        "items": {
+         "maxLength": 256,
+         "minLength": 1,
+         "type": "string"
+        },
+        "maxItems": 16,
+        "type": "array"
+       },
+       "maxProperties": 4,
+       "propertyNames": {
+        "enum": [
+         "compressor",
+         "eq",
+         "saturation",
+         "reverb"
+        ]
+       },
        "type": "object"
       },
       {
@@ -82,8 +541,7 @@
     "rack": {
      "anyOf": [
       {
-       "additionalProperties": true,
-       "type": "object"
+       "$ref": "#/$defs/FxRack"
       },
       {
        "type": "null"
@@ -94,9 +552,17 @@
      "anyOf": [
       {
        "items": {
-        "additionalProperties": true,
-        "type": "object"
+        "anyOf": [
+         {
+          "$ref": "#/$defs/RoleStage"
+         },
+         {
+          "$ref": "#/$defs/DeviceStage"
+         }
+        ]
        },
+       "maxItems": 12,
+       "minItems": 1,
        "type": "array"
       },
       {
@@ -124,8 +590,123 @@
   },
   "name": "live_plan_chain",
   "outputSchema": {
+   "$defs": {
+    "PlanTarget": {
+     "additionalProperties": true,
+     "properties": {
+      "devices": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "generation": {
+       "type": "integer"
+      },
+      "kind": {
+       "type": "string"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "track",
+      "path",
+      "kind",
+      "name",
+      "generation",
+      "devices"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_plan_chainDictOutput",
+   "properties": {
+    "expires_in": {
+     "type": "number"
+    },
+    "fingerprint": {
+     "type": "string"
+    },
+    "intent_complete": {
+     "type": "boolean"
+    },
+    "manual_steps": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "mode": {
+     "enum": [
+      "chain",
+      "fx_rack",
+      "drum_rack"
+     ],
+     "type": "string"
+    },
+    "plan_id": {
+     "type": "string"
+    },
+    "stages": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "target": {
+     "$ref": "#/$defs/PlanTarget"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "plan_id",
+    "fingerprint",
+    "mode",
+    "target",
+    "stages",
+    "intent_complete",
+    "expires_in",
+    "unverified",
+    "manual_steps"
+   ],
    "type": "object"
   },
   "title": "Plan chain"

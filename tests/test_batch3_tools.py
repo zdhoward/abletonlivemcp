@@ -43,7 +43,7 @@ def call(tool, **kwargs):
 def bridge(monkeypatch):
     fake = Bridge()
     monkeypatch.setattr(server, "_bridge", fake)
-    monkeypatch.setattr(server, "_writable", lambda: None)
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
     return fake
 
 

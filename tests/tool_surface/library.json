@@ -64,7 +64,61 @@
   "name": "live_knowledge",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_knowledgeDictOutput",
+   "properties": {
+    "action": {
+     "enum": [
+      "search",
+      "read"
+     ],
+     "type": "string"
+    },
+    "page": {
+     "type": "string"
+    },
+    "provenance": {
+     "const": "knowledge_base_reference_data",
+     "type": "string"
+    },
+    "query": {
+     "type": "string"
+    },
+    "results": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "section": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "text": {
+     "type": "string"
+    },
+    "total_matches": {
+     "type": "integer"
+    },
+    "truncated": {
+     "type": "boolean"
+    },
+    "words": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "provenance",
+    "action"
+   ],
    "type": "object"
   },
   "title": "Knowledge"

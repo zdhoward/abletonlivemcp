@@ -47,8 +47,112 @@
   },
   "name": "live_get_device_extras",
   "outputSchema": {
+   "$defs": {
+    "DeviceExtras": {
+     "additionalProperties": true,
+     "properties": {
+      "can_compare_ab": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "class_display_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "class_name": {
+       "type": "string"
+      },
+      "latency_ms": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "latency_samples": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "name": {
+       "type": "string"
+      },
+      "presets": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "presets_truncated": {
+       "type": "boolean"
+      },
+      "selected_preset_index": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "using_preset_b": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "name",
+      "class_name",
+      "class_display_name",
+      "latency_samples",
+      "latency_ms",
+      "can_compare_ab",
+      "using_preset_b"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_device_extrasDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/DeviceExtras"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get device extras"
@@ -127,7 +231,26 @@
   "name": "live_set_device_extras",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_set_device_extrasDictOutput",
+   "properties": {
+    "saved": {
+     "type": "boolean"
+    },
+    "selected_preset_index": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "using_preset_b": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "unverified"
+   ],
    "type": "object"
   },
   "title": "Set device extras"

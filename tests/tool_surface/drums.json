@@ -20,8 +20,166 @@
   },
   "name": "live_build_drum_rack",
   "outputSchema": {
+   "$defs": {
+    "PlanTarget": {
+     "additionalProperties": true,
+     "properties": {
+      "devices": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "generation": {
+       "type": "integer"
+      },
+      "kind": {
+       "type": "string"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "track",
+      "path",
+      "kind",
+      "name",
+      "generation",
+      "devices"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_build_drum_rackDictOutput",
+   "properties": {
+    "already_built": {
+     "type": "boolean"
+    },
+    "completed": {
+     "items": {
+      "type": "integer"
+     },
+     "type": "array"
+    },
+    "intent_fulfilled": {
+     "type": "boolean"
+    },
+    "manual_steps": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "mode": {
+     "type": "string"
+    },
+    "omitted": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "plan_id": {
+     "type": "string"
+    },
+    "stages": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial",
+      "failed",
+      "pending"
+     ],
+     "type": "string"
+    },
+    "stop_reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "target": {
+     "$ref": "#/$defs/PlanTarget"
+    },
+    "unknown": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "plan_id",
+    "mode",
+    "status",
+    "intent_fulfilled",
+    "target",
+    "completed",
+    "stopped_at",
+    "stop_reason",
+    "omitted",
+    "unknown",
+    "stages",
+    "unverified",
+    "manual_steps"
+   ],
    "type": "object"
   },
   "title": "Build drum rack"
@@ -37,6 +195,7 @@
   "inputSchema": {
    "$defs": {
     "ConvertTarget": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "anyOf": [
@@ -137,7 +296,35 @@
   "name": "live_convert",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_convertDictOutput",
+   "properties": {
+    "action": {
+     "type": "string"
+    },
+    "note": {
+     "type": "string"
+    },
+    "returned": {},
+    "tracks_after": {
+     "type": "integer"
+    },
+    "tracks_before": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "action",
+    "tracks_before",
+    "tracks_after",
+    "returned",
+    "unverified",
+    "note"
+   ],
    "type": "object"
   },
   "title": "Convert"
@@ -194,8 +381,57 @@
   },
   "name": "live_get_drum_rack",
   "outputSchema": {
+   "$defs": {
+    "DrumRack": {
+     "additionalProperties": true,
+     "properties": {
+      "chains": {
+       "type": "integer"
+      },
+      "name": {
+       "type": "string"
+      },
+      "pads": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "selected_note": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "name",
+      "pads",
+      "selected_note",
+      "chains"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_drum_rackDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/DrumRack"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get drum rack"
@@ -248,8 +484,51 @@
   },
   "name": "live_get_simpler",
   "outputSchema": {
+   "$defs": {
+    "Simpler": {
+     "additionalProperties": true,
+     "properties": {
+      "device": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "name": {
+       "type": "string"
+      },
+      "sample": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "name",
+      "device",
+      "sample"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_simplerDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Simpler"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get simpler"
@@ -265,6 +544,7 @@
   "inputSchema": {
    "$defs": {
     "DrumRole": {
+     "additionalProperties": false,
      "properties": {
       "note": {
        "maximum": 127,
@@ -310,8 +590,123 @@
   },
   "name": "live_plan_drum_rack",
   "outputSchema": {
+   "$defs": {
+    "PlanTarget": {
+     "additionalProperties": true,
+     "properties": {
+      "devices": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "generation": {
+       "type": "integer"
+      },
+      "kind": {
+       "type": "string"
+      },
+      "name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "type": "integer"
+         },
+         {
+          "type": "string"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "track",
+      "path",
+      "kind",
+      "name",
+      "generation",
+      "devices"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_plan_drum_rackDictOutput",
+   "properties": {
+    "expires_in": {
+     "type": "number"
+    },
+    "fingerprint": {
+     "type": "string"
+    },
+    "intent_complete": {
+     "type": "boolean"
+    },
+    "manual_steps": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "mode": {
+     "enum": [
+      "chain",
+      "fx_rack",
+      "drum_rack"
+     ],
+     "type": "string"
+    },
+    "plan_id": {
+     "type": "string"
+    },
+    "stages": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "array"
+    },
+    "target": {
+     "$ref": "#/$defs/PlanTarget"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "plan_id",
+    "fingerprint",
+    "mode",
+    "target",
+    "stages",
+    "intent_complete",
+    "expires_in",
+    "unverified",
+    "manual_steps"
+   ],
    "type": "object"
   },
   "title": "Plan drum rack"
@@ -327,6 +722,7 @@
   "inputSchema": {
    "$defs": {
     "PadCopy": {
+     "additionalProperties": false,
      "properties": {
       "destination": {
        "maximum": 127,
@@ -346,6 +742,7 @@
      "type": "object"
     },
     "PadEdit": {
+     "additionalProperties": false,
      "properties": {
       "choke_group": {
        "anyOf": [
@@ -481,8 +878,90 @@
   },
   "name": "live_set_drum_pads",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_drum_padsDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Set drum pads"
@@ -498,6 +977,7 @@
   "inputSchema": {
    "$defs": {
     "SliceEdit": {
+     "additionalProperties": false,
      "properties": {
       "clear": {
        "default": false,
@@ -598,8 +1078,90 @@
   },
   "name": "live_set_simpler",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_simplerDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Set simpler"

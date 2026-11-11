@@ -16,6 +16,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .permissions import DEFAULT_PERMISSIONS
+
 
 class ConfigError(ValueError):
     """Configuration is missing, invalid, or not private to its owner."""
@@ -236,7 +238,11 @@ def ensure_config() -> dict:
             else:
                 os.chmod(temporary, 0o600)
             _check_private(temporary)
-            json.dump({"version": 1, "secret": secrets.token_hex(32), "read_only": True}, stream)
+            json.dump(
+                {"version": 1, "secret": secrets.token_hex(32), "read_only": True,
+                 "permissions": DEFAULT_PERMISSIONS},
+                stream,
+            )
             stream.flush()
             os.fsync(stream.fileno())
         try:

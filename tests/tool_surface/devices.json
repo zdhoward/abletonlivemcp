@@ -69,8 +69,92 @@
   },
   "name": "live_get_device_parameters",
   "outputSchema": {
+   "$defs": {
+    "DeviceListing": {
+     "additionalProperties": true,
+     "properties": {
+      "container": {
+       "type": "string"
+      },
+      "container_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "devices": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "owner": {
+       "additionalProperties": true,
+       "type": "object"
+      }
+     },
+     "required": [
+      "owner",
+      "container",
+      "container_name",
+      "devices"
+     ],
+     "type": "object"
+    },
+    "ParameterPage": {
+     "additionalProperties": true,
+     "properties": {
+      "next_offset": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "parameters": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "parameters",
+      "next_offset"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_device_parametersDictOutput",
+   "properties": {
+    "data": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/DeviceListing"
+      },
+      {
+       "$ref": "#/$defs/ParameterPage"
+      }
+     ]
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get device parameters"
@@ -181,7 +265,30 @@
   "name": "live_move_device",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_move_deviceDictOutput",
+   "properties": {
+    "devices": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "moved": {
+     "type": "string"
+    },
+    "position": {
+     "type": "integer"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "moved",
+    "position",
+    "devices",
+    "provenance"
+   ],
    "type": "object"
   },
   "title": "Move device"
@@ -197,6 +304,7 @@
   "inputSchema": {
    "$defs": {
     "ParamWrite": {
+     "additionalProperties": false,
      "properties": {
       "parameter": {
        "anyOf": [
@@ -243,6 +351,7 @@
      "type": "object"
     },
     "RawValue": {
+     "additionalProperties": false,
      "properties": {
       "raw": {
        "type": "number"
@@ -300,8 +409,94 @@
   },
   "name": "live_set_device_parameters",
   "outputSchema": {
+   "$defs": {
+    "ParameterResult": {
+     "additionalProperties": true,
+     "properties": {
+      "actual": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "actual_raw": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "exact": {
+       "type": "boolean"
+      },
+      "name": {
+       "type": "string"
+      },
+      "off_target": {
+       "type": "boolean"
+      },
+      "original": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "raw": {
+       "type": "boolean"
+      },
+      "requested": {}
+     },
+     "required": [
+      "name",
+      "requested",
+      "actual",
+      "actual_raw",
+      "exact",
+      "off_target",
+      "raw"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_device_parametersDictOutput",
+   "properties": {
+    "problems": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "results": {
+     "items": {
+      "$ref": "#/$defs/ParameterResult"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "results",
+    "problems",
+    "unverified"
+   ],
    "type": "object"
   },
   "title": "Set device parameters"
@@ -317,6 +512,7 @@
   "inputSchema": {
    "$defs": {
     "DeviceEdit": {
+     "additionalProperties": false,
      "properties": {
       "collapsed": {
        "anyOf": [
@@ -413,8 +609,90 @@
   },
   "name": "live_set_devices",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_devicesDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Set devices"

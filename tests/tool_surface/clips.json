@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "NewClip": {
+     "additionalProperties": false,
      "properties": {
       "color_index": {
        "anyOf": [
@@ -89,6 +90,7 @@
      "type": "object"
     },
     "Note": {
+     "additionalProperties": false,
      "properties": {
       "duration": {
        "exclusiveMinimum": 0,
@@ -157,8 +159,90 @@
   },
   "name": "live_create_clips",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_create_clipsDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Create clips"
@@ -174,6 +258,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -210,6 +295,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -298,8 +384,42 @@
   },
   "name": "live_get_clips",
   "outputSchema": {
+   "$defs": {
+    "Clips": {
+     "additionalProperties": true,
+     "properties": {
+      "clips": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "truncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "clips",
+      "truncated"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_clipsDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Clips"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get clips"
@@ -315,6 +435,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -351,6 +472,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -376,6 +498,7 @@
      "type": "object"
     },
     "ClipEdit": {
+     "additionalProperties": false,
      "properties": {
       "clip": {
        "anyOf": [
@@ -638,8 +761,90 @@
   },
   "name": "live_set_clips",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_clipsDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Set clips"

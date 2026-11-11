@@ -6,6 +6,8 @@ This tool runs a local socket server inside Ableton Live and reads/writes local 
 - File tools must stay within user-configured directories.
 - Bridge requests are authenticated with a local secret; never share or commit `bridge.json`.
 - Writes are disabled by default. Destructive MCP calls require form confirmation.
+- Explicit local permissions restrict transport, edits, file operations and deletion independently;
+  see [permissions](docs/permissions.md). MIDI file access requires explicit allowed roots.
 - XML/project readers bound decompression and reject entities; no arbitrary Python execution tool is exposed.
 - No telemetry or external API credentials are required.
 

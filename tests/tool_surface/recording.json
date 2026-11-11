@@ -44,8 +44,108 @@
   },
   "name": "live_record",
   "outputSchema": {
+   "$defs": {
+    "Operation": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "device": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "generation": {
+       "type": "integer"
+      },
+      "kind": {
+       "type": "string"
+      },
+      "may_have_applied": {
+       "type": "boolean"
+      },
+      "operation": {
+       "type": "string"
+      },
+      "reason": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "result": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "state": {
+       "enum": [
+        "pending",
+        "ready",
+        "failed",
+        "unknown",
+        "unknown_operation"
+       ],
+       "type": "string"
+      }
+     },
+     "required": [
+      "operation",
+      "state"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_recordDictOutput",
+   "properties": {
+    "action": {
+     "type": "string"
+    },
+    "operation": {
+     "$ref": "#/$defs/Operation"
+    },
+    "scenes_added": {
+     "type": "integer"
+    },
+    "state": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "action",
+    "unverified",
+    "state"
+   ],
    "type": "object"
   },
   "title": "Record"

@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "NewTrack": {
+     "additionalProperties": false,
      "properties": {
       "color_index": {
        "maximum": 69,
@@ -57,8 +58,107 @@
   },
   "name": "live_create_tracks",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_create_tracksDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Create tracks"
@@ -74,6 +174,7 @@
   "inputSchema": {
    "$defs": {
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -99,6 +200,7 @@
      "type": "object"
     },
     "StructTarget": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -182,8 +284,93 @@
   },
   "name": "live_delete",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "StepReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_deleteDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/StepReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Delete"
@@ -199,6 +386,7 @@
   "inputSchema": {
    "$defs": {
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -224,6 +412,7 @@
      "type": "object"
     },
     "StructTarget": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -307,8 +496,93 @@
   },
   "name": "live_duplicate",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "StepReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_duplicateDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/StepReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Duplicate"
@@ -357,8 +631,50 @@
   },
   "name": "live_get_tracks",
   "outputSchema": {
+   "$defs": {
+    "Tracks": {
+     "additionalProperties": true,
+     "properties": {
+      "generation": {
+       "type": "integer"
+      },
+      "return_count": {
+       "type": "integer"
+      },
+      "track_count": {
+       "type": "integer"
+      },
+      "tracks": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "generation",
+      "track_count",
+      "return_count",
+      "tracks"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_tracksDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Tracks"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get tracks"
@@ -374,6 +690,7 @@
   "inputSchema": {
    "$defs": {
     "MixerEdit": {
+     "additionalProperties": false,
      "properties": {
       "activator": {
        "type": "boolean"
@@ -439,6 +756,7 @@
      "type": "object"
     },
     "SendEdit": {
+     "additionalProperties": false,
      "properties": {
       "db": {
        "maximum": 6,
@@ -477,8 +795,107 @@
   },
   "name": "live_set_mixer",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_mixerDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Set mixer"
@@ -494,6 +911,7 @@
   "inputSchema": {
    "$defs": {
     "Routing": {
+     "additionalProperties": false,
      "properties": {
       "channel": {
        "maxLength": 256,
@@ -511,6 +929,7 @@
      "type": "object"
     },
     "TrackEdit": {
+     "additionalProperties": false,
      "properties": {
       "arm": {
        "type": "boolean"
@@ -587,8 +1006,107 @@
   },
   "name": "live_set_tracks",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_tracksDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Set tracks"

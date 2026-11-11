@@ -412,7 +412,7 @@ def host(monkeypatch):
     def install(replies):
         bridge = Bridge(replies)
         monkeypatch.setattr(server._bridge, "call", bridge)
-        monkeypatch.setattr(server, "_writable", lambda: None)
+        monkeypatch.setattr(server, "_writable", lambda *_args: None)
         monkeypatch.setattr(server, "_plans", chain.PlanStore())
         return bridge
 

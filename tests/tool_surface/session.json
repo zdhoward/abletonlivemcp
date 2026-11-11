@@ -32,8 +32,109 @@
   },
   "name": "live_get_session",
   "outputSchema": {
+   "$defs": {
+    "SessionState": {
+     "additionalProperties": true,
+     "properties": {
+      "can_redo": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "can_undo": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "cues": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "current_song_time": {
+       "type": "number"
+      },
+      "generation": {
+       "type": "integer"
+      },
+      "is_playing": {
+       "type": "boolean"
+      },
+      "loop": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "metronome": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "return_count": {
+       "type": "integer"
+      },
+      "scene_count": {
+       "type": "integer"
+      },
+      "selection": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "signature": {
+       "items": {
+        "type": "integer"
+       },
+       "type": "array"
+      },
+      "tempo": {
+       "type": "number"
+      },
+      "track_count": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "generation",
+      "tempo",
+      "signature",
+      "is_playing",
+      "track_count",
+      "return_count",
+      "scene_count"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_get_sessionDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/SessionState"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Get session"
@@ -52,8 +153,101 @@
   },
   "name": "live_hello",
   "outputSchema": {
+   "$defs": {
+    "Toolsets": {
+     "additionalProperties": true,
+     "properties": {
+      "available": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      "enabled": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "enabled",
+      "available"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_helloDictOutput",
+   "properties": {
+    "build_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "capabilities": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "capability_report": {
+     "additionalProperties": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "type": "object"
+    },
+    "diagnostics": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "generation": {
+     "type": "integer"
+    },
+    "live_version": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "integer"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "protocol": {
+     "type": "integer"
+    },
+    "toolsets": {
+     "$ref": "#/$defs/Toolsets"
+    },
+    "variant": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "protocol",
+    "live_version",
+    "variant",
+    "build_id",
+    "generation",
+    "diagnostics",
+    "capabilities",
+    "capability_report",
+    "toolsets"
+   ],
    "type": "object"
   },
   "title": "Hello"
@@ -69,6 +263,7 @@
   "inputSchema": {
    "$defs": {
     "Groove": {
+     "additionalProperties": false,
      "properties": {
       "amount": {
        "maximum": 1.3125,
@@ -92,6 +287,7 @@
      "type": "object"
     },
     "GrooveEdit": {
+     "additionalProperties": false,
      "properties": {
       "expect_name": {
        "maxLength": 256,
@@ -128,6 +324,7 @@
      "type": "object"
     },
     "Link": {
+     "additionalProperties": false,
      "properties": {
       "enabled": {
        "type": "boolean"
@@ -139,6 +336,7 @@
      "type": "object"
     },
     "Loop": {
+     "additionalProperties": false,
      "properties": {
       "length": {
        "exclusiveMinimum": 0,
@@ -161,6 +359,7 @@
      "type": "object"
     },
     "Quantization": {
+     "additionalProperties": false,
      "properties": {
       "clip_trigger": {
        "maximum": 13,
@@ -176,6 +375,7 @@
      "type": "object"
     },
     "Scale": {
+     "additionalProperties": false,
      "properties": {
       "root_note": {
        "maximum": 11,
@@ -236,8 +436,107 @@
   },
   "name": "live_set_session",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    },
+    "WriteReceipt": {
+     "additionalProperties": true,
+     "properties": {
+      "applied": {
+       "items": {},
+       "type": "array"
+      },
+      "error": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "items": {
+       "items": {
+        "$ref": "#/$defs/ReceiptItem"
+       },
+       "type": "array"
+      },
+      "status": {
+       "enum": [
+        "complete",
+        "partial"
+       ],
+       "type": "string"
+      },
+      "stopped_at": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "undo_steps": {
+       "type": "integer"
+      },
+      "unverified": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      }
+     },
+     "required": [
+      "status",
+      "items",
+      "stopped_at",
+      "error",
+      "applied"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_set_sessionDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/WriteReceipt"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Set session"
@@ -281,7 +580,38 @@
   "name": "live_transport",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_transportDictOutput",
+   "properties": {
+    "action": {
+     "type": "string"
+    },
+    "current_song_time": {
+     "type": "number"
+    },
+    "is_playing": {
+     "type": "boolean"
+    },
+    "settled": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "tempo": {
+     "type": "number"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "action",
+    "unverified",
+    "is_playing",
+    "current_song_time",
+    "tempo",
+    "settled"
+   ],
    "type": "object"
   },
   "title": "Transport"
@@ -316,7 +646,53 @@
   "name": "live_undo",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_undoDictOutput",
+   "properties": {
+    "action": {
+     "enum": [
+      "undo",
+      "redo"
+     ],
+     "type": "string"
+    },
+    "can_redo": {
+     "type": "boolean"
+    },
+    "can_undo": {
+     "type": "boolean"
+    },
+    "done": {
+     "type": "integer"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "requested": {
+     "type": "integer"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    }
+   },
+   "required": [
+    "action",
+    "requested",
+    "done",
+    "status",
+    "error",
+    "can_undo",
+    "can_redo"
+   ],
    "type": "object"
   },
   "title": "Undo"

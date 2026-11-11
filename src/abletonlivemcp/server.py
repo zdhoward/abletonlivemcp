@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import logging
 import os
 import sys
 import threading
@@ -44,6 +45,8 @@ from .bridge import BridgeClient, BridgeError
 from .chain import ChainError, Refusal
 from .config import ConfigError, load_config
 from .models import ResponseFormat
+from .output_models import TOOL_OUTPUTS
+from .permissions import allowed_permissions, required_permissions
 
 mcp = MCPServer("abletonlivemcp")
 _bridge = BridgeClient()
@@ -53,6 +56,7 @@ LOCK_WAIT = 5.0
 SETTLE_SECONDS = 0.3  # Live applies play/stop/launch a tick after the call returns
 LEASE_TTL = 60.0
 _lease: str | None = None  # held only inside live_build_chain; rides on every call meanwhile
+_audit = logging.getLogger("abletonlivemcp.audit")
 
 
 def _preset(read_only: bool, destructive: bool, idempotent: bool) -> ToolAnnotations:
@@ -159,10 +163,11 @@ def _explain(exc: Exception) -> str:
     return f"invalid_request: {exc} (not applied)"
 
 
-def _writable() -> None:
+def _writable(tool: str | None = None) -> None:
     """Host policy, aligned with the bridge: writes only when the config says read_only: false."""
     try:
-        read_only = load_config().get("read_only") is not False
+        config = load_config()
+        read_only = config.get("read_only") is not False
     except ConfigError:
         read_only = True
     if read_only:
@@ -170,6 +175,15 @@ def _writable() -> None:
             "read_only: writes are disabled in the local bridge config; set read_only to false "
             "there to allow them (not applied)"
         )
+    if tool is not None:
+        missing = required_permissions(tool) - allowed_permissions(config)
+        if missing:
+            needed = ", ".join(sorted(missing))
+            _audit.warning("permission_denied tool=%s permissions=%s", tool, needed)
+            raise ToolFailure(
+                f"permission_denied: {tool} requires local permission(s) {needed}; "
+                "update permissions in the private bridge config (not applied)"
+            )
 
 
 @dataclass(frozen=True)
@@ -202,12 +216,16 @@ def install(server: MCPServer, enabled: frozenset[str]) -> None:
 
 
 def _add(server: MCPServer, spec: ToolSpec) -> None:
+    if os.environ.get("ABLETONLIVEMCP_READ_ONLY_TOOLS") == "1" and spec.annotations != READ:
+        return
     server.add_tool(spec.fn, name=spec.name, title=spec.title, annotations=spec.annotations)
     tool = server._tool_manager.get_tool(spec.name)
     if tool is not None:
         # A property literally named "title" lives under "properties" and is never touched,
         # because pruning only looks at schema nodes, not at the property-name mapping.
         _prune_schema(tool.parameters)
+        if tool.output_schema is not None:
+            _prune_schema(tool.output_schema)
 
 
 def _prune_schema(schema: dict, *, top: bool = True) -> None:
@@ -217,8 +235,6 @@ def _prune_schema(schema: dict, *, top: bool = True) -> None:
         sub.pop("description", None)  # class docstrings are noise to the model
         _prune_schema(sub, top=False)
     schema.pop("title", None)
-    if schema.get("additionalProperties") is False:
-        del schema["additionalProperties"]  # still enforced by pydantic at call time
     for sub in schema.get("anyOf", []) + schema.get("oneOf", []) + schema.get("allOf", []):
         if isinstance(sub, dict):
             _prune_schema(sub)
@@ -298,7 +314,7 @@ def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
 
     def ask(**kwargs):
         ctx = kwargs.pop(_CTX_PARAM)
-        _writable()  # read-only wins: never ask a human to approve a write that will refuse
+        _writable(name)  # policy wins: never ask a human to approve a write that will refuse
         if _confirmation_unavailable(ctx):
             raise ToolFailure(
                 _explain(
@@ -358,7 +374,7 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
                 _check_confirmed(fn.__name__, kwargs.pop(CONFIRM_PARAM, None))
             if not mutation:
                 return fn(*args, **kwargs)
-            _writable()
+            _writable(fn.__name__)
             if not _mutation_lock.acquire(timeout=LOCK_WAIT):
                 raise ToolFailure("busy: another mutation is running; retry later (not applied)")
             try:
@@ -372,7 +388,7 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
 
     # Publish the resolved signature (annotations evaluated in the tool's own module) so the MCP
     # library derives the input schema and, from the return annotation, the outputSchema.
-    ret = _UNTYPED.get(sig.return_annotation, sig.return_annotation)
+    ret = TOOL_OUTPUTS.get(fn.__name__, _UNTYPED.get(sig.return_annotation, sig.return_annotation))
     run.__signature__ = sig.replace(return_annotation=ret)
     if confirm:
         # The confirmation is a resolved parameter: filled by the server, absent from the

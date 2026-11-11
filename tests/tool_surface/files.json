@@ -10,6 +10,7 @@
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "arrangement": {
        "minimum": 0,
@@ -46,6 +47,7 @@
      "type": "object"
     },
     "ClipAddr": {
+     "additionalProperties": false,
      "properties": {
       "scene": {
        "minimum": 0,
@@ -95,7 +97,26 @@
   "name": "live_export_midi",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_export_midiDictOutput",
+   "properties": {
+    "bytes": {
+     "type": "integer"
+    },
+    "file": {
+     "type": "string"
+    },
+    "muted_skipped": {
+     "type": "integer"
+    },
+    "notes": {
+     "type": "integer"
+    }
+   },
+   "required": [
+    "file",
+    "notes",
+    "muted_skipped",
+    "bytes"
+   ],
    "type": "object"
   },
   "title": "Export midi"
@@ -172,8 +193,90 @@
   },
   "name": "live_import_midi",
   "outputSchema": {
+   "$defs": {
+    "ReceiptItem": {
+     "additionalProperties": true,
+     "properties": {
+      "error": {
+       "type": "string"
+      },
+      "index": {
+       "type": "integer"
+      },
+      "outcome": {
+       "enum": [
+        "applied",
+        "not_applied",
+        "unknown",
+        "not_attempted"
+       ],
+       "type": "string"
+      },
+      "result": {}
+     },
+     "required": [
+      "index",
+      "outcome"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_import_midiDictOutput",
+   "properties": {
+    "applied": {
+     "items": {},
+     "type": "array"
+    },
+    "error": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "items": {
+     "items": {
+      "$ref": "#/$defs/ReceiptItem"
+     },
+     "type": "array"
+    },
+    "status": {
+     "enum": [
+      "complete",
+      "partial"
+     ],
+     "type": "string"
+    },
+    "stopped_at": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "undo_steps": {
+     "type": "integer"
+    },
+    "unverified": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "status",
+    "items",
+    "stopped_at",
+    "error",
+    "applied"
+   ],
    "type": "object"
   },
   "title": "Import midi"

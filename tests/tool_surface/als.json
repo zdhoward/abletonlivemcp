@@ -57,8 +57,66 @@
   },
   "name": "live_scan_projects",
   "outputSchema": {
+   "$defs": {
+    "Scan": {
+     "additionalProperties": true,
+     "properties": {
+      "errors": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "scan_id": {
+       "type": "string"
+      },
+      "seconds": {
+       "type": "number"
+      },
+      "sets": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "sets_found": {
+       "type": "integer"
+      },
+      "sets_read": {
+       "type": "integer"
+      },
+      "truncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "scan_id",
+      "sets_found",
+      "sets_read",
+      "truncated",
+      "seconds",
+      "sets",
+      "errors"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_scan_projectsDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Scan"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Scan projects"
@@ -119,8 +177,59 @@
   },
   "name": "live_usage_report",
   "outputSchema": {
+   "$defs": {
+    "Usage": {
+     "additionalProperties": true,
+     "properties": {
+      "kind": {
+       "enum": [
+        "samples",
+        "devices",
+        "plugins"
+       ],
+       "type": "string"
+      },
+      "rows": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "scan_id": {
+       "type": "string"
+      },
+      "sets_scanned": {
+       "type": "integer"
+      },
+      "total_keys": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "scan_id",
+      "kind",
+      "sets_scanned",
+      "total_keys",
+      "rows"
+     ],
+     "type": "object"
+    }
+   },
    "additionalProperties": true,
-   "title": "live_usage_reportDictOutput",
+   "properties": {
+    "data": {
+     "$ref": "#/$defs/Usage"
+    },
+    "provenance": {
+     "const": "live_object_text_untrusted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "provenance",
+    "data"
+   ],
    "type": "object"
   },
   "title": "Usage report"
