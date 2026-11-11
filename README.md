@@ -157,17 +157,10 @@ reads/writes remain unavailable. Copying a Session clip was measured without a c
 Live 12.2; PAD's Frequency lane survived deleting the copy. This does not qualify
 Arrangement-to-Arrangement duplication, split, move or take-lane writes.
 
-From a source checkout, `python scripts/build_buildup_demo.py` preserves Basic's existing
-Arrangement MIDI, including the owner's drop at beat 16. It routes INSTRUMENTAL through a
-`Buildup FX` audio bus: Auto Filter, Wider, GHOST//PUMP, inline Reverb and Delay.
-Silent audio clips carry automation at beats 0..16 and reset it at DROP. Reverb reaches
-100% wet, filtering removes the body, widening and pumping increase, and delay builds.
-Reverb and Delay switch off at DROP, restoring the dry beat without wet tails. The bus's
-parallel sends stay off. VSTs are required; unreachable controls are reported explicitly.
-It requires Intro(0), DROP(16), writes enabled and delete permission. Re-running replaces
-only its bus carriers; original musical clips and notes are retained. It applies the FX
-and reports ready for preview; the owner judges the sound. It never saves Basic.
-Add `--fire` to play.
+For a working end-to-end example, `python examples/filter_sweep_buildup.py` talks to the
+server over stdio and, on any Set, adds a MIDI track with an Auto Filter and automates a
+16-beat high-pass sweep. It leaves existing tracks alone and never saves the Set. Add
+`--play` to launch the clip.
 
 Automation accepts `points: [{"time":0,"value":0},{"time":16,"value":1}]` instead of
 `steps`/`ramps` (requires `clear:true`, spanning 0..clip length). Two or three points form
