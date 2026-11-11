@@ -2,12 +2,16 @@
 
 Rules: reads are bounded (browser walks have a node budget); every write reads the value back
 and returns it, so callers can see what actually happened; nothing here retries.
+
+Every call goes through ``make_dispatch``'s gate (see ``safety.py`` for the dispatch contract):
+writes receive already-validated targets and never resolve an index themselves.
 """
 
 import math
 from itertools import islice
 
 from .core import PROTOCOL_VERSION
+from .safety import CLASSIFICATION, CONTROL, READ, Refused, Safety
 
 BROWSER_ROOTS = (
     "instruments",
@@ -141,16 +145,21 @@ def _children(item):
     return list(getattr(item, "children", []) or [])
 
 
-def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
+def _handlers(song, app, safety):  # noqa: C901 - flat table of small handlers
+    """Handler table bound to one Song. Reads take ``(p)``; writes take ``(p, t)`` where ``t``
+    holds the targets the gate already resolved and validated."""
+
     def hello(_p):
         return {
             "protocol": PROTOCOL_VERSION,
             "live_version": _live_version(app),
+            "generation": safety.generation,
             "capabilities": probe(song, app),
         }
 
     def session_info(_p):
         return {
+            "generation": safety.generation,
             "tempo": song.tempo,
             "is_playing": song.is_playing,
             "signature": [song.signature_numerator, song.signature_denominator],
@@ -163,6 +172,7 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         return [
             {
                 "index": i,
+                "ref": safety.issue(("track", t, {})),
                 "name": t.name,
                 "color_index": getattr(t, "color_index", None),
                 "has_midi_input": t.has_midi_input,
@@ -210,9 +220,14 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         }
 
     # ---- writes (each returns a readback) ------------------------------------------
-    def load_item(p):
+    def load_item(p, t):
         """Load a browser item (by root+path) onto a track. Live loads onto the selected track."""
-        track = _track(song, p)
+        track = t["track"].obj
+        expected = p.get("expected_devices")
+        if not isinstance(expected, list) or expected != [d.class_name for d in track.devices]:
+            raise Refused(
+                "stale_layout", "'expected_devices' (class names) must equal the track's devices"
+            )
         item = _root(app, p)
         for name in p.get("path") or []:
             match = [c for c in _children(item) if c.name == name]
@@ -227,10 +242,19 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         return {"loaded": item.name, "devices_before": before, "devices_after": len(track.devices)}
 
     def device_parameters(p):
-        dev = _device(_track(song, p), p)
+        track = _track(song, p)
+        dev = _device(track, p)
+        chain = (
+            ("track", track, {}),
+            ("device", dev, {"layout": tuple(d.class_name for d in track.devices)}),
+        )
+        count = len(dev.parameters)
         return [
             {
                 "index": i,
+                "ref": safety.issue(
+                    *chain, ("param", q, {"index": i, "count": count, "name": q.name})
+                ),
                 "name": q.name,
                 "value": q.value,
                 "min": q.min,
@@ -278,16 +302,15 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             raise ValueError(f"every item in {key!r} must be an object")
         return items
 
-    def set_device_parameter(p):
-        q = _param(_device(_track(song, p), p), p.get("parameter"))
+    def set_device_parameter(p, t):
+        q = t["parameter"].obj
         return _write(q, _checked_write(q, p.get("value")))
 
-    def set_device_parameters(p):
-        """Write several parameters of one device. Everything is validated before any write."""
-        dev = _device(_track(song, p), p)
+    def set_device_parameters(p, t):
+        """Write several parameters (by reference). Everything is validated before any write."""
         plan = []
-        for w in _batch(p, "writes"):
-            q = _param(dev, w.get("parameter"))
+        for w, target in zip(_batch(p, "writes"), t["writes"], strict=True):
+            q = target.obj
             plan.append((q, _checked_write(q, w.get("value"))))
         return {"results": [_write(q, v) for q, v in plan]}
 
@@ -306,7 +329,7 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             ]
         }
 
-    def create_track(p):
+    def create_track(p, _t):
         kind = p.get("kind")
         index = int(p.get("index", -1))
         if kind == "midi":
@@ -317,17 +340,17 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             raise ValueError("'kind' must be 'midi' or 'audio'")
         return {"track_count": len(song.tracks)}
 
-    def set_track_name(p):
-        t = _track(song, p)
-        t.name = str(p["name"])
-        return {"name": t.name}
+    def set_track_name(p, t):
+        track = t["track"].obj
+        track.name = str(p["name"])
+        return {"name": track.name}
 
-    def set_track_color(p):
-        t = _track(song, p)
-        t.color_index = int(p["color_index"])
-        return {"color_index": t.color_index}
+    def set_track_color(p, t):
+        track = t["track"].obj
+        track.color_index = int(p["color_index"])
+        return {"color_index": track.color_index}
 
-    def set_tempo(p):
+    def set_tempo(p, _t):
         bpm = float(p["bpm"])
         if not 20.0 <= bpm <= 999.0:
             raise ValueError("bpm must be 20..999")
@@ -343,15 +366,31 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             "current_song_time": song.current_song_time,
         }
 
-    def play(_p):
+    def play(_p, _t):
         song.start_playing()
         return {"is_playing": song.is_playing}
 
-    def stop(_p):
+    def stop(_p, _t):
         song.stop_playing()
         return {"is_playing": song.is_playing}
 
-    def create_scene(p):
+    def scenes(_p):
+        return [
+            {"index": i, "ref": safety.issue(("scene", s, {})), "name": s.name}
+            for i, s in enumerate(song.scenes)
+        ]
+
+    def clip_slot(p):
+        """Read a slot by indices; returns references for the slot and its clip (if any)."""
+        track, slot = _slot(song, p)
+        scene_obj = song.scenes[p["scene"]]
+        chain = (("track", track, {}), ("slot", slot, {"index": p["scene"], "scene": scene_obj}))
+        out = {"slot": safety.issue(*chain), "has_clip": bool(slot.has_clip)}
+        if slot.has_clip:
+            out["clip"] = safety.issue(*chain, ("clip", slot.clip, {}))
+        return out
+
+    def create_scene(p, _t):
         index = p.get("index", -1)
         if (
             isinstance(index, bool)
@@ -367,21 +406,20 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             "name": song.scenes[actual].name,
         }
 
-    def set_scene_name(p):
-        scene = _scene(song, p)
+    def set_scene_name(p, t):
+        scene = t["scene"].obj
         name = p.get("name")
         if not isinstance(name, str):
             raise ValueError("'name' must be a string")
         scene.name = name
         return {"name": scene.name}
 
-    def fire_scene(p):
-        scene = _scene(song, p)
+    def fire_scene(_p, t):
+        scene = t["scene"].obj
         scene.fire()
         return {"name": scene.name, "is_triggered": scene.is_triggered}
 
-    def get_clip(p):
-        clip = _clip(song, p)
+    def _clip_info(clip):
         return {
             "name": clip.name,
             "length": clip.length,
@@ -389,18 +427,23 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             "looping": clip.looping,
         }
 
-    def create_clip(p):
-        track, slot = _slot(song, p)
+    def get_clip(p):
+        return _clip_info(_clip(song, p))
+
+    def create_clip(p, t):
+        slot, track = t["slot"].obj, t["slot"].nodes["track"]
         length = _number(p.get("length_beats"), "length_beats", 0, 1024, exclusive=True)
         if not track.has_midi_input:
             raise ValueError("create_clip requires a MIDI track")
         if slot.has_clip:
             raise ValueError("clip slot is occupied")
         slot.create_clip(length)
-        return get_clip(p)
+        return _clip_info(slot.clip)
 
     def get_notes(p):
-        clip = _clip(song, p)
+        return _notes(_clip(song, p))
+
+    def _notes(clip):
         if not clip.is_midi_clip:
             raise ValueError("get_notes requires a MIDI clip")
         if hasattr(clip, "get_notes_extended"):
@@ -431,8 +474,8 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             raise ValueError("clip has neither get_notes_extended nor get_notes")
         return {"notes": notes[:NOTE_LIMIT], "truncated": len(notes) > NOTE_LIMIT}
 
-    def add_notes(p):
-        clip = _clip(song, p)
+    def add_notes(p, t):
+        clip = t["clip"].obj
         if not clip.is_midi_clip:
             raise ValueError("add_notes requires a MIDI clip")
         notes = _validated_notes(p.get("notes"))
@@ -459,19 +502,19 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
             clip.set_notes(tuple(notes))
         else:
             raise ValueError("clip has neither add_new_notes nor set_notes")
-        return get_notes(p)
+        return _notes(clip)
 
-    def fire_clip(p):
-        clip = _clip(song, p)
+    def fire_clip(_p, t):
+        clip = t["clip"].obj
         clip.fire()
-        return get_clip(p)
+        return _clip_info(clip)
 
-    def stop_clip(p):
-        clip = _clip(song, p)
+    def stop_clip(_p, t):
+        clip = t["clip"].obj
         clip.stop()
-        return get_clip(p)
+        return _clip_info(clip)
 
-    methods = {
+    return {
         "hello": hello,
         "session_info": session_info,
         "tracks": tracks,
@@ -500,13 +543,50 @@ def make_dispatch(song, app):  # noqa: C901 - flat table of small handlers
         "get_notes": get_notes,
         "fire_clip": fire_clip,
         "stop_clip": stop_clip,
+        "scenes": scenes,
+        "clip_slot": clip_slot,
     }
 
-    def dispatch(method, params):
-        if method not in methods:
-            raise ValueError(f"unknown method: {method}")
-        return methods[method](params)
 
+def make_dispatch(song_supplier, app, safety=None):
+    """Build the bridge dispatcher. ``song_supplier`` is a callable returning the *current* Song
+    (a bare Song is accepted for tests and wrapped). Returns ``dispatch(method, params)``; the
+    Safety object is exposed as ``dispatch.safety`` for the entry point's session hooks."""
+    if not callable(song_supplier):
+        fixed = song_supplier
+        song_supplier = lambda: fixed  # noqa: E731
+    safety = safety or Safety(song_supplier)
+    bound = {"song": None, "table": None}
+
+    def table():
+        song = safety.song()  # bumps generation / clears refs and lease on Set change
+        if bound["song"] is not song:
+            bound["song"], bound["table"] = song, _handlers(song, app, safety)
+        return bound["table"]
+
+    def dispatch(method, params):
+        kind = CLASSIFICATION.get(method)
+        if kind is None:
+            raise ValueError(f"unknown or unclassified method: {method}")
+        if not isinstance(params, dict):
+            raise ValueError("params must be an object")
+        try:
+            if kind == CONTROL:
+                if safety.read_only():
+                    raise Refused("read_only", "bridge is read-only; leases are unavailable")
+                safety.song()
+                if method == "lease_acquire":
+                    return safety.lease_acquire(params.get("ttl", 30.0))
+                return safety.lease_release(params.get("lease"))
+            if kind == READ:
+                return table()[method](params)
+            targets = safety.authorize(method, params)  # policy, lease, Set, targets
+            return table()[method](params, targets)
+        except Refused as refusal:
+            return refusal.result()
+
+    dispatch.safety = safety
+    dispatch.methods = sorted(CLASSIFICATION)
     return dispatch
 
 

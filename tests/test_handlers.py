@@ -6,7 +6,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
 from AbletonLiveMCP import handlers  # noqa: E402
+from AbletonLiveMCP import safety as safety_module  # noqa: E402
 from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
+from AbletonLiveMCP.safety import CLASSIFICATION, READ, WRITE, Safety  # noqa: E402
 
 
 class Item:
@@ -95,7 +97,16 @@ class App:
 @pytest.fixture
 def env():
     song, app = Song(), App()
-    return song, app, make_dispatch(song, app)
+    safety = Safety(lambda: song, policy=lambda: False)  # writes enabled for these tests
+    return song, app, make_dispatch(lambda: song, app, safety)
+
+
+def track_ref(d, i):
+    return d("tracks", {})[i]["ref"]
+
+
+def param_ref(d, track, device, parameter):
+    return d("device_parameters", {"track": track, "device": device})[parameter]["ref"]
 
 
 def test_browser_roots_only_those_present(env):
@@ -130,30 +141,33 @@ def test_browser_search_budget_is_bounded(env, monkeypatch):
 
 def test_load_item_selects_track_and_loads(env):
     song, app, d = env
-    r = d("load_item", {"track": 1, "root": "audio_effects", "path": ["Dynamics", "Limiter"]})
+    p = {"track": track_ref(d, 1), "expected_devices": ["Eq8"], "root": "audio_effects"}
+    r = d("load_item", {**p, "path": ["Dynamics", "Limiter"]})
     assert song.view.selected_track is song.tracks[1]
     assert app.browser.loaded.name == "Limiter" and r["loaded"] == "Limiter"
 
 
 def test_load_item_rejects_folder_and_bad_track(env):
     _s, app, d = env
+    p = {"track": track_ref(d, 0), "expected_devices": ["Eq8"], "root": "audio_effects"}
     with pytest.raises(ValueError):
-        d("load_item", {"track": 0, "root": "audio_effects", "path": ["Dynamics"]})
-    with pytest.raises(ValueError):
-        d("load_item", {"track": 9, "root": "audio_effects", "path": ["Reverb"]})
+        d("load_item", {**p, "path": ["Dynamics"]})
+    assert d("load_item", {**p, "track": 9, "path": ["Reverb"]})["refused"]
     assert app.browser.loaded is None
 
 
 def test_set_parameter_readback_and_guards(env):
     song, _a, d = env
-    r = d("set_device_parameter", {"track": 0, "device": 0, "parameter": 0, "value": 0.75})
+    gain, macro = param_ref(d, 0, 0, 0), param_ref(d, 0, 0, 1)
+    r = d("set_device_parameter", {"parameter": gain, "value": 0.75})
     assert r["value"] == 0.75 and song.tracks[0].devices[0].parameters[0].value == 0.75
     with pytest.raises(ValueError, match="outside"):
-        d("set_device_parameter", {"track": 0, "device": 0, "parameter": 0, "value": 2})
+        d("set_device_parameter", {"parameter": gain, "value": 2})
     with pytest.raises(ValueError, match="not enabled"):
-        d("set_device_parameter", {"track": 0, "device": 0, "parameter": 1, "value": 0.5})
-    with pytest.raises(ValueError):
-        d("set_device_parameter", {"track": 0, "device": 0, "parameter": True, "value": 0.5})
+        d("set_device_parameter", {"parameter": macro, "value": 0.5})
+    assert d("set_device_parameter", {"parameter": True, "value": 0.5})["code"] == (
+        "reference_required"
+    )
 
 
 def test_sample_parameter_reads_displays_without_writing(env):
@@ -172,30 +186,165 @@ def test_sample_parameter_reads_displays_without_writing(env):
 def test_batch_sample_and_write_validate_everything_before_writing(env):
     song, _app, d = env
     loc = {"track": 0, "device": 0}
+    gain = param_ref(d, 0, 0, 0)
     r = d("sample_parameters", {**loc, "requests": [{"parameter": 0, "values": [0, 1]}]})
     assert r == {"results": [{"name": "Gain", "displays": ["0.00", "1.00"]}]}
-    r = d("set_device_parameters", {**loc, "writes": [{"parameter": 0, "value": 0.75}]})
+    r = d("set_device_parameters", {"writes": [{"parameter": gain, "value": 0.75}]})
     assert r["results"][0]["value"] == 0.75
     assert song.tracks[0].devices[0].parameters[0].value == 0.75
     # one bad entry means nothing at all is written
-    bad = [{"parameter": 0, "value": 0.1}, {"parameter": 0, "value": 5}]
+    bad = [{"parameter": gain, "value": 0.1}, {"parameter": gain, "value": 5}]
     with pytest.raises(ValueError):
-        d("set_device_parameters", {**loc, "writes": bad})
+        d("set_device_parameters", {"writes": bad})
     assert song.tracks[0].devices[0].parameters[0].value == 0.75
-    for key, items in [("writes", []), ("writes", "x"), ("writes", [3]), ("writes", [{}] * 65)]:
+    for items in ["x", [3], [{}] * 65]:
         with pytest.raises(ValueError):
-            d("set_device_parameters", {**loc, key: items})
+            d("set_device_parameters", {"writes": items})
     with pytest.raises(ValueError):
-        d("set_device_parameters", {**loc, "writes": [{"parameter": 0, "value": True}]})
+        d("set_device_parameters", {"writes": []})
+    with pytest.raises(ValueError):
+        d("set_device_parameters", {"writes": [{"parameter": gain, "value": True}]})
 
 
 def test_create_track_name_color_tempo(env):
     song, _a, d = env
-    assert d("create_track", {"kind": "midi"})["track_count"] == 3
+    gen = {"generation": d.safety.generation}
+    assert d("create_track", {"kind": "midi", **gen})["track_count"] == 3
     with pytest.raises(ValueError):
-        d("create_track", {"kind": "video"})
-    assert d("set_track_name", {"track": 0, "name": "Lead"})["name"] == "Lead"
-    assert d("set_track_color", {"track": 0, "color_index": 5})["color_index"] == 5
-    assert d("set_tempo", {"bpm": 128})["tempo"] == 128
+        d("create_track", {"kind": "video", **gen})
+    t0 = track_ref(d, 0)
+    assert d("set_track_name", {"track": t0, "name": "Lead"})["name"] == "Lead"
+    assert d("set_track_color", {"track": t0, "color_index": 5})["color_index"] == 5
+    assert d("set_tempo", {"bpm": 128, **gen})["tempo"] == 128
     with pytest.raises(ValueError):
-        d("set_tempo", {"bpm": 5})
+        d("set_tempo", {"bpm": 5, **gen})
+
+
+class Clip:
+    name, length, is_playing, looping, is_midi_clip = "c", 4.0, False, True, True
+    fired = False
+
+    def fire(self):
+        self.fired = True
+
+
+class Slot:
+    def __init__(self):
+        self.has_clip, self.clip = True, Clip()
+
+
+class Scene:
+    name, is_triggered = "s", False
+    fired = False
+
+    def fire(self):
+        self.fired = True
+
+
+def test_safety_contract_classification_refusal_and_leases(env, tmp_path, monkeypatch):
+    song, app, d = env
+    song.scenes = [Scene()]
+    song.tracks[0].clip_slots = [Slot()]
+    now = [100.0]
+    safe = Safety(lambda: song, policy=lambda: False, clock=lambda: now[0])
+    d = make_dispatch(lambda: song, app, safe)
+
+    # 1. every handler is classified; writes have a target spec; classification table
+    table = handlers._handlers(song, app, safe)
+    assert set(table) == {m for m, k in CLASSIFICATION.items() if k in (READ, WRITE)}
+    assert {m for m, k in CLASSIFICATION.items() if k == WRITE} == set(safety_module.TARGETS)
+    print("\nmethod classification:")
+    for kind in (READ, WRITE, "control"):
+        print(f"  {kind:7}", sorted(m for m, k in CLASSIFICATION.items() if k == kind))
+    with pytest.raises(ValueError, match="unclassified"):
+        d("delete_everything", {})
+
+    # 2. refusals happen before any write: index-only, wrong kind, stale layout, stale gen
+    gen = {"generation": safe.generation}
+    gain_ref = param_ref(d, 0, 0, 0)
+    refusals = {
+        "index-only parameter": d("set_device_parameter", {"parameter": 0, "value": 0.9}),
+        "index-only track": d("set_track_name", {"track": 0, "name": "X"}),
+        "wrong-kind ref": d("set_track_name", {"track": gain_ref, "name": "X"}),
+        "invented ref": d("set_track_name", {"track": "deadbeef", "name": "X"}),
+        "no generation": d("set_tempo", {"bpm": 90}),
+        "stale generation": d("set_tempo", {"bpm": 90, "generation": 99}),
+    }
+    for name, r in refusals.items():
+        print(f"  refused {name}: {r['code']}")
+        assert r["refused"] and r["applied"] is False
+    assert song.tempo == 120.0 and song.tracks[0].name == "A"
+    assert song.tracks[0].devices[0].parameters[0].value == 0.5
+
+    # stale: a device is removed/inserted after the read, parameter ref must now be refused
+    song.tracks[0].devices.append(Dev())
+    r = d("set_device_parameter", {"parameter": gain_ref, "value": 0.9})
+    print("  refused stale device layout:", r["code"])
+    assert r["code"] == "stale_target" and song.tracks[0].devices[0].parameters[0].value == 0.5
+    song.tracks[0].devices.pop()
+    # a track removed from the Set (reorder/delete) invalidates its reference
+    t1 = track_ref(d, 1)
+    removed = song.tracks.pop(1)
+    assert d("set_track_name", {"track": t1, "name": "X"})["code"] == "stale_target"
+    song.tracks.insert(1, removed)
+    # clip/scene refs: valid then stale when the clip leaves its slot
+    clip_ref = d("clip_slot", {"track": 0, "scene": 0})["clip"]
+    scene_ref = d("scenes", {})[0]["ref"]
+    assert d("fire_clip", {"clip": clip_ref})["is_playing"] is False
+    assert d("fire_scene", {"scene": scene_ref})["name"] == "s"
+    song.tracks[0].clip_slots[0].has_clip = False
+    assert d("fire_clip", {"clip": clip_ref})["code"] == "stale_target"
+    song.tracks[0].clip_slots[0].has_clip = True
+
+    # 3. read-only policy refuses every write method, first, even with valid refs
+    ro = make_dispatch(lambda: song, app, Safety(lambda: song, policy=lambda: True))
+    t0 = ro("tracks", {})[0]["ref"]
+    for method in sorted(safety_module.TARGETS):
+        assert ro(method, {"track": t0})["code"] == "read_only", method
+    for bad in (None, "false", 0, {}):  # only the literal False enables writes
+        assert Safety(lambda: song, policy=lambda bad=bad: bad).read_only() is True
+    assert song.tracks[0].name == "A"
+
+    # real config path: fail closed on missing/invalid, False only when explicit
+    cfg = tmp_path / "bridge.json"
+    monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", str(cfg))
+    assert safety_module.config_read_only() is True  # missing file
+    monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", "relative.json")
+    assert safety_module.config_read_only() is True  # not absolute, no home fallback
+
+    # 4. lease: competing owner refused, wrong token refused, expiry, release, invalidation
+    lease = d("lease_acquire", {"ttl": 5})
+    assert d("lease_acquire", {"ttl": 5})["code"] == "lease_held"
+    assert d("set_tempo", {"bpm": 90, **gen})["code"] == "lease_held"  # no token
+    assert d("set_tempo", {"bpm": 90, **gen, "lease": "x" * 32})["code"] == "lease_held"
+    assert d("set_tempo", {"bpm": 90, **gen, "lease": lease["lease"]})["tempo"] == 90
+    now[0] += 5.0
+    assert d("set_tempo", {"bpm": 91, **gen, "lease": lease["lease"]})["code"] == "lease_expired"
+    assert d("lease_acquire", {"ttl": 1000})["ttl"] == safety_module.MAX_LEASE_TTL  # capped
+    assert d("lease_acquire", {})["code"] == "lease_held"
+    assert d("lease_release", {"lease": "nope"})["code"] == "lease_mismatch"
+    now[0] += safety_module.MAX_LEASE_TTL
+    again = d("lease_acquire", {"ttl": 5})  # expiry freed the bridge
+    assert d("lease_release", {"lease": again["lease"]}) == {"released": True}
+    held = d("lease_acquire", {"ttl": 5})
+    safe.invalidate()  # disconnect/session end drops lease and refs
+    assert d("set_tempo", {"bpm": 95, "generation": safe.generation}) == {"tempo": 95}
+    assert d("set_track_name", {"track": t0, "name": "X"})["code"] in {"unknown_reference"}
+    print(
+        "  lease outcomes: held/wrong-token refused, expiry, release, invalidation ok", held["ttl"]
+    )
+
+    # 5. Set change: a different Song object bumps generation and expires every reference
+    ref = track_ref(d, 0)
+    old_generation = safe.generation
+    other = Song()
+    song_box = [other]
+    safe._supplier = lambda: song_box[0]
+    r = d("set_track_name", {"track": ref, "name": "Z"})
+    assert r["refused"] and safe.generation == old_generation + 1
+    assert other.tracks[0].name == "A" and song.tracks[0].name == "A"
+
+    # 6. bounded registry
+    for _ in range(safety_module.MAX_REFS + 50):
+        safe.issue(("track", other.tracks[0], {}))
+    assert len(safe._refs) == safety_module.MAX_REFS

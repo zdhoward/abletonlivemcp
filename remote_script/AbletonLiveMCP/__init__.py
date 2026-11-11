@@ -17,10 +17,13 @@ class AbletonLiveMCP(ControlSurface):
     def __init__(self, c_instance):
         super().__init__(c_instance)
         self._server = None
+        self._dispatch = None
         try:
             import Live
 
-            dispatch = make_dispatch(self.song(), Live.Application.get_application())
+            # Pass the supplier, not a captured Song: the Set can be replaced while we run.
+            dispatch = make_dispatch(self.song, Live.Application.get_application())
+            self._dispatch = dispatch
             self._server = BridgeServer(dispatch, port=PORT, log=self.log_message)
             self._server.start()
             self.log_message(f"AbletonLiveMCP: listening on 127.0.0.1:{self._server.port}")
@@ -33,6 +36,8 @@ class AbletonLiveMCP(ControlSurface):
             self._server.drain()
 
     def disconnect(self):
+        if self._dispatch is not None:
+            self._dispatch.safety.invalidate()  # drop references and any lease
         if self._server is not None:
             self._server.stop()
         super().disconnect()
