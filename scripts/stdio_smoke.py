@@ -28,7 +28,9 @@ async def main() -> int:
             flags = {k: a.get(k) for k in keys} if a else None
             title = d.get("title") or a.get("title")
             ok = bool(title) and flags is not None and d.get("outputSchema") is not None
-            print("PASS" if ok else "FAIL", "surface", t.name, "|", title, "|", flags, "| outputSchema:", d.get("outputSchema") is not None)
+            has_out = d.get("outputSchema") is not None
+            verdict = "PASS" if ok else "FAIL"
+            print(verdict, "surface", t.name, "|", title, "|", flags, "| out:", has_out)
             failed += not ok
         for name in READS:
             if name not in names:
