@@ -1,144 +1,541 @@
-"""Live-independent bridge core: loopback TCP server, newline-framed JSON, main-thread queue.
+"""Authenticated loopback bridge. Only drain() invokes application code (stdlib only)."""
 
-Socket threads only frame/validate JSON and enqueue work. All handler code runs inside
-``BridgeServer.drain()``, which the Remote Script calls from Live's main thread. Nothing on
-the main thread ever waits on a socket. Stdlib only (Live ships its own Python).
-"""
-
+import collections
+import ctypes
+import hashlib
+import hmac
 import json
-import queue
+import math
+import os
+import re
+import secrets
 import socket
+import stat
 import threading
+import time
 
-PROTOCOL_VERSION = 1
-MAX_FRAME = 1024 * 1024  # bytes per request line
-REQUEST_TIMEOUT = 10.0  # seconds a client waits for the main thread
+PROTOCOL_VERSION = 2
+MAX_CONNECTIONS = 4
+MAX_QUEUE = 16
+MAX_FRAME = 1024 * 1024  # excluding the terminating newline, in either direction
+MAX_DEPTH = 32
+MAX_NODES = 16384
+FRAME_TIMEOUT = 5.0  # absolute frame deadline: trickling bytes does not reset it
+EXCHANGE_TIMEOUT = 15.0  # includes authentication, queueing, execution and sending
+REQUEST_TIMEOUT = 10.0  # additionally bounds the wait for drain()
+CAPABILITIES = {
+    "authenticated_envelopes": True,
+    "bounded_io": True,
+    "atomic_cancellation": True,
+}
+_HEX = re.compile(r"[0-9a-f]{64}\Z")
+_METHOD = re.compile(r"[A-Za-z][A-Za-z0-9_.]{0,127}\Z")
+
+
+def _windows_private(fd):
+    """Check the opened file's owner/DACL, without shelling out or trusting mode bits."""
+    import msvcrt
+    from ctypes import wintypes
+
+    adv = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    ptr = ctypes.c_void_p
+    adv.GetSecurityInfo.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.DWORD] + [
+        ctypes.POINTER(ptr)
+    ] * 5
+    adv.GetSecurityInfo.restype = wintypes.DWORD
+    adv.ConvertSidToStringSidW.argtypes = [ptr, ctypes.POINTER(ptr)]
+    adv.ConvertSidToStringSidW.restype = wintypes.BOOL
+    adv.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    adv.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ptr,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    adv.GetAce.argtypes = [ptr, wintypes.DWORD, ctypes.POINTER(ptr)]
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.LocalFree.argtypes = [ptr]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    def sid_text(sid):
+        text = ptr()
+        if not adv.ConvertSidToStringSidW(sid, ctypes.byref(text)):
+            raise ValueError("cannot inspect config ACL")
+        try:
+            return ctypes.wstring_at(text)
+        finally:
+            kernel.LocalFree(text)
+
+    token = wintypes.HANDLE()
+    if not adv.OpenProcessToken(kernel.GetCurrentProcess(), 8, ctypes.byref(token)):
+        raise ValueError("cannot inspect config owner")
+    try:
+        size = wintypes.DWORD()
+        adv.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))
+        data = ctypes.create_string_buffer(size.value)
+        if not adv.GetTokenInformation(token, 1, data, size, ctypes.byref(size)):
+            raise ValueError("cannot inspect config owner")
+        current = sid_text(ctypes.cast(data, ctypes.POINTER(ptr))[0])
+    finally:
+        kernel.CloseHandle(token)
+    owner, dacl, sd = ptr(), ptr(), ptr()
+    code = adv.GetSecurityInfo(
+        msvcrt.get_osfhandle(fd),
+        1,
+        5,
+        ctypes.byref(owner),
+        None,
+        ctypes.byref(dacl),
+        None,
+        ctypes.byref(sd),
+    )
+    if code:
+        raise ValueError("cannot inspect config ACL")
+    try:
+        if not dacl.value or sid_text(owner) != current:
+            raise ValueError("config must be owned by the current user with a private ACL")
+        # ACL header: BYTE revision/reserved; WORD size/ace_count/reserved.
+        count = ctypes.c_ushort.from_address(dacl.value + 4).value
+        for index in range(count):
+            ace = ptr()
+            if not adv.GetAce(dacl, index, ctypes.byref(ace)):
+                raise ValueError("cannot inspect config ACL")
+            kind = ctypes.c_ubyte.from_address(ace.value).value
+            if kind == 1:  # ACCESS_DENIED_ACE grants no access
+                continue
+            if kind != 0 or sid_text(ace.value + 8) not in {
+                current,
+                "S-1-3-4",  # OWNER RIGHTS resolves to the checked current-user owner
+                "S-1-5-18",
+                "S-1-5-32-544",  # owner, SYSTEM, Administrators
+            }:
+                raise ValueError("config ACL grants access to another principal")
+    finally:
+        kernel.LocalFree(sd)
+
+
+def _load_secret():
+    """Never create, repair, print or fall back from an explicitly selected config."""
+    path = os.environ.get("ABLETONLIVEMCP_CONFIG")
+    if path is None:
+        path = os.path.join(os.path.expanduser("~"), ".abletonlivemcp", "bridge.json")
+    if not path or not os.path.isabs(path):
+        raise ValueError("config path must be absolute")
+    before = os.lstat(path)
+    if not stat.S_ISREG(before.st_mode) or getattr(before, "st_file_attributes", 0) & 0x400:
+        raise ValueError("config must be a regular file, not a link")
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or (before.st_dev, before.st_ino) != (
+            info.st_dev,
+            info.st_ino,
+        ):
+            raise ValueError("config changed while opening")
+        if os.name == "nt":
+            _windows_private(stream.fileno())
+        elif info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+            raise ValueError("config permissions must be owner-only")
+        raw = stream.read(8193)
+    if len(raw) > 8192:
+        raise ValueError("config exceeds limit")
+    config = _decode(raw)
+    secret = config.get("secret") if isinstance(config, dict) else None
+    if not isinstance(secret, str) or not _HEX.fullmatch(secret):
+        raise ValueError("config requires a 32-byte lowercase hex secret")
+    return bytes.fromhex(secret)
+
+
+def _object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def _invalid_number(value):
+    raise ValueError("non-finite JSON number")
+
+
+def _validate(value):
+    stack = [(value, 0)]
+    count = 0
+    while stack:
+        item, depth = stack.pop()
+        count += 1
+        if count > MAX_NODES or depth > MAX_DEPTH:
+            raise ValueError("JSON structure exceeds limit")
+        if isinstance(item, dict):
+            if count + len(stack) + 2 * len(item) > MAX_NODES:
+                raise ValueError("JSON structure exceeds limit")
+            for key, child in item.items():
+                if not isinstance(key, str):
+                    raise ValueError("JSON keys must be strings")
+                stack.extend(((key, depth + 1), (child, depth + 1)))
+        elif isinstance(item, list):
+            if count + len(stack) + len(item) > MAX_NODES:
+                raise ValueError("JSON structure exceeds limit")
+            stack.extend((child, depth + 1) for child in item)
+        elif isinstance(item, str):
+            if len(item) > MAX_FRAME // 6:
+                raise ValueError("JSON string exceeds limit")
+        elif isinstance(item, float):
+            if not math.isfinite(item):
+                raise ValueError("non-finite JSON number")
+        elif type(item) is int and abs(item) > 2**53 - 1:
+            raise ValueError("JSON integer exceeds limit")
+        elif item is not None and not isinstance(item, (bool, int)):
+            raise ValueError("unsupported JSON value")
+
+
+def _decode(raw):
+    value = json.loads(
+        raw.decode("utf-8"), object_pairs_hook=_object, parse_constant=_invalid_number
+    )
+    _validate(value)
+    return value
+
+
+def _encode(value):
+    _validate(value)
+    chunks, size = [], 0
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
+    for piece in encoder.iterencode(value):
+        chunk = piece.encode("ascii")  # ensure_ascii=True is intentional and canonical
+        size += len(chunk)
+        if size > MAX_FRAME:
+            raise ValueError("frame exceeds limit")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _mac(secret, domain, context, body):
+    digest = hmac.new(
+        secret, b"AbletonLiveMCP/v2/" + domain.encode("ascii") + b"\0", hashlib.sha256
+    )
+    digest.update(_encode(context))
+    digest.update(b"\0")
+    digest.update(_encode(body))
+    return digest.hexdigest()
+
+
+def _signed(secret, domain, context, body):
+    return dict(body, mac=_mac(secret, domain, context, body))
+
+
+def _verify(secret, domain, context, envelope):
+    if not isinstance(envelope, dict):
+        raise ValueError("expected object envelope")
+    body = dict(envelope)
+    signature = body.pop("mac", None)
+    if not isinstance(signature, str) or not _HEX.fullmatch(signature):
+        raise ValueError("missing authentication")
+    if not hmac.compare_digest(signature, _mac(secret, domain, context, body)):
+        raise ValueError("authentication failed")
+    return body
+
+
+class _FrameError(ValueError):
+    def __init__(self, kind):
+        self.kind = kind
+
+
+class _Wire:
+    def __init__(self, conn, deadline):
+        self.conn, self.deadline, self.buf = conn, deadline, b""
+
+    def read(self):
+        end = min(self.deadline, time.monotonic() + FRAME_TIMEOUT)
+        while True:
+            newline = self.buf.find(b"\n")
+            if newline >= 0:
+                if newline > MAX_FRAME:
+                    raise _FrameError("FrameTooLarge")
+                line, self.buf = self.buf[:newline], self.buf[newline + 1 :]
+                try:
+                    return _decode(line)
+                except (ValueError, RecursionError):
+                    raise _FrameError("BadFrame") from None
+            if len(self.buf) > MAX_FRAME:
+                raise _FrameError("FrameTooLarge")
+            left = end - time.monotonic()
+            if left <= 0:
+                raise _FrameError("FrameTimeout")
+            self.conn.settimeout(left)
+            try:
+                chunk = self.conn.recv(min(65536, MAX_FRAME + 1 - len(self.buf)))
+            except TimeoutError:
+                raise _FrameError("FrameTimeout") from None
+            if not chunk:
+                raise _FrameError("ConnectionClosed")
+            self.buf += chunk
+
+    def send(self, body):
+        raw = _encode(body)
+        left = min(FRAME_TIMEOUT, self.deadline - time.monotonic())
+        if left <= 0:
+            raise _FrameError("ExchangeTimeout")
+        self.conn.settimeout(left)
+        self.conn.sendall(raw + b"\n")
+
+
+def _err(rid, kind, may_have_applied=False):
+    return {
+        "type": "response",
+        "protocol": 2,
+        "id": rid,
+        "ok": False,
+        "error": {"type": kind, "message": kind, "may_have_applied": may_have_applied},
+    }
 
 
 class _Pending:
-    __slots__ = ("request", "event", "response", "cancelled", "started")
-
-    def __init__(self, request):
-        self.request = request
+    def __init__(self, request, deadline):
+        self.request, self.deadline = request, deadline
         self.event = threading.Event()
+        self.state = "queued"
         self.response = None
-        self.cancelled = False
-        self.started = False
+        self.abandoned = False
 
 
 class BridgeServer:
     def __init__(self, dispatch, host="127.0.0.1", port=9877, log=None):
-        self._dispatch = dispatch  # (method, params) -> JSON-able result; raises on error
-        self._host = host
-        self._port = port
-        self._log = log or (lambda msg: None)
-        self._queue = queue.Queue()
+        if host != "127.0.0.1":
+            raise ValueError("bridge requires IPv4 loopback")
+        self._dispatch, self._host, self._port = dispatch, host, port
+        self._lock = threading.Lock()
+        self._queue = collections.deque()
+        self._pending, self._connections, self._workers = set(), set(), set()
         self._sock = None
         self._stop = threading.Event()
+        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+        self._accept_thread = None
 
     @property
     def port(self):
         return self._port
 
     def start(self):
+        if self._sock is not None or self._stop.is_set():
+            raise RuntimeError("bridge instance cannot be restarted")
+        try:
+            self._secret = _load_secret()
+        except (OSError, ValueError, RecursionError):
+            raise ValueError(
+                "private bridge config unavailable; reinstall or repair config"
+            ) from None
+        self._status = {
+            "protocol": 2,
+            "component_version": "0.0.1",
+            "build": "source-protocol-2",
+            "session": secrets.token_hex(32),
+            "methods": [],
+            "capabilities": dict(CAPABILITIES),
+        }
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((self._host, self._port))  # loopback only; never 0.0.0.0
-        s.listen(4)
-        s.settimeout(0.5)
-        self._port = s.getsockname()[1]
-        self._sock = s
-        threading.Thread(target=self._accept_loop, name="almcp-accept", daemon=True).start()
+        try:
+            s.bind((self._host, self._port))
+            s.listen(MAX_CONNECTIONS)
+            s.settimeout(0.1)
+        except OSError:
+            s.close()
+            raise
+        self._port, self._sock = s.getsockname()[1], s
+        self._accept_thread = threading.Thread(target=self._accept_loop, daemon=True)
+        self._accept_thread.start()
 
     def stop(self):
         self._stop.set()
+        with self._lock:
+            for pending in self._pending:
+                was_started = pending.state == "started"
+                if pending.state == "queued":
+                    pending.state = "cancelled"
+                pending.response = _err(pending.request["id"], "Shutdown", was_started)
+                pending.abandoned = True
+                pending.event.set()
+            self._queue.clear()
+            self._pending.clear()
+            connections, workers = list(self._connections), list(self._workers)
         if self._sock is not None:
+            self._sock.close()
+        for conn in connections:
             try:
-                self._sock.close()
+                conn.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
+            conn.close()
+        end = time.monotonic() + 1.0
+        for thread in workers + ([self._accept_thread] if self._accept_thread else []):
+            if thread is not threading.current_thread():
+                thread.join(max(0, end - time.monotonic()))
 
-    # -- main thread ---------------------------------------------------------------
     def drain(self, budget=8):
-        """Run up to ``budget`` queued requests. Call from Live's main thread."""
+        """Only the Live main thread calls this; never waits on a socket or client."""
         for _ in range(budget):
-            try:
-                pending = self._queue.get_nowait()
-            except queue.Empty:
-                return
-            if pending.cancelled:  # client timed out before we started: skip, never run late
-                continue
-            pending.started = True
-            pending.response = self._run(pending.request)
-            pending.event.set()
+            with self._lock:
+                if self._stop.is_set() or not self._queue:
+                    return
+                pending = self._queue.popleft()
+                if pending.state != "queued":
+                    continue
+                if time.monotonic() >= pending.deadline:
+                    pending.state = "cancelled"
+                    pending.response = _err(pending.request["id"], "Timeout")
+                    pending.event.set()
+                    self._pending.discard(pending)
+                    continue
+                pending.state = "started"  # atomic with the timeout/cancel decision
+            response = self._run(pending.request)
+            with self._lock:
+                pending.state = "completed"
+                if not pending.abandoned:
+                    pending.response = response
+                pending.event.set()
+                self._pending.discard(pending)
 
     def _run(self, req):
-        rid = req.get("id")
         try:
-            result = self._dispatch(req["method"], req.get("params") or {})
-            return {"id": rid, "ok": True, "result": result}
-        except Exception as exc:  # noqa: BLE001 - report every handler failure to the client
-            err = {"type": type(exc).__name__, "message": str(exc)}
-            return {"id": rid, "ok": False, "error": err}
+            result = self._dispatch(req["method"], req["params"])
+            return {
+                "type": "response",
+                "protocol": 2,
+                "id": req["id"],
+                "ok": True,
+                "result": result,
+            }
+        except Exception:
+            # Handler exceptions can contain credentials or user input. Do not echo them.
+            return _err(req["id"], "HandlerError", True)
 
-    # -- socket threads ------------------------------------------------------------
     def _accept_loop(self):
         while not self._stop.is_set():
             try:
-                conn, _addr = self._sock.accept()
+                conn, _ = self._sock.accept()
             except TimeoutError:
                 continue
             except OSError:
                 return
-            threading.Thread(target=self._client_loop, args=(conn,), daemon=True).start()
+            with self._lock:
+                if self._stop.is_set():
+                    conn.close()
+                    return
+                admitted = self._slots.acquire(blocking=False)
+                if admitted:
+                    self._connections.add(conn)
+                    worker = threading.Thread(target=self._client_loop, args=(conn,), daemon=True)
+                    self._workers.add(worker)
+                    worker.start()
+            if not admitted:
+                # Never hold the drain/state lock across socket I/O.
+                try:
+                    _Wire(conn, time.monotonic() + 0.05).send(
+                        {"type": "error", "protocol": 2, "error": "Busy"}
+                    )
+                except (OSError, ValueError):
+                    pass
+                conn.close()
 
     def _client_loop(self, conn):
-        buf = b""
-        conn.settimeout(1.0)
-        with conn:
-            while not self._stop.is_set():
-                try:
-                    chunk = conn.recv(65536)
-                except TimeoutError:
-                    continue
-                except OSError:
-                    return
-                if not chunk:
-                    return
-                buf += chunk
-                while b"\n" in buf:
-                    line, buf = buf.split(b"\n", 1)
-                    if not self._handle_line(conn, line):
-                        return
-                if len(buf) > MAX_FRAME:
-                    self._send(conn, _err(None, "FrameTooLarge", "request exceeds limit"))
-                    return
-
-    def _handle_line(self, conn, line):
-        if not line.strip():
-            return True
+        wire = _Wire(conn, time.monotonic() + EXCHANGE_TIMEOUT)
+        context = None
         try:
-            req = json.loads(line.decode("utf-8"))
-            if not isinstance(req, dict) or not isinstance(req.get("method"), str):
-                raise ValueError("request must be an object with a string 'method'")
-        except ValueError as exc:  # includes JSONDecodeError and UnicodeDecodeError
-            return self._send(conn, _err(None, "BadRequest", str(exc)))
-        pending = _Pending(req)
-        self._queue.put(pending)
-        if not pending.event.wait(REQUEST_TIMEOUT):
-            pending.cancelled = True
-            # If it already started, the mutation may have happened: say so, never retry.
-            kind = "TimeoutAfterStart" if pending.started else "Timeout"
-            return self._send(conn, _err(req.get("id"), kind, "main thread did not answer in time"))
-        return self._send(conn, pending.response)
+            hello = wire.read()
+            if (
+                not isinstance(hello, dict)
+                or set(hello) != {"type", "protocol", "nonce"}
+                or hello["type"] != "client_hello"
+                or type(hello["protocol"]) is not int
+                or hello["protocol"] != 2
+                or not isinstance(hello["nonce"], str)
+                or not _HEX.fullmatch(hello["nonce"])
+            ):
+                return
+            context = {
+                "client_nonce": hello["nonce"],
+                "server_nonce": secrets.token_hex(32),
+                "status": self._status,
+            }
+            wire.send(
+                _signed(
+                    self._secret,
+                    "server_hello",
+                    {},
+                    {"type": "server_hello", "protocol": 2, "context": context},
+                )
+            )
+            auth = _verify(self._secret, "client_auth", context, wire.read())
+            if auth != {"type": "client_auth", "protocol": 2} or type(auth["protocol"]) is not int:
+                return
+            wire.send(
+                _signed(
+                    self._secret, "authenticated", context, {"type": "authenticated", "protocol": 2}
+                )
+            )
+            req = _verify(self._secret, "request", context, wire.read())
+            if (
+                set(req) != {"type", "protocol", "id", "method", "params"}
+                or req["type"] != "request"
+                or type(req["protocol"]) is not int
+                or req["protocol"] != 2
+                or type(req["id"]) is not int
+                or not 1 <= req["id"] <= 2**53 - 1
+                or not isinstance(req["method"], str)
+                or not _METHOD.fullmatch(req["method"])
+                or not isinstance(req["params"], dict)
+                or wire.buf
+            ):
+                return
+            response = self._submit(req, wire.deadline)
+            try:
+                envelope = _signed(self._secret, "response", context, response)
+                _encode(envelope)
+            except (ValueError, RecursionError):
+                envelope = _signed(
+                    self._secret, "response", context, _err(req["id"], "ReplyTooLarge", True)
+                )
+            wire.send(envelope)
+        except _FrameError as exc:
+            # Unauthenticated errors are diagnostic only; never trusted as command outcomes.
+            try:
+                if not self._stop.is_set():
+                    wire.send({"type": "error", "protocol": 2, "error": exc.kind})
+            except (OSError, ValueError):
+                pass
+        except (OSError, ValueError, RecursionError):
+            pass  # first invalid/authentication failure closes; no dispatch or error echo
+        finally:
+            conn.close()
+            with self._lock:
+                self._connections.discard(conn)
+                self._workers.discard(threading.current_thread())
+                self._slots.release()
 
-    def _send(self, conn, obj):
-        try:
-            conn.sendall(json.dumps(obj, separators=(",", ":")).encode("utf-8") + b"\n")
-            return True
-        except OSError:
-            return False
-
-
-def _err(rid, kind, message):
-    return {"id": rid, "ok": False, "error": {"type": kind, "message": message}}
+    def _submit(self, req, deadline):
+        pending = _Pending(req, min(deadline, time.monotonic() + REQUEST_TIMEOUT))
+        with self._lock:
+            if self._stop.is_set():
+                return _err(req["id"], "Shutdown")
+            if len(self._queue) >= MAX_QUEUE:
+                return _err(req["id"], "Busy")
+            self._queue.append(pending)
+            self._pending.add(pending)
+        pending.event.wait(max(0, pending.deadline - time.monotonic()))
+        with self._lock:
+            if pending.response is not None:
+                return pending.response
+            if pending.state == "queued":
+                pending.state = "cancelled"
+                self._queue.remove(pending)
+                self._pending.discard(pending)
+                return _err(req["id"], "Timeout")
+            pending.abandoned = True
+            return _err(req["id"], "TimeoutAfterStart", True)
