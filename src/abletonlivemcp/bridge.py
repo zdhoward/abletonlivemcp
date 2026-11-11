@@ -378,7 +378,16 @@ class BridgeClient:
         transmitted = False
         try:
             deadline = time.monotonic() + self._timeout
-            with socket.create_connection(self._addr, timeout=self._timeout) as conn:
+            try:
+                conn = socket.create_connection(self._addr, timeout=self._timeout)
+            except OSError:  # includes a connect timeout; nothing was sent, so nothing applied
+                raise BridgeError(
+                    "Unreachable",
+                    f"Cannot reach Ableton Live at {self._addr[0]}:{self._addr[1]}. Start Live "
+                    "and enable the AbletonLiveMCP control surface in Settings > Link/Tempo/MIDI.",
+                    False,
+                ) from None
+            with conn:
                 wire = _Wire(conn, deadline)
                 context = self._authenticate(wire, secret)
                 rid = next(self._ids)

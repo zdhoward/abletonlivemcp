@@ -72,8 +72,10 @@ def _owned_snapshot(directory: Path) -> dict[str, str]:
         raise InstallError(f"Unknown installation; preserved intact: {directory}") from None
     managed = {name: digest for name, digest in actual.items() if "/" not in name}
     if (
-        not isinstance(manifest, dict) or manifest.get("format") != 1
-        or manifest.get("script") != SCRIPT or manifest.get("files") != managed
+        not isinstance(manifest, dict)
+        or manifest.get("format") != 1
+        or manifest.get("script") != SCRIPT
+        or manifest.get("files") != managed
     ):
         raise InstallError(f"Unmanaged or modified installation; preserved intact: {directory}")
     for name in actual.keys() - managed.keys():
@@ -91,7 +93,9 @@ def install(user_library: Path) -> Path:
     library = checked_path(user_library)
     presets = checked_path(library / "Presets")
     if not presets.is_dir():
-        raise InstallError(f"{library} does not look like an Ableton User Library (missing Presets)")
+        raise InstallError(
+            f"{library} does not look like an Ableton User Library (missing Presets)"
+        )
     parent = checked_path(library / "Remote Scripts")
     dest = checked_path(parent / SCRIPT)
     configuration = config_path()
@@ -143,8 +147,8 @@ def install(user_library: Path) -> Path:
                     backup.rename(dest)
                 except OSError:
                     raise InstallError(
-                        f"Replacement and rollback failed. Previous installation remains at {backup}; "
-                        "close Live before restoring that folder"
+                        "Replacement and rollback failed. Previous installation remains "
+                        f"at {backup}; close Live before restoring that folder"
                     ) from exc
             raise InstallError(
                 "Replacement failed; previous installation restored. Close Live and retry"

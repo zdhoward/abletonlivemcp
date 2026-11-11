@@ -1,7 +1,5 @@
 import asyncio
 import sys
-import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -10,39 +8,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
 from abletonlivemcp import install  # noqa: E402
 from abletonlivemcp.bridge import BridgeClient, BridgeError  # noqa: E402
-from AbletonLiveMCP.core import BridgeServer  # noqa: E402
-from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
-from test_bridge import FakeApp, FakeSong  # noqa: E402
+
+# The authenticated client/server roundtrip lives in tests/test_bridge.py (inert dispatch).
 
 
-def _running_server():
-    server = BridgeServer(make_dispatch(FakeSong(), FakeApp()), port=0)
-    server.start()
-    stop = threading.Event()
+def test_client_unreachable_message_is_actionable(tmp_path, monkeypatch):
+    from abletonlivemcp import config
 
-    def loop():
-        while not stop.is_set():
-            server.drain()
-            time.sleep(0.01)
-
-    threading.Thread(target=loop, daemon=True).start()
-    return server, stop
-
-
-def test_client_roundtrip_and_error():
-    server, stop = _running_server()
-    try:
-        c = BridgeClient(port=server.port)
-        assert c.call("session_info")["tempo"] == 120.0
-        with pytest.raises(BridgeError) as e:
-            c.call("nope")
-        assert e.value.kind == "ValueError"
-    finally:
-        stop.set()
-        server.stop()
-
-
-def test_client_unreachable_message_is_actionable():
+    monkeypatch.setenv("ABLETONLIVEMCP_CONFIG", str(tmp_path / "private" / "bridge.json"))
+    config.ensure_config()
     with pytest.raises(BridgeError) as e:
         BridgeClient(port=1, timeout=1).call("hello")
     assert e.value.kind == "Unreachable" and "Live" in str(e.value)
