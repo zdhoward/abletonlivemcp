@@ -24,6 +24,11 @@ minor version once the first public release is tagged.
 - Automation steps now accept beat 0 (and refuse a zero-duration step at the clip end),
   allowing explicit drop/reset envelopes at the first beat.
 
+- `automation` is now a default toolset (32 default tools); `live_set_automation` and
+  `live_get_automation` accept a parameter name or index; `live_create_clips` gains
+  `if_exists` (`error` | `skip` | `replace`); `live_launch` scene state reports real playback.
+- `bridge.json` with a UTF-8 BOM is accepted.
+
 ## [0.10.0] - 2026-11-11
 
 ### Upgrade notes
