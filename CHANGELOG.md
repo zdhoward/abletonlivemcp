@@ -7,7 +7,8 @@ minor version once the first public release is tagged.
 ## [Unreleased]
 
 - Buildup demo preserves existing Arrangement MIDI and uses a separate instrument effects
-  bus with Wider, GHOST//PUMP, Auto Filter and the Set's instrument reverb/delay sends.
+  bus with Wider, GHOST//PUMP, Auto Filter and inline Reverb/Delay. Reverb reaches 100% wet;
+  wet FX switch off at DROP, restoring the dry beat. Apply FX and invite owner preview.
   Note generation requires both an explicit flag and a MIDI pitch map; occupied slots refuse.
 - Session automation accepts 2-3 `points` with linear interpolation, using step insertion
   and interior-event deletion instead of dense steps. Live retains coincident boundary
