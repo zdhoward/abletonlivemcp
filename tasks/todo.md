@@ -74,6 +74,18 @@ Live 12.3+ APIs (`insert_device`, `insert_chain`, `DrumChain.in_note`) must be v
 
 Assumptions: target Live 12.2+ (owner's install); `0.1.0` tag waits until the transport/clip work is verified in real Live (a tag is a milestone marker on a private repo).
 
+## Public roadmap (2026-11-11): `docs/plans/v2-public-roadmap.md`
+
+Owner answers: stay on Live 12.2 as the floor; after core surface (P1) go to the original use cases (UC6/UC1/UC4), then arrangement, with packaging (P2) before any public flip.
+
+- [ ] P0 Truth and hygiene (stale docs, version, CHANGELOG, NOTICE, data paths, drop Jev dep)
+- [ ] P1 Core surface (mixer, note edit, device order, clip props, batch setters, MCP quality, elicitation)
+- [ ] P2 Packaging and distribution (owner-gated publish)
+- [ ] P3 Knowledge, resources, prompts, SKILL.md
+- [ ] P4 Original use cases, then arrangement/automation
+- [ ] P5 Evals + simulator
+- [ ] P6 Launch and maintenance
+
 ## Next step
 
-M1 follow-ups above, then the next plan milestone (M2 stock discovery in `docs/plans/v1-public-release.md`), then M3 (needs samples) or M6.
+P0, then P1 (probe each capability in real Live before wrapping).
