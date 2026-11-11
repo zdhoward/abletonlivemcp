@@ -42,7 +42,8 @@ identity, owner-only ACL/mode via ``core._windows_private``, 8192-byte limit, st
 ``core._decode``, 32-byte hex secret required). ``core`` returns only the secret, so
 ``config_read_only`` repeats that sequence (calling core's own helpers) and reads ``read_only``.
 Writes are allowed only when it is the JSON literal ``false``; missing, non-bool, unreadable or
-insecure config means read-only. It is re-read on every write dispatch.
+insecure config means read-only. It is re-read on every write dispatch. The same config's
+``dev_probes`` (the JSON literal ``true`` only) enables the fixed dev probe table in ``dom_probe``.
 """
 
 import collections
@@ -65,6 +66,7 @@ from . import (
     dom_editing,
     dom_labels,
     dom_notes,
+    dom_probe,
     dom_racks,
     dom_recording,
     dom_scenes,
@@ -102,6 +104,7 @@ DOMAINS = (
     dom_view,
     dom_devx,
     dom_labels,
+    dom_probe,
 )
 # Executed by the gate itself (handlers.make_dispatch), never by a domain handler.
 GATE_METHODS = {"lease_acquire": CONTROL, "lease_release": CONTROL}
@@ -161,17 +164,17 @@ def _merge(domains):
 CLASSIFICATION, TARGETS, HANDLERS = _merge(DOMAINS)
 
 
-def config_read_only():
-    """True unless the shared config is valid, private and says ``"read_only": false``."""
+def _read_config():
+    """The shared config as a dict; None when it is missing, insecure or invalid (fail closed)."""
     try:
         path = os.environ.get("ABLETONLIVEMCP_CONFIG")
         if path is None:
             path = os.path.join(os.path.expanduser("~"), ".abletonlivemcp", "bridge.json")
         if not path or not os.path.isabs(path):
-            return True
+            return None
         before = os.lstat(path)
         if not stat.S_ISREG(before.st_mode) or getattr(before, "st_file_attributes", 0) & 0x400:
-            return True
+            return None
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0))
         with os.fdopen(fd, "rb") as stream:
             info = os.fstat(stream.fileno())
@@ -179,21 +182,33 @@ def config_read_only():
                 info.st_dev,
                 info.st_ino,
             ):
-                return True
+                return None
             if os.name == "nt":
                 _windows_private(stream.fileno(), path)
             elif info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
-                return True
+                return None
             raw = stream.read(8193)
         if len(raw) > 8192:
-            return True
+            return None
         config = _decode(raw)
         secret = config.get("secret") if isinstance(config, dict) else None
         if not isinstance(secret, str) or not _HEX.fullmatch(secret):
-            return True
-        return config.get("read_only") is not False
+            return None
+        return config
     except Exception:  # noqa: BLE001 - every failure must fail closed
-        return True
+        return None
+
+
+def config_read_only():
+    """True unless the shared config is valid, private and says ``"read_only": false``."""
+    config = _read_config()
+    return config is None or config.get("read_only") is not False
+
+
+def config_dev_probes():
+    """True only when the shared config is valid, private and says ``"dev_probes": true``."""
+    config = _read_config()
+    return config is not None and config.get("dev_probes") is True
 
 
 def _at(seq, index, obj):
@@ -211,8 +226,15 @@ def _member(seq, obj):
 
 
 class Safety:
-    def __init__(self, song_supplier, policy=config_read_only, clock=time.monotonic):
+    def __init__(
+        self,
+        song_supplier,
+        policy=config_read_only,
+        clock=time.monotonic,
+        dev_probes=config_dev_probes,
+    ):
         self._supplier, self._policy, self._clock = song_supplier, policy, clock
+        self._dev_probes = dev_probes
         self._song = None
         # Random start: Live reloads the script on a Set change and a fresh instance must never
         # share a generation with the previous one, or a stale client's number would match.
@@ -308,6 +330,13 @@ class Safety:
             return self._policy() is not False
         except Exception:  # noqa: BLE001
             return True
+
+    def dev_probes_enabled(self):
+        """Dev probes (``dom_probe``) run only when the config says ``"dev_probes": true``."""
+        try:
+            return self._dev_probes() is True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _live_lease(self):
         if self._lease is not None and self._clock() >= self._lease[1]:

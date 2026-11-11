@@ -1,6 +1,7 @@
 """The per-domain module contract: declarations merge fail-closed and every module installs."""
 
 import ast
+import re
 import sys
 import types
 from pathlib import Path
@@ -82,13 +83,17 @@ def test_duplicate_across_two_new_modules_fails_closed():
 def test_domain_modules_use_relative_imports_and_the_stdlib_only():
     """Live's embedded Python loads the script as a package with no ctypes and no site-packages;
     domain modules also must not import ``safety`` (it imports them)."""
-    allowed = {"math", "itertools", "Live"}
-    for path in sorted(SCRIPT_DIR.glob("dom_*.py")):
+    allowed = {"math", "itertools", "json", "Live"}
+    paths = sorted(SCRIPT_DIR.glob("dom_*.py")) + sorted(SCRIPT_DIR.glob("probe_p*.py"))
+    for path in paths:
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 assert {a.name.split(".")[0] for a in node.names} <= allowed, path.name
             elif isinstance(node, ast.ImportFrom):
                 if node.level == 0:
                     assert node.module.split(".")[0] in allowed, path.name
+                elif node.module is None and path.name == "dom_probe.py":
+                    # the fixed probe table: only the flat probe_pNN modules
+                    assert all(re.fullmatch(r"probe_p\d\d", a.name) for a in node.names)
                 else:
                     assert node.module in ("core", "dom_common"), (path.name, node.module)

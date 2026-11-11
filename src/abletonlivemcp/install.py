@@ -20,10 +20,14 @@ MANIFEST = ".abletonlivemcp-install.json"
 DOMAINS = (
     "common", "session", "tracks", "scenes", "clips", "notes", "devices", "browser", "drums",
     "racks", "arrangement", "automation", "recording", "editing", "song", "view", "devx", "labels",
+    "probe",
 )  # fmt: skip
+# The fixed dev probe table (dom_probe imports each one; plan section 4 numbering).
+PROBES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 27, 29)
 REQUIRED = frozenset(
     {"__init__.py", "core.py", "handlers.py", "operations.py", "safety.py"}
     | {f"dom_{name}.py" for name in DOMAINS}
+    | {f"probe_p{n:02d}.py" for n in PROBES}
 )
 
 
