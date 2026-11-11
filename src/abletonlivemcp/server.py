@@ -15,7 +15,7 @@ tool; there is no static re-export list.
 
 Toolsets: a tool belongs to the toolset named by its module (``tools/drums.py`` -> ``drums``;
 the core domains -> ``core``). ``ABLETONLIVEMCP_TOOLSETS`` (comma-separated) or the config key
-``toolsets`` picks them; ``core`` is always on, ``all`` means every toolset but ``experimental``,
+``toolsets`` picks them; ``core`` and ``automation`` are always on, ``all`` means every toolset but ``experimental``,
 and an unknown name stops the server at startup. Read-only still wins: write tools stay listed
 and refuse.
 """
@@ -95,6 +95,7 @@ TOOLSETS = (
     "experimental",
 )
 TOOLSETS_ENV = "ABLETONLIVEMCP_TOOLSETS"
+DEFAULT_TOOLSETS = frozenset({"core", "automation"})  # always on: enough for a buildup with sweeps
 
 
 class ToolsetError(ValueError):
@@ -108,7 +109,7 @@ def toolset_of(module: str) -> str:
 
 
 def select_toolsets(requested: str | list | tuple | None) -> frozenset[str]:
-    """Resolve a toolset request (comma string or list) to the enabled set; core is always on."""
+    """Resolve a toolset request (comma string or list) to the enabled set; core and automation are always on."""
     if requested is None:
         requested = ()
     if isinstance(requested, str):
@@ -121,11 +122,11 @@ def select_toolsets(requested: str | list | tuple | None) -> frozenset[str]:
         raise ToolsetError(f"unknown toolset(s) {unknown}; known: {', '.join(TOOLSETS)}, all")
     if "all" in names:
         names = (names - {"all"}) | (set(TOOLSETS) - {"experimental"})
-    return frozenset(names | {"core"})
+    return frozenset(names | DEFAULT_TOOLSETS)
 
 
 def configured_toolsets() -> frozenset[str]:
-    """The environment wins over the private config; neither means core only."""
+    """The environment wins over the private config; neither means the defaults only."""
     requested = os.environ.get(TOOLSETS_ENV)
     if requested is None:
         try:

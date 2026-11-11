@@ -5,8 +5,8 @@ description: Drive Ableton Live 12.2 through the abletonlivemcp MCP server (live
 
 # abletonlivemcp
 
-Control a running Ableton Live through the bridge. Tool names are `live_*`; core tools are always
-on, the rest are opt-in toolsets (`ABLETONLIVEMCP_TOOLSETS=drums,racks,organize,...` or `all`).
+Control a running Ableton Live through the bridge. Tool names are `live_*`; core and automation
+tools are always on, the rest are opt-in toolsets (`ABLETONLIVEMCP_TOOLSETS=drums,racks,organize,...` or `all`).
 
 ## Start
 1. `live_hello`: version, loaded modules, enabled toolsets, capability states and reasons.

@@ -117,10 +117,12 @@ the public source tree (the local `knowledge/` directory is also ignored).
 
 ## Toolsets and limits
 
-The default `core` toolset has 30 tools: session/transport/undo, tracks/mixer/scenes, clips/notes,
-device parameters/order, browser/load operations, chain planning/building and confirmed delete/duplicate.
-Set `ABLETONLIVEMCP_TOOLSETS` to a comma-separated list (including `core`) or `all` for 57 tools.
-Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `arrangement`, `automation`, `recording`,
+A default install enables 32 tools: the 30-tool `core` toolset (session/transport/undo,
+tracks/mixer/scenes, clips/notes, device parameters/order, browser/load operations, chain
+planning/building and confirmed delete/duplicate) plus the 2-tool `automation` toolset (Session-clip
+envelopes). Set `ABLETONLIVEMCP_TOOLSETS` to a comma-separated list to add more (`core` and
+`automation` stay on) or `all` for 57 tools.
+Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `arrangement`, `recording`,
 `editing`, `view`, `devices-advanced`, `files`. Resources and ten workflow prompts supplement tools.
 
 Live 12.2 cannot insert rack chains or map macros automatically. Custom drum-pad loading and pad
