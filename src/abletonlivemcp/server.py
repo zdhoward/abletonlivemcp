@@ -27,11 +27,15 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.elicitation import AcceptedElicitation, ElicitationResult
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.resolve import Elicit, Resolve
 from mcp.types import ToolAnnotations
+from mcp_types.version import is_version_at_least
+from pydantic import BaseModel, Field
 
 from . import chain
 from .bridge import BridgeClient, BridgeError
@@ -62,7 +66,7 @@ READ = _preset(True, False, True)
 CREATE = _preset(False, False, False)
 OVERWRITE = _preset(False, True, True)
 CONTROL = _preset(False, False, False)  # audible state only (transport, launch, view)
-DESTRUCTIVE = _preset(False, True, False)  # confirmation by elicitation arrives with T-007
+DESTRUCTIVE = _preset(False, True, False)  # every call is confirmed by a human (elicitation)
 
 # ---- toolsets ---------------------------------------------------------------------------------
 
@@ -199,10 +203,132 @@ def _add(server: MCPServer, spec: ToolSpec) -> None:
     server.add_tool(spec.fn, name=spec.name, title=spec.title, annotations=spec.annotations)
 
 
+# ---- confirmation for DESTRUCTIVE tools (T-007) -----------------------------------------------
+#
+# Before a DESTRUCTIVE tool runs, the server asks the human, in form mode, to confirm the exact
+# targets (with their expect_name). The question goes through the SDK resolver, so it rides a
+# standalone elicitation/create request on <= 2025-11-25 and an InputRequiredResult round trip on
+# >= 2026-07-28. The answer is injected by the server into a parameter the input schema never
+# shows, so nothing the model sends can stand in for it; a tool may not declare its own confirm.
+
+CONFIRM_PARAM = "confirmation"
+_RESERVED_PARAMS = {"confirm", CONFIRM_PARAM}
+_CTX_PARAM = "_abletonlivemcp_ctx"
+_INPUT_REQUIRED_VERSION = "2026-07-28"  # first revision that elicits through InputRequiredResult
+
+
+class Confirmation(BaseModel):
+    """The form the human fills in: one box, unticked by default."""
+
+    confirm: bool = Field(
+        False, title="Apply", description="Tick to apply exactly the listed change"
+    )
+
+
+def _plain(value):
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", exclude_none=True)
+    if isinstance(value, list | tuple):
+        return [_plain(v) for v in value]
+    return value
+
+
+def confirmation_message(name: str, args: dict) -> str:
+    """What the human reads: the tool, every target with its expect_name, the other arguments."""
+    args = {k: _plain(v) for k, v in args.items() if v is not None}
+    targets = args.pop("targets", None)
+    lines = [f"Confirm the destructive operation {_title(name)} ({name})."]
+    if isinstance(targets, list):
+        lines.append(f"Targets ({len(targets)}):")
+        for i, target in enumerate(targets, 1):
+            if isinstance(target, dict):
+                rest = ", ".join(f"{k}={v!r}" for k, v in target.items() if k != "expect_name")
+                lines.append(f"{i}. {rest}; expect_name={target.get('expect_name')!r}")
+            else:
+                lines.append(f"{i}. {target!r}; expect_name=None")
+    if args:
+        lines.append("Arguments: " + ", ".join(f"{k}={v!r}" for k, v in sorted(args.items())))
+    lines.append("Nothing is applied unless you tick Apply and accept.")
+    return "\n".join(lines)
+
+
+def _confirmation_unavailable(ctx: Context) -> bool:
+    """True when this client cannot be asked: no form elicitation declared, or (before
+    2026-07-28) no back-channel for the server's elicitation/create request."""
+    caps = ctx.client_capabilities
+    elicitation = caps.elicitation if caps is not None else None
+    if elicitation is None or (elicitation.form is None and elicitation.url is not None):
+        return True  # a bare `elicitation: {}` means form mode; url-only does not
+    version = ctx.protocol_version
+    if version is not None and is_version_at_least(version, _INPUT_REQUIRED_VERSION):
+        return False
+    return not ctx.session.can_send_request
+
+
+def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
+    """A resolver that receives every tool argument by name plus the Context, and returns the
+    form question (or refuses before asking when nothing could be applied anyway)."""
+
+    def ask(**kwargs):
+        ctx = kwargs.pop(_CTX_PARAM)
+        _writable()  # read-only wins: never ask a human to approve a write that will refuse
+        if _confirmation_unavailable(ctx):
+            raise ToolFailure(
+                _explain(
+                    Refusal(
+                        "confirmation_unavailable",
+                        f"{name} needs a human confirmation, but this client does not support "
+                        "form elicitation",
+                    )
+                )
+            )
+        return Elicit(confirmation_message(name, kwargs), Confirmation)
+
+    kw = inspect.Parameter.KEYWORD_ONLY
+    ask.__name__ = f"confirm_{name}"
+    ask.__signature__ = inspect.Signature(
+        [p.replace(kind=kw, annotation=inspect.Parameter.empty) for p in params]
+        + [inspect.Parameter(_CTX_PARAM, kw, annotation=Context)]
+    )
+    ask.__annotations__ = {_CTX_PARAM: Context}
+    return ask
+
+
+def _check_confirmed(name: str, outcome) -> None:
+    if not (isinstance(outcome, AcceptedElicitation) and outcome.data.confirm is True):
+        action = getattr(outcome, "action", "missing")
+        detail = "accepted without ticking Apply" if action == "accept" else action
+        raise ToolFailure(
+            _explain(Refusal("not_confirmed", f"the human did not confirm {name} ({detail})"))
+        )
+
+
 def _register(fn, annotations: ToolAnnotations, mutation: bool):
+    run = _guard(fn, annotations, mutation)
+    if fn.__name__ in SPECS:
+        raise RuntimeError(f"tool {fn.__name__} is registered twice")
+    spec = ToolSpec(
+        run, fn.__name__, _title(fn.__name__), toolset_of(fn.__module__), fn.__module__, annotations
+    )
+    SPECS[spec.name] = spec
+    if spec.toolset in ENABLED:
+        _add(mcp, spec)
+    return run
+
+
+def _guard(fn, annotations: ToolAnnotations, mutation: bool):
+    """Wrap a tool body with the write policy, the mutation lock, refusal reporting and, for
+    the DESTRUCTIVE preset, the human confirmation. Registers nothing."""
+    confirm = annotations == DESTRUCTIVE
+    sig = inspect.signature(fn, eval_str=True)
+    if confirm and _RESERVED_PARAMS & set(sig.parameters):
+        raise RuntimeError(f"{fn.__name__}: a DESTRUCTIVE tool may not take a confirm argument")
+
     @functools.wraps(fn)
     def run(*args, **kwargs):
         try:
+            if confirm:
+                _check_confirmed(fn.__name__, kwargs.pop(CONFIRM_PARAM, None))
             if not mutation:
                 return fn(*args, **kwargs)
             _writable()
@@ -219,17 +345,20 @@ def _register(fn, annotations: ToolAnnotations, mutation: bool):
 
     # Publish the resolved signature (annotations evaluated in the tool's own module) so the MCP
     # library derives the input schema and, from the return annotation, the outputSchema.
-    sig = inspect.signature(fn, eval_str=True)
     ret = _UNTYPED.get(sig.return_annotation, sig.return_annotation)
     run.__signature__ = sig.replace(return_annotation=ret)
-    if fn.__name__ in SPECS:
-        raise RuntimeError(f"tool {fn.__name__} is registered twice")
-    spec = ToolSpec(
-        run, fn.__name__, _title(fn.__name__), toolset_of(fn.__module__), fn.__module__, annotations
-    )
-    SPECS[spec.name] = spec
-    if spec.toolset in ENABLED:
-        _add(mcp, spec)
+    if confirm:
+        # The confirmation is a resolved parameter: filled by the server, absent from the
+        # input schema. Fresh annotations, so the wrapped function's own dict is untouched.
+        resolver = _confirmation_resolver(fn.__name__, list(sig.parameters.values()))
+        hint = Annotated[ElicitationResult[Confirmation], Resolve(resolver)]
+        extra = inspect.Parameter(CONFIRM_PARAM, inspect.Parameter.KEYWORD_ONLY, annotation=hint)
+        run.__signature__ = run.__signature__.replace(parameters=[*sig.parameters.values(), extra])
+        run.__annotations__ = {
+            **{n: p.annotation for n, p in sig.parameters.items() if p.annotation is not p.empty},
+            CONFIRM_PARAM: hint,
+            "return": ret,
+        }
     return run
 
 
