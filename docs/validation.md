@@ -36,6 +36,12 @@ curve remained visible in PAD's track automation lane; the parameter's automatio
 do not establish ramp playback. Basic was never saved; no saved-file claim is made for these
 unsaved edits. This qualifies Session-to-Arrangement copy only, not the full P-19 probe.
 
+The complete buildup demo then passed twice in the same Set: eight timeline clips with full
+note readback at [0,16] and [16,32], six buildup/drop Session envelopes, actual Intro/DROP
+locators and transport stopped at 0. The repeat confirmed automation_state=1 for PAD/Hats
+Frequency and Core Saturator Drive. All three curves were inspected on screen. 401 repository
+tests and Ruff passed. Server wheel and Remote Script were reinstalled before this Live proof.
+
 - Automatic rack-chain insertion/grouping and macro mapping are unavailable on Live 12.2.
 - Custom drum-pad browser loading/building and pad copying refuse unsupported. Stock kit
   loading, pad reads/mute, rack macro edits and nested Simpler edits were exercised.

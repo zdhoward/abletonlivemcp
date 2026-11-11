@@ -117,12 +117,12 @@ the public source tree (the local `knowledge/` directory is also ignored).
 
 ## Toolsets and limits
 
-A default install enables 32 tools: the 30-tool `core` toolset (session/transport/undo,
+A default install enables 36 tools: the 30-tool `core` toolset (session/transport/undo,
 tracks/mixer/scenes, clips/notes, device parameters/order, browser/load operations, chain
 planning/building and confirmed delete/duplicate) plus the 2-tool `automation` toolset (Session-clip
-envelopes). Set `ABLETONLIVEMCP_TOOLSETS` to a comma-separated list to add more (`core` and
-`automation` stay on) or `all` for 57 tools.
-Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `arrangement`, `recording`,
+envelopes) and 4-tool `arrangement` toolset (timeline clips and locators). Set
+`ABLETONLIVEMCP_TOOLSETS` to add more (`core`, `automation`, `arrangement` stay on), or `all` for 57 tools.
+Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `recording`,
 `editing`, `view`, `devices-advanced`, `files`. Resources and ten workflow prompts supplement tools.
 
 Live 12.2 cannot insert rack chains or map macros automatically. Custom drum-pad loading and pad
@@ -137,6 +137,29 @@ Writes remain off by default and destructive tools require client form elicitati
 Set `ABLETONLIVEMCP_READ_ONLY_TOOLS=1` to list only read tools. This is a discovery filter;
 the private bridge configuration still enforces access. MIDI file roots must be explicitly
 configured; the home and temporary directories are no longer allowed by default.
+
+## Arrangement buildup demo
+
+Ask: **"Turn Intro into an EDM buildup, with the drop on DROP."** Read locators with
+`live_get_arrangement`, build Session clips and envelopes with `live_create_clips` and
+`live_set_automation`, then place each with `live_create_arrangement_clips`:
+
+```json
+{"clips":[{"track":7,"kind":"from_session","scene":0,"start":0}]}
+```
+
+Session automation becomes track automation on the Arrangement. Call
+`live_transport(action="back_to_arranger")` before playback. Direct timeline-envelope
+reads/writes remain unavailable. Copying a Session clip was measured without a crash on
+Live 12.2; PAD's Frequency lane survived deleting the copy. This does not qualify
+Arrangement-to-Arrangement duplication, split, move or take-lane writes.
+
+From a source checkout, `python scripts/build_buildup_demo.py` builds and reads back eight
+16-beat clips on Basic's PAD, Core, Hats and MainBass: buildup at beat 0, drop at beat 16.
+PAD/Hats get Auto Filter Frequency sweeps; Core gets Saturator Drive automation (device 1).
+It requires Intro(0), DROP(16), writes enabled and delete permission. Re-running replaces the
+demo's Session slots and clips wholly inside beats 0..32; other overlapping clips refuse.
+It never saves Basic. Add `--fire` to play the Arrangement after verification.
 
 ## Development
 

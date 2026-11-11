@@ -4,6 +4,19 @@ All notable changes to this project are recorded here. Format: [Keep a Changelog
 versioning: [SemVer](https://semver.org). Versions below 1.0 may change tool names; renames keep an alias for one
 minor version once the first public release is tagged.
 
+## [Unreleased]
+
+- Session-to-Arrangement copying via `live_create_arrangement_clips` (`kind: from_session`,
+  `scene`, `start`), with bounds/overlap validation and clip readback. Optional `replace`
+  requires delete permission and refuses clips extending outside the destination. Arrangement
+  joins the default toolsets (36 default tools). Basic demo places all eight clips on the
+  timeline with PAD/Hats Frequency and Core Saturator Drive automation.
+- Targeted P-19 on Live 12.2: PAD Session copy/delete/restore did not crash; its Frequency
+  track lane survived deleting the copy (visible UI and automation_state=1). Other P-19
+  operations remain disabled. Restart helper quotes Basic's path and verifies its window title.
+- Automation steps now accept beat 0 (and refuse a zero-duration step at the clip end),
+  allowing explicit drop/reset envelopes at the first beat.
+
 ## [0.10.0] - 2026-11-11
 
 ### Upgrade notes
