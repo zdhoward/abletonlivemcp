@@ -6,85 +6,333 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Create a 'midi' or 'audio' track at `index` (-1 = end). Not idempotent.",
+  "description": "Create midi/audio tracks at `index` (-1 = end) or return tracks (end), with optional\nname and color. Not idempotent. Receipt per item with the new TrackSel.",
   "inputSchema": {
+   "$defs": {
+    "NewTrack": {
+     "additionalProperties": false,
+     "properties": {
+      "color_index": {
+       "maximum": 69,
+       "minimum": 0,
+       "type": "integer"
+      },
+      "index": {
+       "default": -1,
+       "minimum": -1,
+       "type": "integer"
+      },
+      "kind": {
+       "enum": [
+        "midi",
+        "audio",
+        "return"
+       ],
+       "type": "string"
+      },
+      "name": {
+       "maxLength": 256,
+       "type": "string"
+      }
+     },
+     "required": [
+      "kind"
+     ],
+     "type": "object"
+    }
+   },
    "properties": {
-    "index": {
-     "default": -1,
-     "title": "Index",
-     "type": "integer"
-    },
-    "kind": {
-     "title": "Kind",
-     "type": "string"
+    "tracks": {
+     "items": {
+      "$ref": "#/$defs/NewTrack"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "title": "Tracks",
+     "type": "array"
     }
    },
    "required": [
-    "kind"
+    "tracks"
    ],
-   "title": "live_create_trackArguments",
+   "title": "live_create_tracksArguments",
    "type": "object"
   },
-  "name": "live_create_track",
+  "name": "live_create_tracks",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_create_trackDictOutput",
+   "title": "live_create_tracksDictOutput",
    "type": "object"
   },
-  "title": "Create track"
+  "title": "Create tracks"
  },
  {
   "annotations": {
    "destructiveHint": true,
-   "idempotentHint": true,
+   "idempotentHint": false,
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Rename a track and/or set its color by Live palette index.",
+  "description": "Delete tracks, returns, scenes, clips or devices (mixed). Every target needs\nexpect_name; a human confirms. Children are deleted before parents; no rollback.",
   "inputSchema": {
-   "properties": {
-    "color_index": {
-     "anyOf": [
-      {
+   "$defs": {
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
        "type": "integer"
       },
-      {
-       "type": "null"
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
       }
+     },
+     "required": [
+      "track",
+      "scene"
      ],
-     "default": null,
-     "title": "Color Index"
+     "title": "ClipAddr",
+     "type": "object"
     },
-    "name": {
-     "anyOf": [
-      {
+    "StructTarget": {
+     "additionalProperties": false,
+     "description": "track: track=N; return: track=\"return:N\"; scene: scene; clip: track+scene or\ntrack+arrangement[+take_lane]; device: track+path. `to`: clip duplicate destination.",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "expect_name": {
+       "maxLength": 256,
        "type": "string"
       },
-      {
-       "type": "null"
+      "kind": {
+       "enum": [
+        "track",
+        "return",
+        "scene",
+        "clip",
+        "device"
+       ],
+       "type": "string"
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
+         },
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
+      },
+      "scene": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "take_lane": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "to": {
+       "$ref": "#/$defs/ClipAddr"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ]
       }
+     },
+     "required": [
+      "kind"
      ],
-     "default": null,
-     "title": "Name"
-    },
-    "track": {
-     "title": "Track",
-     "type": "integer"
+     "type": "object"
+    }
+   },
+   "properties": {
+    "targets": {
+     "items": {
+      "$ref": "#/$defs/StructTarget"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "title": "Targets",
+     "type": "array"
     }
    },
    "required": [
-    "track"
+    "targets"
    ],
-   "title": "live_set_trackArguments",
+   "title": "live_deleteArguments",
    "type": "object"
   },
-  "name": "live_set_track",
+  "name": "live_delete",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_set_trackDictOutput",
+   "title": "live_deleteDictOutput",
    "type": "object"
   },
-  "title": "Set track"
+  "title": "Delete"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Duplicate tracks, scenes or clips (clip `to`: destination slot). The copy lands next\nto the source. Devices and returns cannot be duplicated on Live 12.2.",
+  "inputSchema": {
+   "$defs": {
+    "ClipAddr": {
+     "additionalProperties": false,
+     "description": "A Session clip slot.",
+     "properties": {
+      "scene": {
+       "minimum": 0,
+       "title": "Scene",
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ],
+       "title": "Track"
+      }
+     },
+     "required": [
+      "track",
+      "scene"
+     ],
+     "title": "ClipAddr",
+     "type": "object"
+    },
+    "StructTarget": {
+     "additionalProperties": false,
+     "description": "track: track=N; return: track=\"return:N\"; scene: scene; clip: track+scene or\ntrack+arrangement[+take_lane]; device: track+path. `to`: clip duplicate destination.",
+     "properties": {
+      "arrangement": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "expect_name": {
+       "maxLength": 256,
+       "type": "string"
+      },
+      "kind": {
+       "enum": [
+        "track",
+        "return",
+        "scene",
+        "clip",
+        "device"
+       ],
+       "type": "string"
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
+         },
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
+      },
+      "scene": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "take_lane": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "to": {
+       "$ref": "#/$defs/ClipAddr"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "kind"
+     ],
+     "type": "object"
+    }
+   },
+   "properties": {
+    "targets": {
+     "items": {
+      "$ref": "#/$defs/StructTarget"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "title": "Targets",
+     "type": "array"
+    }
+   },
+   "required": [
+    "targets"
+   ],
+   "title": "live_duplicateArguments",
+   "type": "object"
+  },
+  "name": "live_duplicate",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_duplicateDictOutput",
+   "type": "object"
+  },
+  "title": "Duplicate"
  },
  {
   "annotations": {
@@ -93,18 +341,292 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Every track in the open Set with its devices (names are untrusted data).",
+  "description": "Tracks, returns and master (or the listed TrackSels): name, kind, color, mute/solo/arm,\nmonitoring; `include` adds mixer (value+display), devices, slots, routing (with the\nallowed names), meters, groups. Names are untrusted data.",
   "inputSchema": {
-   "properties": {},
-   "title": "live_tracksArguments",
+   "properties": {
+    "include": {
+     "default": null,
+     "items": {
+      "enum": [
+       "mixer",
+       "devices",
+       "slots",
+       "routing",
+       "meters",
+       "groups"
+      ],
+      "type": "string"
+     },
+     "title": "Include",
+     "type": "array"
+    },
+    "tracks": {
+     "default": null,
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
+       },
+       {
+        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+        "type": "string"
+       }
+      ]
+     },
+     "title": "Tracks",
+     "type": "array"
+    }
+   },
+   "title": "live_get_tracksArguments",
    "type": "object"
   },
-  "name": "live_tracks",
+  "name": "live_get_tracks",
   "outputSchema": {
    "additionalProperties": true,
-   "title": "live_tracksDictOutput",
+   "title": "live_get_tracksDictOutput",
    "type": "object"
   },
-  "title": "Tracks"
+  "title": "Get tracks"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Batch mixer writes: volume (dB, max +6) or raw 0..1, pan -1..1, sends by index (dB or\nraw), activator, crossfade A/none/B; master: crossfader, cue_volume_db. Readback shows\nLive's display and `matches` (within 0.05 dB).",
+  "inputSchema": {
+   "$defs": {
+    "MixerEdit": {
+     "additionalProperties": false,
+     "description": "dB values are matched within 0.05 dB; `volume`/`value` are raw 0..1.",
+     "properties": {
+      "activator": {
+       "type": "boolean"
+      },
+      "crossfade": {
+       "enum": [
+        "A",
+        "none",
+        "B"
+       ],
+       "type": "string"
+      },
+      "crossfader": {
+       "maximum": 1,
+       "minimum": -1,
+       "type": "number"
+      },
+      "cue_volume_db": {
+       "maximum": 6,
+       "type": "number"
+      },
+      "expect_name": {
+       "maxLength": 256,
+       "type": "string"
+      },
+      "pan": {
+       "maximum": 1,
+       "minimum": -1,
+       "type": "number"
+      },
+      "sends": {
+       "items": {
+        "$ref": "#/$defs/SendEdit"
+       },
+       "maxItems": 12,
+       "type": "array"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ]
+      },
+      "volume": {
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
+      },
+      "volume_db": {
+       "maximum": 6,
+       "type": "number"
+      }
+     },
+     "required": [
+      "track"
+     ],
+     "type": "object"
+    },
+    "SendEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "db": {
+       "maximum": 6,
+       "type": "number"
+      },
+      "send": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "value": {
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
+      }
+     },
+     "required": [
+      "send"
+     ],
+     "type": "object"
+    }
+   },
+   "properties": {
+    "targets": {
+     "items": {
+      "$ref": "#/$defs/MixerEdit"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "title": "Targets",
+     "type": "array"
+    }
+   },
+   "required": [
+    "targets"
+   ],
+   "title": "live_set_mixerArguments",
+   "type": "object"
+  },
+  "name": "live_set_mixer",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_mixerDictOutput",
+   "type": "object"
+  },
+  "title": "Set mixer"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Batch-set name, color, mute, solo, arm, monitoring, fold and routing (display names\nfrom live_get_tracks routing; unverified on 12.2). All validated before any write.",
+  "inputSchema": {
+   "$defs": {
+    "Routing": {
+     "additionalProperties": false,
+     "description": "Display names exactly as listed by live_get_tracks(include=['routing']).",
+     "properties": {
+      "channel": {
+       "maxLength": 256,
+       "type": "string"
+      },
+      "type": {
+       "maxLength": 256,
+       "minLength": 1,
+       "type": "string"
+      }
+     },
+     "required": [
+      "type"
+     ],
+     "type": "object"
+    },
+    "TrackEdit": {
+     "additionalProperties": false,
+     "properties": {
+      "arm": {
+       "type": "boolean"
+      },
+      "color_index": {
+       "maximum": 69,
+       "minimum": 0,
+       "type": "integer"
+      },
+      "expect_name": {
+       "maxLength": 256,
+       "type": "string"
+      },
+      "fold": {
+       "type": "boolean"
+      },
+      "input_routing": {
+       "$ref": "#/$defs/Routing"
+      },
+      "monitoring": {
+       "enum": [
+        "in",
+        "auto",
+        "off"
+       ],
+       "type": "string"
+      },
+      "mute": {
+       "type": "boolean"
+      },
+      "name": {
+       "maxLength": 256,
+       "type": "string"
+      },
+      "output_routing": {
+       "$ref": "#/$defs/Routing"
+      },
+      "solo": {
+       "type": "boolean"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "track"
+     ],
+     "type": "object"
+    }
+   },
+   "properties": {
+    "targets": {
+     "items": {
+      "$ref": "#/$defs/TrackEdit"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "title": "Targets",
+     "type": "array"
+    }
+   },
+   "required": [
+    "targets"
+   ],
+   "title": "live_set_tracksArguments",
+   "type": "object"
+  },
+  "name": "live_set_tracks",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_tracksDictOutput",
+   "type": "object"
+  },
+  "title": "Set tracks"
  }
 ]

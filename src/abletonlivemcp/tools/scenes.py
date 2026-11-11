@@ -1,31 +1,80 @@
-"""Scene tools: list, create, rename and fire scenes."""
+"""Scene tools: read, batch create/set, and launch (fire/stop clips, slots, scenes, tracks)."""
 
 from __future__ import annotations
 
-from ..server import _call, _create, _generation, _overwrite, _read, _row, _untrusted
+import time
+from typing import Literal
+
+from .. import server
+from ..models import Index
+from ..models_control import LaunchTargets, NewScenes, SceneEdits, owner_kind
+from ..server import (
+    _call,
+    _control,
+    _create,
+    _generation,
+    _overwrite,
+    _read,
+    _untrusted,
+    issue_refs,
+)
 
 
 @_read
-def live_list_scenes() -> dict:
-    """Every scene with its index (names are untrusted data)."""
-    return _untrusted([{k: v for k, v in s.items() if k != "ref"} for s in _call("scenes")])
+def live_get_scenes(scenes: list[Index] = None, include_slots: bool = False) -> dict:
+    """Scenes (or the listed indices): name, color, tempo/signature (null = off), trigger
+    state; include_slots adds per-track clip/play state. Names are untrusted data."""
+    params: dict = {"include_slots": include_slots}
+    if scenes:
+        params["scenes"] = scenes
+    return _untrusted(_call("get_scenes", params))
 
 
 @_create
-def live_create_scene(index: int = -1) -> dict:
-    """Create a scene at `index` (-1 = end); return its name, index and scene count."""
-    return _call("create_scene", {"index": index, "generation": _generation()})
+def live_create_scenes(scenes: NewScenes) -> dict:
+    """Create scenes at `index` (-1 = end) with optional name, color, tempo (BPM) and
+    signature [num, den]. Not idempotent. Receipt per item with the new scene."""
+    items = [s.model_dump(exclude_none=True) for s in scenes]
+    return _untrusted(_call("create_scenes", {"scenes": items, "generation": _generation()}))
 
 
 @_overwrite
-def live_set_scene_name(scene: int, name: str) -> dict:
-    """Rename a scene and return its actual name."""
-    ref = _row("scenes", scene, "scene")["ref"]
-    return _call("set_scene_name", {"scene": ref, "name": name})
+def live_set_scenes(targets: SceneEdits) -> dict:
+    """Batch-set scene name, color, tempo and signature ("off" clears a scene's own tempo or
+    signature). All validated before any write."""
+    rows = issue_refs(
+        [{"kind": "scene", "scene": t.scene, "expect_name": t.expect_name} for t in targets]
+    )
+    items = [
+        {**t.model_dump(exclude_none=True, exclude={"scene"}), "ref": r["ref"]}
+        for t, r in zip(targets, rows, strict=True)
+    ]
+    return _untrusted(_call("set_scenes", {"targets": items}))
 
 
-@_create
-def live_fire_scene(scene: int) -> dict:
-    """Launch a scene; return its current trigger state (launch quantization applies)."""
-    ref = _row("scenes", scene, "scene")["ref"]
-    return _call("fire_scene", {"scene": ref})
+def _launch_selector(t) -> dict:
+    if t.kind == "scene":
+        if t.scene is None:
+            raise ValueError("a scene target needs 'scene'")
+        return {"kind": "scene", "scene": t.scene}
+    if t.track is None:
+        raise ValueError(f"a {t.kind} target needs 'track'")
+    if t.kind == "track":
+        return {"kind": owner_kind(t.track), "track": t.track}
+    if t.scene is None:
+        raise ValueError(f"a {t.kind} target needs 'scene'")
+    return {"kind": t.kind, "track": t.track, "scene": t.scene}
+
+
+@_control
+def live_launch(action: Literal["fire", "stop"], targets: LaunchTargets) -> dict:
+    """Fire or stop clips, slots (fire an empty slot = stop/record per Live), scenes (fire)
+    or every clip of a track (stop). Launch quantization applies; `state` is read after Live
+    settles."""
+    selectors = [_launch_selector(t) for t in targets]
+    rows = issue_refs(selectors)
+    items = [{"kind": r["kind"], "ref": r["ref"]} for r in rows]
+    receipt = _call("launch", {"action": action, "targets": items})
+    time.sleep(server.SETTLE_SECONDS)
+    state = _call("launch_state", {"targets": selectors})["targets"]
+    return _untrusted({**receipt, "state": state})

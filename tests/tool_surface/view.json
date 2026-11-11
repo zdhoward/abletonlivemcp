@@ -1,0 +1,138 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "show/hide/focus a `view`, zoom/scroll it (`direction`), select a `target` (track,\nscene, clip -> detail clip, slot, device), audition a browser item (`root`+`path`) or\nstop_audition. Returns the readback (visible views or selection).",
+  "inputSchema": {
+   "$defs": {
+    "ViewTarget": {
+     "additionalProperties": false,
+     "properties": {
+      "kind": {
+       "enum": [
+        "track",
+        "scene",
+        "clip",
+        "slot",
+        "device"
+       ],
+       "type": "string"
+      },
+      "path": {
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
+         },
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
+      },
+      "scene": {
+       "minimum": 0,
+       "type": "integer"
+      },
+      "track": {
+       "anyOf": [
+        {
+         "minimum": 0,
+         "type": "integer"
+        },
+        {
+         "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "required": [
+      "kind"
+     ],
+     "type": "object"
+    }
+   },
+   "properties": {
+    "action": {
+     "enum": [
+      "show",
+      "hide",
+      "focus",
+      "zoom",
+      "scroll",
+      "select",
+      "audition",
+      "stop_audition"
+     ],
+     "title": "Action",
+     "type": "string"
+    },
+    "direction": {
+     "default": null,
+     "enum": [
+      "up",
+      "down",
+      "left",
+      "right"
+     ],
+     "title": "Direction",
+     "type": "string"
+    },
+    "path": {
+     "default": null,
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 8,
+     "minItems": 1,
+     "title": "Path",
+     "type": "array"
+    },
+    "root": {
+     "default": null,
+     "title": "Root",
+     "type": "string"
+    },
+    "target": {
+     "$ref": "#/$defs/ViewTarget",
+     "default": null
+    },
+    "view": {
+     "default": null,
+     "enum": [
+      "Browser",
+      "Arranger",
+      "Session",
+      "Detail",
+      "Detail/Clip",
+      "Detail/DeviceChain"
+     ],
+     "title": "View",
+     "type": "string"
+    }
+   },
+   "required": [
+    "action"
+   ],
+   "title": "live_viewArguments",
+   "type": "object"
+  },
+  "name": "live_view",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_viewDictOutput",
+   "type": "object"
+  },
+  "title": "View"
+ }
+]
