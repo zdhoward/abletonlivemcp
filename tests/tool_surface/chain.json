@@ -1,0 +1,108 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Build a plan from live_plan_chain exactly once, after re-checking that the Set and target\ntrack are unchanged. Stops at the first stage that is not fully applied and exact and returns\na receipt: `status` (complete/partial/failed/pending), `intent_fulfilled` (false if anything\nwas omitted or off target), per-stage originals/actuals, `stopped_at`, `omitted` and\n`unknown`. It never deletes devices, undoes, retries, or loads a substitute. A plan with\nomitted intent builds only with accept_omissions=true. Using a plan again returns its\nreceipt; an expired or changed plan is refused.",
+  "inputSchema": {
+   "properties": {
+    "accept_omissions": {
+     "default": false,
+     "title": "Accept Omissions",
+     "type": "boolean"
+    },
+    "plan_id": {
+     "title": "Plan Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "plan_id"
+   ],
+   "title": "live_build_chainArguments",
+   "type": "object"
+  },
+  "name": "live_build_chain",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_build_chainDictOutput",
+   "type": "object"
+  },
+  "title": "Build chain"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Dry run for an EMPTY regular audio track: resolve stages to the devices this user has,\nwithout loading anything. A stage is {\"role\": \"compressor\", \"intent\": {...}} (roles: eq,\ncompressor, saturation, reverb) or an exact {\"device\": \"Compressor\", \"params\": {...}} with\noptional \"root\" ('audio_effects' or 'plugins') and \"path\". A param value is a display target\n(\"-18 dB\") or {\"raw\": 0.3}. Returns an immutable plan with `plan_id`, the resolved devices,\nomitted intent (visible, never silent) and the target it was planned against. Plugin controls\nare `unverified_until_loaded`. The plan is review content, not approval: pass `plan_id` to\nlive_build_chain.",
+  "inputSchema": {
+   "properties": {
+    "preferences": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Preferences"
+    },
+    "stages": {
+     "items": {
+      "additionalProperties": true,
+      "type": "object"
+     },
+     "title": "Stages",
+     "type": "array"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "stages"
+   ],
+   "title": "live_plan_chainArguments",
+   "type": "object"
+  },
+  "name": "live_plan_chain",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_plan_chainDictOutput",
+   "type": "object"
+  },
+  "title": "Plan chain"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "List the starting-point vocal chains as role stages (values from general mixing practice,\nnot judged by ear), ready to pass to live_plan_chain.",
+  "inputSchema": {
+   "properties": {},
+   "title": "live_vocal_presetsArguments",
+   "type": "object"
+  },
+  "name": "live_vocal_presets",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_vocal_presetsDictOutput",
+   "type": "object"
+  },
+  "title": "Vocal presets"
+ }
+]

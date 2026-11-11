@@ -1,0 +1,143 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Create a clip in an empty MIDI slot, length > 0 and <= 1024 beats; read it back.",
+  "inputSchema": {
+   "properties": {
+    "length_beats": {
+     "title": "Length Beats",
+     "type": "number"
+    },
+    "scene": {
+     "title": "Scene",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "scene",
+    "length_beats"
+   ],
+   "title": "live_create_clipArguments",
+   "type": "object"
+  },
+  "name": "live_create_clip",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_create_clipDictOutput",
+   "type": "object"
+  },
+  "title": "Create clip"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Launch a clip and return its current state (launch quantization applies).",
+  "inputSchema": {
+   "properties": {
+    "scene": {
+     "title": "Scene",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "scene"
+   ],
+   "title": "live_fire_clipArguments",
+   "type": "object"
+  },
+  "name": "live_fire_clip",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_fire_clipDictOutput",
+   "type": "object"
+  },
+  "title": "Fire clip"
+ },
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Read a clip's name, length, play state and looping state; empty slots raise an error.",
+  "inputSchema": {
+   "properties": {
+    "scene": {
+     "title": "Scene",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "scene"
+   ],
+   "title": "live_get_clipArguments",
+   "type": "object"
+  },
+  "name": "live_get_clip",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_get_clipDictOutput",
+   "type": "object"
+  },
+  "title": "Get clip"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Stop a clip and return its current state.",
+  "inputSchema": {
+   "properties": {
+    "scene": {
+     "title": "Scene",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "scene"
+   ],
+   "title": "live_stop_clipArguments",
+   "type": "object"
+  },
+  "name": "live_stop_clip",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_stop_clipDictOutput",
+   "type": "object"
+  },
+  "title": "Stop clip"
+ }
+]

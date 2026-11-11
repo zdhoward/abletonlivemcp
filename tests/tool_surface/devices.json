@@ -1,0 +1,132 @@
+[
+ {
+  "annotations": {
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "description": "Name, value, range and display text of each parameter of a device (names untrusted).",
+  "inputSchema": {
+   "properties": {
+    "device": {
+     "title": "Device",
+     "type": "integer"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "device"
+   ],
+   "title": "live_device_parametersArguments",
+   "type": "object"
+  },
+  "name": "live_device_parameters",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_device_parametersDictOutput",
+   "type": "object"
+  },
+  "title": "Device parameters"
+ },
+ {
+  "annotations": {
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "description": "Set up to 32 device parameters, by parameter name. A value is a display target such as\n\"-18 dB\", 4, \"Vocal\" or true (solved against Live's own display text) or {\"raw\": 0.3} (the\nstored 0..1 value, written as given). Each result has Live's actual display and stored value,\nthe original value, and `exact`; a request that landed off target says so. Disabled or\nmacro-controlled parameters are refused, never overridden.",
+  "inputSchema": {
+   "$defs": {
+    "RawValue": {
+     "additionalProperties": false,
+     "description": "A stored (not displayed) parameter value; it is written as given and never claimed to\nbe a physical unit.",
+     "properties": {
+      "raw": {
+       "title": "Raw",
+       "type": "number"
+      }
+     },
+     "required": [
+      "raw"
+     ],
+     "title": "RawValue",
+     "type": "object"
+    },
+    "Setting": {
+     "additionalProperties": false,
+     "description": "One parameter request: a display target (\"-18 dB\", 4, \"Vocal\", true) or a RawValue.",
+     "properties": {
+      "parameter": {
+       "maxLength": 120,
+       "title": "Parameter",
+       "type": "string"
+      },
+      "value": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/RawValue"
+        },
+        {
+         "type": "string"
+        },
+        {
+         "type": "number"
+        },
+        {
+         "type": "integer"
+        },
+        {
+         "type": "boolean"
+        }
+       ],
+       "title": "Value"
+      }
+     },
+     "required": [
+      "parameter",
+      "value"
+     ],
+     "title": "Setting",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "device": {
+     "title": "Device",
+     "type": "integer"
+    },
+    "settings": {
+     "items": {
+      "$ref": "#/$defs/Setting"
+     },
+     "title": "Settings",
+     "type": "array"
+    },
+    "track": {
+     "title": "Track",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "track",
+    "device",
+    "settings"
+   ],
+   "title": "live_set_device_parametersArguments",
+   "type": "object"
+  },
+  "name": "live_set_device_parameters",
+  "outputSchema": {
+   "additionalProperties": true,
+   "title": "live_set_device_parametersDictOutput",
+   "type": "object"
+  },
+  "title": "Set device parameters"
+ }
+]
