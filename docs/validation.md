@@ -19,6 +19,11 @@ Remote Script completeness, then installs the wheel in an isolated environment a
 the stdio MCP server from outside the checkout. This check lists tools without connecting to Live.
 Personal knowledge and development artifacts are excluded from both package formats.
 
+The unreleased 0.10 changes passed 391 local tests, including from a clean source snapshot,
+Ruff, archive checks and a clean wheel stdio install. Five read-only Live responses passed
+output-schema roundtrips. The 0.9 mutation ledger above has not been rerun against a freshly
+installed 0.10 bridge; new permissions are not a claim of full Live qualification.
+
 ## Known limits
 
 - Automatic rack-chain insertion/grouping and macro mapping are unavailable on Live 12.2.
