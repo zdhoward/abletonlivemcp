@@ -29,5 +29,7 @@ build/
 /docs/vision.md
 /docs/research.md
 /docs/research-deep-review.md
+/docs/research/
+/docs/data/plugin-params-probe.json
 /scripts/live_restart.ps1
 !tests/fixtures/**
