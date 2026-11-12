@@ -8,6 +8,38 @@ minor version once the first public release is tagged.
 
 Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live.
 
+- Fix: a bounded recording whose cleanup fails now ends `unknown` (reason
+  `cleanup_failed`), never ready. Before, a raising record-switch restore left
+  `session_record` and the transport on, the task said applied and another recording could
+  start. The cleanup reads each step back. Until a fresh readback shows the prior state (or
+  the Set changes), the task still blocks new recordings.
+- Fix: a whole-clip transpose or quantize of 9,000 notes applied, then its receipt passed
+  the reply cap and came back `ReplyTooLarge` (outcome unknown). Write receipts now carry
+  each row once (in `applied`; `items` keeps index, outcome and op). A note edit lists at most
+  4000 note ids, with `note_ids_total` and `note_ids_truncated`; counts stay exact.
+- Fix: `live_duplicate` ignored a clip's `to` and always copied into the next empty slot
+  below. `to` is now honored. It must be an empty Session slot on a regular track that takes
+  the clip's kind, not claimed by another item; anything else refuses before any write.
+  Without `to`, the next-empty-slot behavior is unchanged.
+- Fix: `live_get_notes` pages come from one snapshot. The first page reads the window once;
+  more pages continue with an opaque single-use `cursor` (replaces `offset`/`next_offset`)
+  bound to the Set, the clip and the window. A replaced clip refuses `stale_cursor`, and
+  the last page refuses if any note changed. `live_export_midi` writes the file only after
+  every page is consistent. Before, a clip replaced or edited between pages produced a
+  mixed file reported as success.
+- Fix: paged reads do bounded native work: pages between the first and last read no notes.
+  The documented scope is enforced: a note window over 12,000 notes, or a track or take lane
+  over 256 arrangement clips, refuses `beyond_scope`. Before, a 257-clip track was cut to 256
+  rows.
+- Fix: a cue add or delete with the playhead parked past the arrangement content no longer
+  comes back `unknown` while the cue changed. In Live 12.2 the song end follows the
+  playhead, and setting it past the song end raises. The task moves the playhead in steps. A
+  return Live still refuses is reported as `cleanup_issue`, and the cue change stays applied.
+- Fix: a cue Live places on its bar grid (an add at 289 lands at 288) is reported applied at
+  its real time, with `requested` beside it, and is renamed. Before, it came back `unknown`.
+- Docs: Set labels are experimental; survival across save and reopen is not qualified. The
+  runtime texts (tools, resource, capability report) now say so.
+
 - Fix: on MCP 2026-07-28 clients, a confirmation could approve objects other than the ones it
   showed. Resuming after the answer read the targets again, so a track replaced by another
   with the same name while the form was open was deleted and reported complete. Each

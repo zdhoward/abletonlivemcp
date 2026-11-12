@@ -5,6 +5,55 @@ versions and operating systems have not been qualified against a running DAW.
 
 What has been checked, newest first:
 
+- **Unreleased, review round 6 (2026-11-12, Live 12.2.0, disposable Basic Set, never saved).**
+  Qualified build: git `ff992fc` (clean tree), Remote Script 0.11.0 build
+  `sha256:bf378cce783b59d2` (matches the host), reinstalled and Live restarted before the run.
+  - Full write ledger (`scripts/live_v2_final.py`, one full run, no `--only` merge): 37
+    scenarios and every registered tool. 34 passed and 3 were explicit `unsupported`
+    (`dev-extras`, `dev-fx-rack`, `dev-drums`, as before). None failed or blocked, with no
+    coverage gaps, and Live's `Log.txt` shows no handler error during the run. File and ALS
+    roots were set.
+  - The proof cleanup (`scripts/live_final_cleanup.py --apply`) deleted the scratch cue, 5
+    scratch tracks, 1 scratch return track and the MIDI export. Read-back afterwards: no scratch tracks, only the
+    Set's own cues. The round-5 open item is fixed. Root cause, reproduced in Live: setting
+    `current_song_time` past `song_length` raises `RuntimeError`, and `song_length` stretches
+    about 32 beats past the playhead. A playhead parked past the content is legal where it
+    is, but the cue seek shrinks the song, so the direct return raised. The task now moves
+    the playhead in steps and reports a refused return as `cleanup_issue`. Verified in Live
+    with the playhead at 300 and content ending at 232: add and delete are ready and the
+    playhead is restored. Also found: Live puts a new cue on the nearest bar (289 -> 288,
+    290 -> 292). It is now reported applied with `requested`.
+  - Paging, 12,000-note clip, same script, before (round-5 script `ec56089`) and after
+    (`ff992fc`). Median of 3; one bridge round trip measured 2.1 s for `session_info`:
+
+    | Read | Before | After |
+    | --- | --- | --- |
+    | `get_notes`, first 500-note page | 2.68 s | 2.56 s |
+    | `get_notes`, middle page (median of 22) | 2.52 s | 2.54 s |
+    | Full paged read (24 pages) | 60.5 s | 60.3 s |
+    | `get_arrangement`, 256-clip track | 2.65 s | 2.44 s |
+    | 1-row continuation page (fetch cost isolated) | n/a | 2.22 s (first 1-row page 2.06 s) |
+
+    Live's native fetch of 12,000 notes was never the cost. Each page is the bridge round
+    trip (about 2.1 s) plus 0.3-0.4 s of payload. The change bounds native work (middle
+    pages read no notes, counted in the regression test) and enforces the scope. It does
+    not shorten wall time.
+  - Regression tests: N3
+    `test_control_batch2.py::test_a_failed_recording_cleanup_is_unknown_and_keeps_the_guard`
+    (stopped and playing; completed, late tick and disconnect). N1
+    `test_bridge.py::test_whole_clip_note_edit_receipt_fits_the_signed_reply` (the real
+    handler at 12,000 notes through signed framing). N2
+    `test_batch3_dom.py::test_duplicate_clips_honors_to_and_refuses_before_any_write`. N4
+    `test_batch3_tools.py::test_export_refuses_a_clip_changed_between_pages` (the host tool
+    against the real Remote Script handler). F8
+    `test_batch3_dom.py::test_paged_reads_do_bounded_native_work_and_enforce_scope`. Cue
+    `test_batch3_dom.py::test_cue_delete_returns_a_playhead_parked_past_the_content` and
+    `test_batch3_dom.py::test_a_cue_live_places_on_its_grid_is_reported_applied_at_its_real_time`.
+  - Not verified on Live: save and reopen (no API; labels stay experimental), the N3
+    failed-cleanup path (a restore that raises cannot be forced in Live), N2's `to`, the N4
+    mid-export change, and the N1 9,000-note receipt (each covered offline at the failing
+    layer only).
+
 - **Unreleased, review round 5 (2026-11-12, Live 12.2.0, disposable Basic Set, never saved).**
   Qualified build: git `c3db845` (clean tree), Remote Script 0.11.0 build
   `sha256:f8097f8b0e94c3b7` (matches the host), reinstalled before the runs.
@@ -46,7 +95,7 @@ What has been checked, newest first:
     `test_batch3_dom.py::test_edit_notes_validates_duplicates_in_the_edited_state`. F6
     `test_batch3_dom.py::test_lab_cue_that_lands_elsewhere_is_reported_applied_not_refused`.
     F7 `test_final_safety.py::test_reruns_merge_only_same_build_rows_and_never_touch_the_full_run`.
-  - Open: after this run, the proof cleanup's scratch cue delete (`scripts/live_final_cleanup.py`)
+  - Open (fixed in round 6): after this run, the proof cleanup's scratch cue delete (`scripts/live_final_cleanup.py`)
     reported `unknown`. Restoring the playhead raised `RuntimeError` in Live (Log.txt:
     `dom_arrangement.py:420`, finalizer `:467`). A read-back showed the cue was deleted. The
     cause is not verified.
@@ -161,6 +210,10 @@ tests and Ruff passed. Server wheel and Remote Script were reinstalled before th
   (only read-only `file_path` properties and a `saved` mention in documentation text), and
   driving Live's dialogs from outside is not used (round 4: unreliable and unsafe). Set labels
   passed an in-session roundtrip; their persistence after a save is experimental for v1.
+- Supported scope, enforced since round 6: 12,000 notes per note read window and 256
+  arrangement clips per track or take lane. A larger read refuses `beyond_scope`. A note
+  edit receipt lists at most 4000 note ids, flags `note_ids_truncated` and always gives exact
+  counts.
 - Knowledge is optional local reference material, not an audio analysis or automatic mixing engine.
 
 Writes are off by default. Unknown mutation outcomes must be read back before any further edits;
