@@ -219,6 +219,12 @@ def test_absent_capability_refuses_and_model_confirm_is_ignored(mode, monkeypatc
 @pytest.mark.parametrize("mode", MODES)
 def test_a_call_that_deletes_asks_even_on_a_non_destructive_tool(mode, monkeypatch):
     monkeypatch.setattr(server, "_writable", lambda *_args: None)
+    # The guarded test double uses the real tool's name. Keep its confirmation
+    # planner local too, so this offline test never reads config or contacts Live.
+    monkeypatch.setitem(
+        server.PLANS, "live_set_cue_points",
+        lambda args: server.Plan(["cue at beat 4"], {"cues": args["cues"]}),
+    )
     applied, asked = [], []
 
     def live_set_cue_points(cues: list[CueEdit] | None = None) -> dict:
