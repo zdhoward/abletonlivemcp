@@ -5,6 +5,23 @@ versions and operating systems have not been qualified against a running DAW.
 
 What has been checked, newest first:
 
+- **Unreleased, review round 8 (2026-11-12, Live 12.2, disposable Basic Set, never saved).**
+  Targeted fixes only; no full ledger rerun. Remote Script reinstalled from git `c066c1b` and
+  Live restarted. Through `BridgeClient`: an arrangement cue read returned Intro 0 and DROP
+  16 (playhead 8). An add at 40 (a free bar) was ready (`complete`, 5 ticks, playhead
+  restored to 8). The delete of that cue was ready (`complete`, 5 ticks, playhead restored).
+  The cues read back as before. Live's `Log.txt` shows no handler error.
+  - F1: before each forward seek step and the toggle, a cue task checks that the time left
+    covers the planned return (0.1 s per planned step plus a 1 s reserve). Otherwise it stops
+    with nothing toggled. The return runs until 0.25 s before the 10 s deadline. Unit
+    tests only: `test_a_late_cue_step_never_toggles_without_time_for_the_return` (a delayed
+    first tick and a seek observed late; both toggled on the old code).
+  - F2: an arrangement read supports 512 cue points and refuses `beyond_scope` on the count.
+    512 cues plus the largest clip/lane page measure 14,446 of 16,384 JSON nodes.
+    `test_arrangement_cues_are_scoped_and_the_largest_page_fits_the_signed_reply` sends
+    that reply through the signed framing, and 513 refuse with no cue field read. Not
+    exercised in Live.
+  - F3: tool and resource text names every terminal operation state.
 - **Unreleased, review round 7 (2026-11-12, Live 12.2.0 build 2025-05-20_1c7a2c5dac,
   disposable Basic Set, never saved).** Qualified build: git `cae1b07` (clean tree), Remote
   Script 0.11.0 build `sha256:37ec9964034b3165` (matches the host). The script was
@@ -257,7 +274,8 @@ tests and Ruff passed. Server wheel and Remote Script were reinstalled before th
 - Cue adds and deletes (since round 7): one call plans at most 48 playhead steps (each seek,
   the return, and one step per 32 beats past the song end), so a cue edit reaches about
   1,400 beats past the arrangement content; a longer distance refuses `beyond_scope` before
-  the playhead moves. A note
+  the playhead moves. Since round 8 each forward move also needs time left for the
+  planned return; otherwise the edit stops with nothing toggled. A note
   edit receipt lists at most 4000 note ids, flags `note_ids_truncated` and always gives exact
   counts.
 - Knowledge is optional local reference material, not an audio analysis or automatic mixing engine.

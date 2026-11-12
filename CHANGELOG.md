@@ -27,6 +27,15 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   clips were fetched for one page, and 2,400 empty lanes made a reply too large to send.
 - Docs: `docs://safety` no longer claims every write is one undo step, and
   `live_set_cue_points` no longer promises exact cue times.
+- Fix: a cue add or delete moves the playhead forward (a seek or the toggle) only while the
+  time left covers its planned return. Before, a first tick that arrived late could toggle
+  after the return's cutoff, and the return then failed as a `cleanup_issue`. Now the task
+  stops with nothing toggled, and the return may run until just before the deadline.
+- Fix: an arrangement read that includes `cues` supports up to 512 cue points and refuses
+  `beyond_scope` past it. Before, every page listed every cue, and 3,000 cues made a reply
+  too large to send.
+- Docs: cue operation guidance says to poll only while `pending`. `ready`, `failed` and
+  `unknown` are final, and after `unknown` the state must be read back before another write.
 
 - Fix: a bounded recording whose cleanup fails now ends `unknown` (reason
   `cleanup_failed`), never ready. Before, a raising record-switch restore left
