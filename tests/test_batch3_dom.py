@@ -492,6 +492,24 @@ def test_edit_notes_rejects_bad_ids_and_out_of_range_transpose(env):
     assert [n.pitch for n in clip.notes] == [120]
 
 
+def test_edit_notes_validates_duplicates_in_the_edited_state(env):
+    """F5 (round 5): modify to pitch 127, then duplicate the region transposed +1 (128) was
+    validated against the pre-edit pitch and wrote the modify before failing. Moving a note
+    into the region by modify must also be counted. Nothing is written on refusal."""
+    song, dispatch = env
+    clip = midi_clip(song, [(60, 0.0), (62, 8.0)])
+    (r,) = refs(dispatch, {"kind": "clip", "track": 0, "scene": 0})
+    dup = {"start": 0, "length": 1, "dest": 2, "transpose": 1}
+    edit = {"targets": [item(r)], "modify": [{"note_id": 1, "pitch": 127}], "duplicate_region": dup}
+    bad(dispatch, "edit_notes", edit, "0..127")
+    assert [(n.pitch, n.start_time) for n in clip.notes] == [(60, 0.0), (62, 8.0)]
+    edit = {"targets": [item(r)], "modify": [{"note_id": 2, "start_time": 0.5}]} | {
+        "duplicate_region": {"start": 0, "length": 1, "dest": 16383.8}
+    }
+    bad(dispatch, "edit_notes", edit, "start_time")  # the moved note's copy lands past 16384
+    assert [(n.pitch, n.start_time) for n in clip.notes] == [(60, 0.0), (62, 8.0)]
+
+
 # ---- arrangement -------------------------------------------------------------------------------
 
 

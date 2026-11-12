@@ -158,8 +158,9 @@ def _region(value, name, keys):
 
 
 def plan_edits(clip, p):
-    """Pass 1: validate every requested edit against the clip's current notes. Nothing is
-    written. Returns the ordered op list ``[(label, fn)]``."""
+    """Pass 1: validate every requested edit, in write order, against the state the earlier
+    edits leave (simulated from the clip's current notes). Nothing is written. Returns the
+    ordered op list ``[(label, fn)]``."""
     spec = None
     current = {n.note_id: n for n in wide(clip)}
     ops = []
@@ -200,17 +201,23 @@ def plan_edits(clip, p):
         length = float(_number(d.get("length"), "duplicate_region.length", 0, 16384, True))
         dest = float(_number(d.get("dest"), "duplicate_region.dest", 0, MAX_TIME))
         shift = _int(d.get("transpose", 0), "duplicate_region.transpose", -127, 127)
+
+        # The copy runs after removes and modify/transpose/quantize, so the region is selected
+        # and checked in the state those edits leave (the write re-reads it the same way).
+        def after(nid, field):
+            return changes.get(nid, {}).get(field, getattr(current[nid], field))
+
         src = [
-            n
-            for i, n in current.items()
-            if i not in removed and start <= n.start_time < start + length
-        ]  # noqa: E501
+            i
+            for i in current
+            if i not in removed and start <= after(i, "start_time") < start + length
+        ]
         if not 1 <= len(src) <= NOTE_LIMIT:
-            raise Invalid(
-                f"duplicate_region: the region holds {len(src)} notes (1..{NOTE_LIMIT})"
-            )
-        for n in src:
-            _int(n.pitch + shift, "duplicate_region pitch", 0, 127)
+            raise Invalid(f"duplicate_region: the region holds {len(src)} notes (1..{NOTE_LIMIT})")
+        for i in src:
+            _int(after(i, "pitch") + shift, f"duplicate_region pitch of note {i}", 0, 127)
+            moved = dest + (after(i, "start_time") - start)
+            checked_field("start_time", moved, f"duplicate_region note {i}")
         spec = spec or _spec()
         ops.append(("duplicate_region", lambda: _dup(clip, spec, start, length, dest, shift)))
     if p.get("add"):
