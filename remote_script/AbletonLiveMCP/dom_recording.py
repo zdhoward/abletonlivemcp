@@ -46,6 +46,14 @@ def _bounded(ctx, key, attribute, length):
         raise Invalid(
             f"'length' {length} beats is {seconds:.1f} s at this tempo; at most {MAX_SECONDS} s"
         )
+    # One bounded recording at a time: a second one would snapshot the first one's switches as
+    # "before" and restore them to on after the first had turned them off.
+    active = ctx.operations.pending_task("record:")
+    if active is not None:
+        raise Refused(
+            "recording_active",
+            f"a bounded recording is still running (operation {active}); poll it until ready",
+        )
     before = {"was_playing": song.is_playing, attribute: getattr(song, attribute)}
     start = song.current_song_time
     started = time.monotonic()

@@ -209,6 +209,13 @@ class Operations:
         self._ring[task.id] = task
         return task.snapshot()
 
+    def pending_task(self, prefix):
+        """The id of a still-pending step task whose kind starts with ``prefix``, else None."""
+        for op in self._ring.values():
+            if isinstance(op, Task) and op.state == PENDING and op.kind.startswith(prefix):
+                return op.id
+        return None
+
     def _advance_task(self, task):
         if task.generation != self._safety.generation:
             return self._finish(task, UNKNOWN, "set_changed")

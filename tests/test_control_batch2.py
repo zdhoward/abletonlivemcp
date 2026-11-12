@@ -468,6 +468,20 @@ def test_record_is_bounded_and_restores(live):
     assert not song.session_record and not song.is_playing
 
 
+def test_a_second_bounded_recording_is_refused_while_one_runs(live):
+    """R8: an overlap would snapshot the first one's switch as "before" and leave it on."""
+    song, _a, d, g = live
+    song.current_song_time = 0.0
+    first = {"generation": g, "action": "arrangement_record", "value": True, "length": 2}
+    d("record", first)
+    out = d("record", {**first, "action": "session_record"})
+    assert out["code"] == "recording_active" and not song.session_record
+    song.current_song_time = 3.0
+    d.operations.tick()
+    assert not song.record_mode and not song.is_playing
+    assert d("record", {**first, "action": "session_record"})["operation"]["state"] == "pending"
+
+
 def test_view_show_select_and_audition(live):
     song, app, d, g = live
     out = d("view", {"generation": g, "action": "show", "view": "Browser"})
