@@ -801,12 +801,9 @@ def ref_lab(ctx, p, _t):
     run = LAB_ACTIONS.get(action) if isinstance(action, str) else None
     if run is None:
         raise Invalid(f"'action' must be one of {sorted(LAB_ACTIONS)}")
-    try:
-        out = run(ctx, p)
-    except (Refused, Invalid):
-        raise
-    except Exception as exc:  # dev-only lab (dev_probes + lease): make the failure readable
-        raise Invalid(f"{action} failed: {type(exc).__name__}: {exc}"[:300]) from exc
+    # Any other exception propagates: the dispatcher logs it (sanitized) and answers
+    # HandlerError with may_have_applied, since a lab action can fail after it mutated.
+    out = run(ctx, p)
     out["generation"] = ctx.safety.generation
     return out
 

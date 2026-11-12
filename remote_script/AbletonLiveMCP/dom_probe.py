@@ -28,6 +28,7 @@ result (``ok: false``) after its scratch cleanup, never as a refusal.
 
 import importlib
 
+from .core import log_failure, public_error
 from .dom_common import READ, WRITE, Refused, _same
 
 # The fixed probe list (plan section 4). P-21, P-25 and P-26 are not used; P-28 has no row.
@@ -131,13 +132,16 @@ class Scratch:
                 delete(index)
                 report.append({"kind": kind, "deleted": True})
             except Exception as exc:  # noqa: BLE001 - report, keep cleaning the rest
-                report.append({"kind": kind, "deleted": False, "reason": _error(exc)})
+                reason = _error(exc, f"probe cleanup {kind}")
+                report.append({"kind": kind, "deleted": False, "reason": reason})
         self.created = []
         return report
 
 
-def _error(exc):
-    return f"{type(exc).__name__}: {exc}"[:500]
+def _error(exc, where="probe"):
+    """A fixed public text (the type and where); the location goes to the sanitized log."""
+    log_failure(where, exc)
+    return public_error(exc, "failed")
 
 
 def _lookup(ctx, p, kind):

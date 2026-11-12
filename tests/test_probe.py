@@ -122,19 +122,38 @@ def test_refusals_happen_before_any_probe_runs(monkeypatch):
     }
 
 
+def test_a_lab_failure_after_a_mutation_is_not_reported_as_not_applied(monkeypatch):
+    """ref_lab turned any failure into Invalid (readable, "not applied") carrying native text.
+    It now propagates, so the bridge answers HandlerError: may have applied, text sanitized."""
+    from AbletonLiveMCP import dom_common
+
+    song, d = dispatcher()
+
+    def mutate_then_fail(_ctx, _p):
+        song.create_midi_track(len(song.tracks))
+        raise RuntimeError("native detail D:/Music/someone/secret.als")
+
+    monkeypatch.setitem(dom_common.LAB_ACTIONS, "create_track", mutate_then_fail)
+    gen = d("hello", {})["generation"]
+    lease = d("lease_acquire", {"ttl": 5})["lease"]
+    with pytest.raises(RuntimeError):  # not core.Invalid: never readable, never "not applied"
+        d("ref_lab", {"action": "create_track", "generation": gen, "lease": lease})
+    assert len(song.tracks) == 2
+
+
 def test_scratch_objects_are_cleaned_up_even_when_a_probe_raises(monkeypatch):
     song, d = dispatcher()
     original = list(song.tracks)
 
     def boom(_ctx, scratch):
         assert scratch.owns(scratch.midi_track()) and not scratch.owns(original[0])
-        raise RuntimeError("probe failed")
+        raise RuntimeError("probe failed at D:/Music/someone/secret.als")  # native text
 
     monkeypatch.setitem(dom_probe.PROBES, "P-02", (boom, "write"))
     gen = d("hello", {})["generation"]
     lease = d("lease_acquire", {"ttl": 5})["lease"]
     reply = d("probe_run", {"name": "P-02", "generation": gen, "lease": lease})
-    assert reply["ok"] is False and reply["error"] == "RuntimeError: probe failed"
+    assert reply["ok"] is False and reply["error"] == "RuntimeError: failed"  # no native text
     assert reply["scratch"] == [{"kind": "track", "deleted": True}]
     assert song.tracks == original
 

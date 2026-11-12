@@ -201,3 +201,9 @@ def test_preferences_file_roundtrip_and_errors(tmp_path):
         f.write_text(bad, encoding="utf8")
         with pytest.raises(ValueError, match="preferences|look like"):
             load_preferences(f)
+    f.write_text('{"compressor": ["secret-name"', encoding="utf8")  # the parser quotes input
+    with pytest.raises(ValueError) as error:
+        load_preferences(f)
+    assert str(error.value).endswith("not a readable UTF-8 JSON file") and "char" not in str(
+        error.value
+    )

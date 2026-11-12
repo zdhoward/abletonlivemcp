@@ -11,6 +11,7 @@ skipped and the next one (finally the stock device) is used.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -29,8 +30,13 @@ def load_preferences(path: Path | None = None) -> dict[str, list[str]]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf8"))
-    except (OSError, ValueError) as exc:
-        raise Invalid(f"cannot read preferences file {path}: {exc}") from exc
+    except (OSError, ValueError) as exc:  # the reason (type only) goes to stderr, not the reply
+        logging.getLogger("abletonlivemcp").warning(
+            "preferences file unreadable: %s", type(exc).__name__
+        )
+        raise Invalid(
+            f"cannot read preferences file {path}: not a readable UTF-8 JSON file"
+        ) from exc
     ok = isinstance(data, dict) and all(
         isinstance(v, list) and all(isinstance(n, str) for n in v) for v in data.values()
     )
