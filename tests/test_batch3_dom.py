@@ -806,6 +806,56 @@ def test_cue_delete_refuses_when_the_confirmed_cue_moved_and_another_took_its_pl
     assert song.current_song_time == 2.0
 
 
+class ShrinkingSong(Song):
+    """Live 12.2 as measured on 2026-11-12: ``song_length`` stretches to cover the playhead
+    (32 beats past it) and setting ``current_song_time`` past ``song_length`` raises."""
+
+    content_end, stretch = 64.0, 32.0
+
+    @property
+    def song_length(self):
+        return max(self.content_end, self._time + self.stretch)
+
+    @Song.current_song_time.setter
+    def current_song_time(self, value):
+        if value > self.song_length:
+            raise RuntimeError("song time past the song end")
+        self._pending = value
+
+
+@pytest.mark.parametrize("stretch", [32.0, 0.0])
+def test_cue_delete_returns_a_playhead_parked_past_the_content(stretch):
+    """Round 6 (carried): the final cleanup's confirmed cue delete came back unknown. Its
+    playhead sat past the arrangement content; the seek to the cue shrank the song, so the
+    direct return raised RuntimeError in end() and again in the finalizer. The return now goes
+    in steps; when Live still refuses, that is a cleanup issue and the delete stays applied."""
+    song = ShrinkingSong()
+    song.stretch = stretch
+    song._time = 150.0 if stretch else 64.0  # parked past the content end (64)
+    previous = song._time
+    safety = Safety(lambda: song, policy=lambda: False)
+    dispatch = handlers.make_dispatch(lambda: song, types.SimpleNamespace(), safety)
+    if not stretch:  # Live will not take the playhead back at all
+        song.content_end = 40.0
+    (r,) = refs(dispatch, {"kind": "cue", "cue": 0})
+    out = ok(dispatch("set_cue_points", {"cues": [{"cue": r["ref"], "action": "delete"}]}))
+    op = out["applied"][0]["operation"]
+    for _ in range(30):
+        dispatch.operations.tick()
+        song.settle()
+    snap = dispatch.operations.get(op)
+    result = snap["result"]
+    assert snap["state"] == "ready" and result["status"] == "complete", snap
+    assert result["results"] == [{"action": "delete", "time": 8.0}] and song.cue_points == []
+    if stretch:
+        assert result["playhead"] == {"moved": True, "restored": True, "at": previous,
+                                      "was": previous}  # fmt: skip
+        assert song.current_song_time == previous and "cleanup_issue" not in result
+    else:  # as close as Live allows, said plainly, and the task still resolved
+        assert result["playhead"]["restored"] is False and song.current_song_time == 40.0
+        assert "cannot return to 64.0" in result["cleanup_issue"]
+
+
 def test_cue_add_refuses_while_playing(env):
     song, dispatch = env
     song.is_playing = True
