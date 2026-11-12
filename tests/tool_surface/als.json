@@ -10,15 +10,8 @@
   "inputSchema": {
    "properties": {
     "folder_glob": {
-     "anyOf": [
-      {
-       "maxLength": 200,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 200,
+     "type": "string"
     },
     "limit": {
      "default": 200,
@@ -27,30 +20,16 @@
      "type": "integer"
     },
     "roots": {
-     "anyOf": [
-      {
-       "items": {
-        "type": "string"
-       },
-       "maxItems": 16,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 16,
+     "type": "array"
     },
     "since_days": {
-     "anyOf": [
-      {
-       "maximum": 3650,
-       "minimum": 1,
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maximum": 3650,
+     "minimum": 1,
+     "type": "integer"
     }
    },
    "type": "object"
@@ -146,14 +125,7 @@
      "type": "integer"
     },
     "scan_id": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "sort": {
      "default": "projects",

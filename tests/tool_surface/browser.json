@@ -10,14 +10,7 @@
   "inputSchema": {
    "properties": {
     "cursor": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "limit": {
      "default": 200,
@@ -26,28 +19,14 @@
      "type": "integer"
     },
     "path": {
-     "anyOf": [
-      {
-       "items": {
-        "type": "string"
-       },
-       "maxItems": 8,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 8,
+     "type": "array"
     },
     "root": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     }
    },
    "type": "object"
@@ -120,14 +99,7 @@
   "inputSchema": {
    "properties": {
     "cursor": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "limit": {
      "default": 25,
@@ -224,29 +196,15 @@
   "inputSchema": {
    "properties": {
     "operation": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "operations": {
-     "anyOf": [
-      {
-       "items": {
-        "type": "string"
-       },
-       "maxItems": 16,
-       "minItems": 1,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 16,
+     "minItems": 1,
+     "type": "array"
     }
    },
    "type": "object"
@@ -390,14 +348,7 @@
   "inputSchema": {
    "properties": {
     "after": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "append": {
      "default": false,
@@ -415,28 +366,21 @@
      "type": "string"
     },
     "target_path": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "minimum": 0,
-          "type": "integer"
-         },
-         {
-          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-          "type": "string"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
        },
-       "maxItems": 12,
-       "minItems": 1,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "type": "array"
     },
     "track": {
      "anyOf": [

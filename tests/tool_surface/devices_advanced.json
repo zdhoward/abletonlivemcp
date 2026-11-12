@@ -168,19 +168,12 @@
   "inputSchema": {
    "properties": {
     "compare": {
-     "anyOf": [
-      {
-       "enum": [
-        "save",
-        "a",
-        "b"
-       ],
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "enum": [
+      "save",
+      "a",
+      "b"
+     ],
+     "type": "string"
     },
     "path": {
      "items": {
@@ -200,14 +193,7 @@
      "type": "array"
     },
     "preset_index": {
-     "anyOf": [
-      {
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "integer"
     },
     "track": {
      "anyOf": [

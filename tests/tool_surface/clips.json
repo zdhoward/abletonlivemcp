@@ -13,27 +13,13 @@
      "additionalProperties": false,
      "properties": {
       "color_index": {
-       "anyOf": [
-        {
-         "maximum": 69,
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 69,
+       "minimum": 0,
+       "type": "integer"
       },
       "file": {
-       "anyOf": [
-        {
-         "maxLength": 1024,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 1024,
+       "type": "string"
       },
       "kind": {
        "default": "midi",
@@ -50,29 +36,15 @@
        "type": "number"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "notes": {
-       "anyOf": [
-        {
-         "items": {
-          "$ref": "#/$defs/Note"
-         },
-         "maxItems": 2000,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "$ref": "#/$defs/Note"
+       },
+       "maxItems": 2000,
+       "type": "array"
       },
       "scene": {
        "minimum": 0,
@@ -274,15 +246,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -332,24 +297,17 @@
    },
    "properties": {
     "clips": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "$ref": "#/$defs/ClipAddr"
-         },
-         {
-          "$ref": "#/$defs/ArrangementClipAddr"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/ClipAddr"
        },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "$ref": "#/$defs/ArrangementClipAddr"
+       }
+      ]
+     },
+     "type": "array"
     },
     "detail": {
      "default": false,
@@ -364,14 +322,7 @@
      "type": "string"
     },
     "scene": {
-     "anyOf": [
-      {
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "integer"
     },
     "track": {
      "anyOf": [
@@ -382,9 +333,6 @@
       {
        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
        "type": "string"
-      },
-      {
-       "type": "null"
       }
      ]
     }
@@ -451,15 +399,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -520,233 +461,114 @@
        ]
       },
       "color_index": {
-       "anyOf": [
-        {
-         "maximum": 69,
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 69,
+       "minimum": 0,
+       "type": "integer"
       },
       "expect_name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "gain": {
-       "anyOf": [
-        {
-         "maximum": 1,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
       },
       "launch_mode": {
-       "anyOf": [
-        {
-         "enum": [
-          "trigger",
-          "gate",
-          "toggle",
-          "repeat"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "trigger",
+        "gate",
+        "toggle",
+        "repeat"
+       ],
+       "type": "string"
       },
       "launch_quantization": {
-       "anyOf": [
-        {
-         "enum": [
-          "global",
-          "none",
-          "8 bars",
-          "4 bars",
-          "2 bars",
-          "1 bar",
-          "1/2",
-          "1/2t",
-          "1/4",
-          "1/4t",
-          "1/8",
-          "1/8t",
-          "1/16",
-          "1/16t",
-          "1/32"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "global",
+        "none",
+        "8 bars",
+        "4 bars",
+        "2 bars",
+        "1 bar",
+        "1/2",
+        "1/2t",
+        "1/4",
+        "1/4t",
+        "1/8",
+        "1/8t",
+        "1/16",
+        "1/16t",
+        "1/32"
+       ],
+       "type": "string"
       },
       "legato": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "loop": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "number"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "looping": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "markers": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "number"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "muted": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "pitch_coarse": {
-       "anyOf": [
-        {
-         "maximum": 48,
-         "minimum": -48,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 48,
+       "minimum": -48,
+       "type": "integer"
       },
       "pitch_fine": {
-       "anyOf": [
-        {
-         "maximum": 50,
-         "minimum": -50,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 50,
+       "minimum": -50,
+       "type": "number"
       },
       "signature": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "integer"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "integer"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "velocity_amount": {
-       "anyOf": [
-        {
-         "maximum": 1,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
       },
       "warp_mode": {
-       "anyOf": [
-        {
-         "enum": [
-          "beats",
-          "tones",
-          "texture",
-          "re_pitch",
-          "complex",
-          "rex",
-          "complex_pro"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "beats",
+        "tones",
+        "texture",
+        "re_pitch",
+        "complex",
+        "rex",
+        "complex_pro"
+       ],
+       "type": "string"
       },
       "warping": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       }
      },
      "required": [

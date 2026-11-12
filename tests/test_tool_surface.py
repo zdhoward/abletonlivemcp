@@ -96,6 +96,36 @@ def test_core_listing_fits_the_utf8_byte_budget():
     assert inputs <= proof_contract.CORE_INPUT_BYTES
 
 
+def test_default_listing_fits_the_utf8_byte_budget():
+    listing = _listing(server.DEFAULT_TOOLSETS)
+    size = _utf8_size(listing)
+    limit = proof_contract.DEFAULT_LISTING_BYTES
+    assert size <= limit, f"default list_tools is {size} UTF-8 bytes (limit {limit})"
+    inputs = sum(_utf8_size(t["inputSchema"]) for t in listing)
+    assert inputs <= proof_contract.DEFAULT_INPUT_BYTES, inputs
+
+
+def test_optional_inputs_drop_only_the_redundant_null_branch():
+    for tool in _listing(server.TOOLSETS):
+        text = json.dumps(tool["inputSchema"])
+        assert '"default": null' not in text, tool["name"]
+    schema = {
+        "properties": {
+            "a": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "b": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "c": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": 3},
+            "d": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}]},
+        },
+        "required": ["b"],
+    }
+    server._drop_optional_null(schema)
+    props = schema["properties"]
+    assert props["a"] == {"type": "integer"}
+    assert props["b"]["anyOf"][-1] == {"type": "null"}  # required: null stays explicit
+    assert props["c"]["anyOf"][-1] == {"type": "null"}  # non-null default: null stays
+    assert props["d"] == {"anyOf": [{"type": "integer"}, {"type": "string"}]}
+
+
 def test_output_contracts_cover_tools_and_preserve_unknown_receipt_data():
     assert set(TOOL_OUTPUTS) == set(server.SPECS)
     assert all(t["outputSchema"].get("properties") for t in _listing(server.TOOLSETS))

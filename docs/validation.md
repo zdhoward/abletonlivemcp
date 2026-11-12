@@ -1,9 +1,19 @@
-# v0.9.0 beta: validation and limits
+# Validation and limits (v0.11 beta)
 
 This beta targets Ableton Live 12.2 on Windows. Host Python is 3.10 or later. Other Live
 versions and operating systems have not been qualified against a running DAW.
 
-The final real-Live scenario ledger records 34 passing scenarios and 3 scenarios with explicit
+What has been checked, newest first:
+
+- **Unreleased (after 0.11.0):** on Live 12.2 with a Set containing nested group tracks,
+  `live_get_arrangement` read the whole Set (group rows marked `group: true`), and an
+  arrangement-clip reference on a group track refused with a readable message. Before this
+  fix any group track made the whole read fail.
+- **0.10.0:** seven read-only tools validated against their schemas over stdio on Live 12.2.0.
+- **0.9.0:** the full real-Live scenario ledger below. It has not been rerun since; treat
+  write paths changed after 0.9 as covered by the offline suite only.
+
+The 0.9.0 real-Live scenario ledger records 34 passing scenarios and 3 scenarios with explicit
 unsupported results, with no failed or blocked scenarios. It covers the 57 registered tools,
 including connection, mixer/routing, clips/notes, MIDI files, device loading/parameters/movement,
 stock racks/drums, nested Simpler read/write/readback, arrangement, undo, confirmed deletion,
@@ -11,8 +21,9 @@ offline usage, labels, resources and prompts. Tool coverage does not prove every
 
 The offline suite covers protocol authentication/bounds, installer safety, path confinement,
 bounded XML parsing, schemas, confirmations and tool contracts. CI runs Python 3.10 and 3.13
-on Windows and Linux. The 0.10 development contracts keep request schemas below 30,000 UTF-8
-bytes and the complete 30-tool listing below 68,000 bytes, including typed output schemas.
+on Windows and Linux. Size contracts keep the 30-tool core listing below 68,000 UTF-8 bytes
+(request schemas below 30,000) and the default 36-tool listing below 80,000 (request schemas
+below 36,000), including typed output schemas.
 
 Distribution CI builds wheel and source archives, checks their allowed contents and embedded
 Remote Script completeness, then installs the wheel in an isolated environment and initializes

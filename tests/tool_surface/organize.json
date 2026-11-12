@@ -10,33 +10,19 @@
   "inputSchema": {
    "properties": {
     "kind": {
-     "anyOf": [
-      {
-       "enum": [
-        "song",
-        "track",
-        "return_track",
-        "plugin",
-        "device",
-        "sample"
-       ],
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "enum": [
+      "song",
+      "track",
+      "return_track",
+      "plugin",
+      "device",
+      "sample"
+     ],
+     "type": "string"
     },
     "label": {
-     "anyOf": [
-      {
-       "maxLength": 40,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 40,
+     "type": "string"
     },
     "scope": {
      "default": "both",
@@ -122,26 +108,12 @@
      "additionalProperties": false,
      "properties": {
       "category": {
-       "anyOf": [
-        {
-         "maxLength": 40,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 40,
+       "type": "string"
       },
       "expect_name": {
-       "anyOf": [
-        {
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "description": "Track kinds: refuse unless named exactly so"
+       "description": "Track kinds: refuse unless named exactly so",
+       "type": "string"
       },
       "key": {
        "anyOf": [
@@ -150,9 +122,6 @@
         },
         {
          "type": "string"
-        },
-        {
-         "type": "null"
         }
        ],
        "description": "Track/return index; usage key for plugin/device/sample; none for song"

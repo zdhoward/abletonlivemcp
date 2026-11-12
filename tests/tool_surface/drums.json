@@ -198,50 +198,29 @@
      "additionalProperties": false,
      "properties": {
       "arrangement": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "path": {
-       "anyOf": [
-        {
-         "items": {
-          "anyOf": [
-           {
-            "minimum": 0,
-            "type": "integer"
-           },
-           {
-            "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-            "type": "string"
-           }
-          ]
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
          },
-         "maxItems": 12,
-         "minItems": 1,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
       },
       "scene": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -745,54 +724,26 @@
      "additionalProperties": false,
      "properties": {
       "choke_group": {
-       "anyOf": [
-        {
-         "maximum": 16,
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 16,
+       "minimum": 0,
+       "type": "integer"
       },
       "clear": {
        "default": false,
        "type": "boolean"
       },
       "expect_name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "description": "required with clear: the pad's current name"
+       "description": "required with clear: the pad's current name",
+       "maxLength": 256,
+       "type": "string"
       },
       "mute": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "minLength": 1,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "minLength": 1,
+       "type": "string"
       },
       "note": {
        "maximum": 127,
@@ -800,14 +751,7 @@
        "type": "integer"
       },
       "solo": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       }
      },
      "required": [
@@ -818,27 +762,13 @@
    },
    "properties": {
     "copy": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/PadCopy"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/PadCopy"
     },
     "pads": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/PadEdit"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/PadEdit"
+     },
+     "type": "array"
     },
     "path": {
      "items": {
@@ -1009,15 +939,8 @@
    },
    "properties": {
     "device_fields": {
-     "anyOf": [
-      {
-       "additionalProperties": true,
-       "type": "object"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "additionalProperties": true,
+     "type": "object"
     },
     "path": {
      "items": {
@@ -1037,25 +960,11 @@
      "type": "array"
     },
     "sample_fields": {
-     "anyOf": [
-      {
-       "additionalProperties": true,
-       "type": "object"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "additionalProperties": true,
+     "type": "object"
     },
     "slices": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/SliceEdit"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/SliceEdit"
     },
     "track": {
      "anyOf": [

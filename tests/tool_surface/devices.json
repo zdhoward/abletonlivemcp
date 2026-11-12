@@ -18,28 +18,21 @@
      "type": "integer"
     },
     "path": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "minimum": 0,
-          "type": "integer"
-         },
-         {
-          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-          "type": "string"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
        },
-       "maxItems": 12,
-       "minItems": 1,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "type": "array"
     },
     "response_format": {
      "default": "concise",
@@ -170,14 +163,7 @@
   "inputSchema": {
    "properties": {
     "expect_name": {
-     "anyOf": [
-      {
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "string"
     },
     "path": {
      "items": {
@@ -197,38 +183,24 @@
      "type": "array"
     },
     "position": {
-     "anyOf": [
-      {
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "integer"
     },
     "to_path": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "minimum": 0,
-          "type": "integer"
-         },
-         {
-          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-          "type": "string"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
        },
-       "maxItems": 12,
-       "minItems": 1,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "type": "array"
     },
     "to_track": {
      "anyOf": [
@@ -338,9 +310,6 @@
         },
         {
          "type": "boolean"
-        },
-        {
-         "type": "null"
         }
        ]
       }
@@ -515,47 +484,19 @@
      "additionalProperties": false,
      "properties": {
       "collapsed": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "expect_name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "minLength": 1,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "minLength": 1,
+       "type": "string"
       },
       "on": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "path": {
        "items": {

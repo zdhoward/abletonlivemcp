@@ -232,45 +232,31 @@
        "type": "object"
       },
       "path": {
-       "anyOf": [
-        {
-         "items": {
-          "maxLength": 256,
-          "minLength": 1,
-          "type": "string"
-         },
-         "maxItems": 8,
-         "minItems": 1,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+       },
+       "maxItems": 8,
+       "minItems": 1,
+       "type": "array"
       },
       "root": {
-       "anyOf": [
-        {
-         "enum": [
-          "audio_effects",
-          "plugins",
-          "max_for_live",
-          "user_library",
-          "packs",
-          "current_project",
-          "user_folders",
-          "instruments",
-          "sounds",
-          "drums",
-          "samples",
-          "midi_effects"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "audio_effects",
+        "plugins",
+        "max_for_live",
+        "user_library",
+        "packs",
+        "current_project",
+        "user_folders",
+        "instruments",
+        "sounds",
+        "drums",
+        "samples",
+        "midi_effects"
+       ],
+       "type": "string"
       }
      },
      "required": [
@@ -295,19 +281,12 @@
      "additionalProperties": false,
      "properties": {
       "level": {
-       "anyOf": [
-        {
-         "enum": [
-          "short",
-          "medium",
-          "long"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "short",
+        "medium",
+        "long"
+       ],
+       "type": "string"
       },
       "value": {
        "anyOf": [
@@ -320,9 +299,6 @@
         },
         {
          "type": "boolean"
-        },
-        {
-         "type": "null"
         }
        ]
       }
@@ -333,15 +309,8 @@
      "additionalProperties": false,
      "properties": {
       "label": {
-       "anyOf": [
-        {
-         "maxLength": 60,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 60,
+       "type": "string"
       },
       "macro": {
        "maximum": 16,
@@ -368,9 +337,6 @@
         },
         {
          "type": "boolean"
-        },
-        {
-         "type": "null"
         }
        ]
       }
@@ -395,9 +361,6 @@
         },
         {
          "type": "number"
-        },
-        {
-         "type": "null"
         }
        ]
       },
@@ -408,9 +371,6 @@
         },
         {
          "type": "number"
-        },
-        {
-         "type": "null"
         }
        ]
       },
@@ -487,88 +447,60 @@
      "type": "boolean"
     },
     "chain_path": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "minimum": 0,
-          "type": "integer"
-         },
-         {
-          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-          "type": "string"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
        },
-       "maxItems": 12,
-       "minItems": 1,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+        "type": "string"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "type": "array"
     },
     "preferences": {
-     "anyOf": [
-      {
-       "additionalProperties": {
-        "items": {
-         "maxLength": 256,
-         "minLength": 1,
-         "type": "string"
-        },
-        "maxItems": 16,
-        "type": "array"
-       },
-       "maxProperties": 4,
-       "propertyNames": {
-        "enum": [
-         "compressor",
-         "eq",
-         "saturation",
-         "reverb"
-        ]
-       },
-       "type": "object"
+     "additionalProperties": {
+      "items": {
+       "maxLength": 256,
+       "minLength": 1,
+       "type": "string"
       },
-      {
-       "type": "null"
-      }
-     ]
+      "maxItems": 16,
+      "type": "array"
+     },
+     "maxProperties": 4,
+     "propertyNames": {
+      "enum": [
+       "compressor",
+       "eq",
+       "saturation",
+       "reverb"
+      ]
+     },
+     "type": "object"
     },
     "rack": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/FxRack"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/FxRack"
     },
     "stages": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "$ref": "#/$defs/RoleStage"
-         },
-         {
-          "$ref": "#/$defs/DeviceStage"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/RoleStage"
        },
-       "maxItems": 12,
-       "minItems": 1,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "$ref": "#/$defs/DeviceStage"
+       }
+      ]
+     },
+     "maxItems": 12,
+     "minItems": 1,
+     "type": "array"
     },
     "track": {
      "anyOf": [

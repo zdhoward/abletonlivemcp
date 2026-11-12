@@ -13,15 +13,8 @@
      "additionalProperties": false,
      "properties": {
       "file": {
-       "anyOf": [
-        {
-         "maxLength": 1024,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 1024,
+       "type": "string"
       },
       "kind": {
        "default": "midi",
@@ -39,44 +32,23 @@
        "type": "number"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "notes": {
-       "anyOf": [
-        {
-         "items": {
-          "$ref": "#/$defs/Note"
-         },
-         "maxItems": 2000,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "$ref": "#/$defs/Note"
+       },
+       "maxItems": 2000,
+       "type": "array"
       },
       "replace": {
        "default": false,
        "type": "boolean"
       },
       "scene": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "start": {
        "maximum": 16384,
@@ -84,15 +56,8 @@
        "type": "number"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "minimum": 0,
@@ -281,15 +246,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -317,257 +275,124 @@
        "$ref": "#/$defs/ArrangementClipAddr"
       },
       "color_index": {
-       "anyOf": [
-        {
-         "maximum": 69,
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 69,
+       "minimum": 0,
+       "type": "integer"
       },
       "expect_name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "gain": {
-       "anyOf": [
-        {
-         "maximum": 1,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
       },
       "launch_mode": {
-       "anyOf": [
-        {
-         "enum": [
-          "trigger",
-          "gate",
-          "toggle",
-          "repeat"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "trigger",
+        "gate",
+        "toggle",
+        "repeat"
+       ],
+       "type": "string"
       },
       "launch_quantization": {
-       "anyOf": [
-        {
-         "enum": [
-          "global",
-          "none",
-          "8 bars",
-          "4 bars",
-          "2 bars",
-          "1 bar",
-          "1/2",
-          "1/2t",
-          "1/4",
-          "1/4t",
-          "1/8",
-          "1/8t",
-          "1/16",
-          "1/16t",
-          "1/32"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "global",
+        "none",
+        "8 bars",
+        "4 bars",
+        "2 bars",
+        "1 bar",
+        "1/2",
+        "1/2t",
+        "1/4",
+        "1/4t",
+        "1/8",
+        "1/8t",
+        "1/16",
+        "1/16t",
+        "1/32"
+       ],
+       "type": "string"
       },
       "legato": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "loop": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "number"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "looping": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "markers": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "number"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "move_to": {
-       "anyOf": [
-        {
-         "maximum": 16384,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 16384,
+       "minimum": 0,
+       "type": "number"
       },
       "muted": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "pitch_coarse": {
-       "anyOf": [
-        {
-         "maximum": 48,
-         "minimum": -48,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 48,
+       "minimum": -48,
+       "type": "integer"
       },
       "pitch_fine": {
-       "anyOf": [
-        {
-         "maximum": 50,
-         "minimum": -50,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 50,
+       "minimum": -50,
+       "type": "number"
       },
       "signature": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "integer"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "integer"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "split_at": {
-       "anyOf": [
-        {
-         "maximum": 16384,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 16384,
+       "minimum": 0,
+       "type": "number"
       },
       "velocity_amount": {
-       "anyOf": [
-        {
-         "maximum": 1,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
       },
       "warp_mode": {
-       "anyOf": [
-        {
-         "enum": [
-          "beats",
-          "tones",
-          "texture",
-          "re_pitch",
-          "complex",
-          "rex",
-          "complex_pro"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "beats",
+        "tones",
+        "texture",
+        "re_pitch",
+        "complex",
+        "rex",
+        "complex_pro"
+       ],
+       "type": "string"
       },
       "warping": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       }
      },
      "required": [
@@ -686,41 +511,27 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows max (truncated).",
+  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows max (truncated). Group tracks hold no\nclips: their rows say group: true.",
   "inputSchema": {
    "properties": {
     "include": {
-     "anyOf": [
-      {
-       "items": {
-        "enum": [
-         "clips",
-         "cues",
-         "take_lanes"
-        ],
-        "type": "string"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "enum": [
+       "clips",
+       "cues",
+       "take_lanes"
+      ],
+      "type": "string"
+     },
+     "type": "array"
     },
     "range": {
-     "anyOf": [
-      {
-       "items": {
-        "type": "number"
-       },
-       "maxItems": 2,
-       "minItems": 2,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "type": "number"
+     },
+     "maxItems": 2,
+     "minItems": 2,
+     "type": "array"
     },
     "response_format": {
      "default": "concise",
@@ -731,26 +542,19 @@
      "type": "string"
     },
     "tracks": {
-     "anyOf": [
-      {
-       "items": {
-        "anyOf": [
-         {
-          "minimum": 0,
-          "type": "integer"
-         },
-         {
-          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
-          "type": "string"
-         }
-        ]
+     "items": {
+      "anyOf": [
+       {
+        "minimum": 0,
+        "type": "integer"
        },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+       {
+        "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
+        "type": "string"
+       }
+      ]
+     },
+     "type": "array"
     }
    },
    "type": "object"
@@ -831,15 +635,8 @@
      "additionalProperties": false,
      "properties": {
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       },
       "time": {
        "maximum": 16384,
@@ -868,15 +665,8 @@
        "type": "integer"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "type": "string"
       }
      },
      "required": [
@@ -888,30 +678,16 @@
    },
    "properties": {
     "add": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/CueAdd"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/CueAdd"
+     },
+     "type": "array"
     },
     "cues": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/CueEdit"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/CueEdit"
+     },
+     "type": "array"
     }
    },
    "type": "object"

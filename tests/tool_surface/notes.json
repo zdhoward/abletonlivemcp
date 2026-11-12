@@ -17,15 +17,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -130,102 +123,46 @@
      "additionalProperties": false,
      "properties": {
       "duration": {
-       "anyOf": [
-        {
-         "exclusiveMinimum": 0,
-         "maximum": 16384,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "exclusiveMinimum": 0,
+       "maximum": 16384,
+       "type": "number"
       },
       "mute": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "note_id": {
        "minimum": 0,
        "type": "integer"
       },
       "pitch": {
-       "anyOf": [
-        {
-         "maximum": 127,
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 127,
+       "minimum": 0,
+       "type": "integer"
       },
       "probability": {
-       "anyOf": [
-        {
-         "maximum": 1,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 1,
+       "minimum": 0,
+       "type": "number"
       },
       "release_velocity": {
-       "anyOf": [
-        {
-         "maximum": 127,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 127,
+       "minimum": 0,
+       "type": "number"
       },
       "start_time": {
-       "anyOf": [
-        {
-         "maximum": 16384,
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 16384,
+       "minimum": 0,
+       "type": "number"
       },
       "velocity": {
-       "anyOf": [
-        {
-         "maximum": 127,
-         "minimum": 1,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 127,
+       "minimum": 1,
+       "type": "number"
       },
       "velocity_deviation": {
-       "anyOf": [
-        {
-         "maximum": 127,
-         "minimum": -127,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maximum": 127,
+       "minimum": -127,
+       "type": "number"
       }
      },
      "required": [
@@ -277,19 +214,12 @@
        "type": "number"
       },
       "ids": {
-       "anyOf": [
-        {
-         "items": {
-          "minimum": 0,
-          "type": "integer"
-         },
-         "maxItems": 2000,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "maxItems": 2000,
+       "type": "array"
       }
      },
      "required": [
@@ -330,19 +260,12 @@
      "additionalProperties": false,
      "properties": {
       "ids": {
-       "anyOf": [
-        {
-         "items": {
-          "minimum": 0,
-          "type": "integer"
-         },
-         "maxItems": 2000,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "maxItems": 2000,
+       "type": "array"
       },
       "semitones": {
        "maximum": 127,
@@ -358,18 +281,11 @@
    },
    "properties": {
     "add": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/Note"
-       },
-       "maxItems": 2000,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/Note"
+     },
+     "maxItems": 2000,
+     "type": "array"
     },
     "clip": {
      "anyOf": [
@@ -382,83 +298,34 @@
      ]
     },
     "duplicate_region": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/Region"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/Region"
     },
     "expect_name": {
-     "anyOf": [
-      {
-       "maxLength": 256,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 256,
+     "type": "string"
     },
     "modify": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/NoteMod"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/NoteMod"
+     },
+     "type": "array"
     },
     "quantize": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/Quantize"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/Quantize"
     },
     "remove_ids": {
-     "anyOf": [
-      {
-       "items": {
-        "minimum": 0,
-        "type": "integer"
-       },
-       "maxItems": 2000,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "minimum": 0,
+      "type": "integer"
+     },
+     "maxItems": 2000,
+     "type": "array"
     },
     "remove_range": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/NoteRange"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/NoteRange"
     },
     "transpose": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/Transpose"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/Transpose"
     }
    },
    "required": [
@@ -574,15 +441,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -674,27 +534,13 @@
      "type": "string"
     },
     "time_from": {
-     "anyOf": [
-      {
-       "minimum": -16384,
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "minimum": -16384,
+     "type": "number"
     },
     "time_span": {
-     "anyOf": [
-      {
-       "exclusiveMinimum": 0,
-       "maximum": 65536,
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "exclusiveMinimum": 0,
+     "maximum": 65536,
+     "type": "number"
     }
    },
    "required": [

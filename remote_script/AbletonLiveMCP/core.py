@@ -12,6 +12,7 @@ import socket
 import stat
 import threading
 import time
+import traceback
 
 PROTOCOL_VERSION = 2
 MAX_CONNECTIONS = 4
@@ -372,6 +373,7 @@ class BridgeServer:
         if host != "127.0.0.1":
             raise ValueError("bridge requires IPv4 loopback")
         self._dispatch, self._host, self._port = dispatch, host, port
+        self._log = log
         self._lock = threading.Lock()
         self._queue = collections.deque()
         self._pending, self._connections, self._workers = set(), set(), set()
@@ -480,7 +482,22 @@ class BridgeServer:
             # are readable. Every other exception can hold credentials or user input: not echoed.
             if type(exc) is ValueError and len(exc.args) == 1 and isinstance(exc.args[0], str):
                 return _err(req["id"], "ValueError", False, exc.args[0])
+            self._log_failure(req["method"], exc)
             return _err(req["id"], "HandlerError", True)
+
+    def _log_failure(self, method, exc):
+        """Log where a handler failed: method, exception type and code locations only. The
+        message and locals can hold user data or secrets, so they are never written."""
+        if self._log is None:
+            return
+        try:
+            frames = traceback.extract_tb(exc.__traceback__)[-4:]
+            where = " <- ".join(
+                f"{os.path.basename(f.filename)}:{f.lineno}" for f in reversed(frames)
+            )
+            self._log(f"AbletonLiveMCP: {method} failed: {type(exc).__name__} at {where}")
+        except Exception:  # diagnostics must never change the reply
+            pass
 
     def _accept_loop(self):
         while not self._stop.is_set():

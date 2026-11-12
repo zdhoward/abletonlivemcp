@@ -6,6 +6,18 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
+Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live.
+
+- Fix: `live_get_arrangement` failed with a bare `HandlerError` whenever the read included a
+  group track, which every whole-Set read does. Group rows now say `group: true`, and an
+  arrangement-clip reference or placement on a group track refuses with a readable message.
+- The Remote Script logs each unexpected handler failure to Live's `Log.txt` (method,
+  exception type and code locations; never the message or arguments).
+- Optional tool inputs no longer advertise a redundant `null` branch (~3 KB smaller default
+  listing; explicit nulls are still accepted). A test now budgets the default 36-tool listing.
+- README and validation docs: current version, dated validation status, and the buildup
+  section no longer documents flags the example script does not have.
+
 ## [0.11.0] - 2026-11-11
 
 Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live; server and

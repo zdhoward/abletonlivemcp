@@ -17,15 +17,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -50,45 +43,31 @@
      "additionalProperties": false,
      "properties": {
       "device": {
-       "anyOf": [
-        {
-         "items": {
-          "anyOf": [
-           {
-            "minimum": 0,
-            "type": "integer"
-           },
-           {
-            "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-            "type": "string"
-           }
-          ]
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
          },
-         "maxItems": 12,
-         "minItems": 1,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
       },
       "mixer": {
-       "anyOf": [
-        {
-         "enum": [
-          "volume",
-          "panning",
-          "send",
-          "track_activator",
-          "crossfader"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "volume",
+        "panning",
+        "send",
+        "track_activator",
+        "crossfader"
+       ],
+       "type": "string"
       },
       "parameter": {
        "anyOf": [
@@ -99,22 +78,12 @@
         {
          "maxLength": 120,
          "type": "string"
-        },
-        {
-         "type": "null"
         }
        ]
       },
       "send": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       }
      },
      "type": "object"
@@ -169,17 +138,10 @@
      "type": "string"
     },
     "sample_times": {
-     "anyOf": [
-      {
-       "items": {
-        "type": "number"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "type": "number"
+     },
+     "type": "array"
     }
    },
    "required": [
@@ -254,15 +216,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -287,45 +242,31 @@
      "additionalProperties": false,
      "properties": {
       "device": {
-       "anyOf": [
-        {
-         "items": {
-          "anyOf": [
-           {
-            "minimum": 0,
-            "type": "integer"
-           },
-           {
-            "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
-            "type": "string"
-           }
-          ]
+       "items": {
+        "anyOf": [
+         {
+          "minimum": 0,
+          "type": "integer"
          },
-         "maxItems": 12,
-         "minItems": 1,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+         {
+          "pattern": "^pad:(0|[1-9]\\d?|1[01]\\d|12[0-7])$",
+          "type": "string"
+         }
+        ]
+       },
+       "maxItems": 12,
+       "minItems": 1,
+       "type": "array"
       },
       "mixer": {
-       "anyOf": [
-        {
-         "enum": [
-          "volume",
-          "panning",
-          "send",
-          "track_activator",
-          "crossfader"
-         ],
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "enum": [
+        "volume",
+        "panning",
+        "send",
+        "track_activator",
+        "crossfader"
+       ],
+       "type": "string"
       },
       "parameter": {
        "anyOf": [
@@ -336,22 +277,12 @@
         {
          "maxLength": 120,
          "type": "string"
-        },
-        {
-         "type": "null"
         }
        ]
       },
       "send": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       }
      },
      "type": "object"
@@ -374,65 +305,37 @@
        ]
       },
       "delete_range": {
-       "anyOf": [
-        {
-         "items": {
-          "type": "number"
-         },
-         "maxItems": 2,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "type": "number"
+       },
+       "maxItems": 2,
+       "minItems": 2,
+       "type": "array"
       },
       "parameter": {
        "$ref": "#/$defs/AutoParam"
       },
       "points": {
-       "anyOf": [
-        {
-         "items": {
-          "$ref": "#/$defs/Breakpoint"
-         },
-         "maxItems": 3,
-         "minItems": 2,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "$ref": "#/$defs/Breakpoint"
+       },
+       "maxItems": 3,
+       "minItems": 2,
+       "type": "array"
       },
       "ramps": {
-       "anyOf": [
-        {
-         "items": {
-          "$ref": "#/$defs/Ramp"
-         },
-         "maxItems": 16,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "$ref": "#/$defs/Ramp"
+       },
+       "maxItems": 16,
+       "type": "array"
       },
       "steps": {
-       "anyOf": [
-        {
-         "items": {
-          "$ref": "#/$defs/Step"
-         },
-         "maxItems": 512,
-         "type": "array"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "items": {
+        "$ref": "#/$defs/Step"
+       },
+       "maxItems": 512,
+       "type": "array"
       }
      },
      "required": [

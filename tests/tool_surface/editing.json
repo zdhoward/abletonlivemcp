@@ -17,15 +17,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -87,25 +80,11 @@
        "type": "number"
       },
       "distance": {
-       "anyOf": [
-        {
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "number"
       },
       "sample_time": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "number"
       }
      },
      "required": [
@@ -135,94 +114,45 @@
      "type": "boolean"
     },
     "expect_name": {
-     "anyOf": [
-      {
-       "maxLength": 256,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 256,
+     "type": "string"
     },
     "gain": {
-     "anyOf": [
-      {
-       "maximum": 1,
-       "minimum": 0,
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maximum": 1,
+     "minimum": 0,
+     "type": "number"
     },
     "pitch_coarse": {
-     "anyOf": [
-      {
-       "maximum": 48,
-       "minimum": -48,
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maximum": 48,
+     "minimum": -48,
+     "type": "integer"
     },
     "pitch_fine": {
-     "anyOf": [
-      {
-       "maximum": 50,
-       "minimum": -50,
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maximum": 50,
+     "minimum": -50,
+     "type": "number"
     },
     "warp_markers": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/WarpOp"
-       },
-       "maxItems": 32,
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/WarpOp"
+     },
+     "maxItems": 32,
+     "type": "array"
     },
     "warp_mode": {
-     "anyOf": [
-      {
-       "enum": [
-        "beats",
-        "tones",
-        "texture",
-        "re_pitch",
-        "complex",
-        "rex",
-        "complex_pro"
-       ],
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "enum": [
+      "beats",
+      "tones",
+      "texture",
+      "re_pitch",
+      "complex",
+      "rex",
+      "complex_pro"
+     ],
+     "type": "string"
     },
     "warping": {
-     "anyOf": [
-      {
-       "type": "boolean"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "boolean"
     }
    },
    "required": [

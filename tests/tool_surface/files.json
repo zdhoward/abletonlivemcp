@@ -17,15 +17,8 @@
        "type": "integer"
       },
       "take_lane": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       },
       "track": {
        "anyOf": [
@@ -135,50 +128,22 @@
      "type": "string"
     },
     "length": {
-     "anyOf": [
-      {
-       "exclusiveMinimum": 0,
-       "maximum": 1024,
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "exclusiveMinimum": 0,
+     "maximum": 1024,
+     "type": "number"
     },
     "name": {
-     "anyOf": [
-      {
-       "maxLength": 256,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 256,
+     "type": "string"
     },
     "scene": {
-     "anyOf": [
-      {
-       "minimum": 0,
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "minimum": 0,
+     "type": "integer"
     },
     "start": {
-     "anyOf": [
-      {
-       "maximum": 16384,
-       "minimum": 0,
-       "type": "number"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maximum": 16384,
+     "minimum": 0,
+     "type": "number"
     },
     "track": {
      "minimum": 0,

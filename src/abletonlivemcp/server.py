@@ -233,6 +233,7 @@ def _add(server: MCPServer, spec: ToolSpec) -> None:
         # A property literally named "title" lives under "properties" and is never touched,
         # because pruning only looks at schema nodes, not at the property-name mapping.
         _prune_schema(tool.parameters)
+        _drop_optional_null(tool.parameters)
         if tool.output_schema is not None:
             _prune_schema(tool.output_schema)
 
@@ -253,6 +254,38 @@ def _prune_schema(schema: dict, *, top: bool = True) -> None:
         _prune_schema(schema["additionalProperties"])
     if "default" in schema and schema["default"] is None:
         del schema["default"]
+
+
+def _drop_optional_null(schema: dict) -> None:
+    """Input schemas only: an optional property whose default is None advertises just its real
+    type, because omitting it means the same thing. ``X | None`` becomes ``X`` (``anyOf`` with a
+    lone ``{"type": "null"}`` branch). Pydantic still validates calls, so an explicit null keeps
+    working. Run after ``_prune_schema``, which has already removed ``"default": null``. Output
+    schemas are never touched: a structured result may really contain null."""
+    nodes = [schema, *(schema.get("$defs") or {}).values()]
+    while nodes:
+        node = nodes.pop()
+        if not isinstance(node, dict):
+            continue
+        required = set(node.get("required") or ())
+        for name, prop in (node.get("properties") or {}).items():
+            if not isinstance(prop, dict):
+                continue
+            branches = prop.get("anyOf")
+            if name not in required and "default" not in prop and isinstance(branches, list):
+                rest = [b for b in branches if b != {"type": "null"}]
+                if len(rest) < len(branches) and rest:
+                    del prop["anyOf"]
+                    if len(rest) == 1 and not (set(prop) & set(rest[0])):
+                        prop.update(rest[0])
+                    else:
+                        prop["anyOf"] = rest
+            nodes.append(prop)
+        for key in ("items", "additionalProperties"):
+            if isinstance(node.get(key), dict):
+                nodes.append(node[key])
+        for key in ("anyOf", "oneOf", "allOf"):
+            nodes.extend(b for b in node.get(key) or () if isinstance(b, dict))
 
 
 # ---- confirmation for DESTRUCTIVE tools (T-007) -----------------------------------------------

@@ -23,37 +23,16 @@
      "type": "integer"
     },
     "page": {
-     "anyOf": [
-      {
-       "maxLength": 200,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 200,
+     "type": "string"
     },
     "query": {
-     "anyOf": [
-      {
-       "maxLength": 200,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 200,
+     "type": "string"
     },
     "section": {
-     "anyOf": [
-      {
-       "maxLength": 200,
-       "type": "string"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "maxLength": 200,
+     "type": "string"
     }
    },
    "required": [

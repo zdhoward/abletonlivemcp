@@ -129,56 +129,21 @@
        "type": "integer"
       },
       "mute": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "name": {
-       "anyOf": [
-        {
-         "maxLength": 256,
-         "minLength": 1,
-         "type": "string"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "maxLength": 256,
+       "minLength": 1,
+       "type": "string"
       },
       "pan": {
-       "anyOf": [
-        {
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "number"
       },
       "solo": {
-       "anyOf": [
-        {
-         "type": "boolean"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "boolean"
       },
       "volume": {
-       "anyOf": [
-        {
-         "type": "number"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "type": "number"
       }
      },
      "required": [
@@ -242,15 +207,8 @@
        "type": "string"
       },
       "index": {
-       "anyOf": [
-        {
-         "minimum": 0,
-         "type": "integer"
-        },
-        {
-         "type": "null"
-        }
-       ]
+       "minimum": 0,
+       "type": "integer"
       }
      },
      "required": [
@@ -261,30 +219,16 @@
    },
    "properties": {
     "chains": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/ChainEdit"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/ChainEdit"
+     },
+     "type": "array"
     },
     "macros": {
-     "anyOf": [
-      {
-       "items": {
-        "$ref": "#/$defs/MacroSet"
-       },
-       "type": "array"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "items": {
+      "$ref": "#/$defs/MacroSet"
+     },
+     "type": "array"
     },
     "path": {
      "items": {
@@ -316,24 +260,10 @@
      ]
     },
     "variation": {
-     "anyOf": [
-      {
-       "$ref": "#/$defs/Variation"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "$ref": "#/$defs/Variation"
     },
     "visible_macros": {
-     "anyOf": [
-      {
-       "type": "integer"
-      },
-      {
-       "type": "null"
-      }
-     ]
+     "type": "integer"
     }
    },
    "required": [

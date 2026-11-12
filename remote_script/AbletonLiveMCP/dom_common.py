@@ -290,6 +290,18 @@ def _mixer_node(mixer, p):
     return ("mixer_param", param, {"role": role})
 
 
+def has_arrangement_clips(parent):
+    """Group tracks hold no clips; Live raises RuntimeError on their arrangement_clips."""
+    return not getattr(parent, "is_foldable", False)
+
+
+def sorted_arrangement_clips(parent):
+    """Arrangement clips by start time (their index); a group track refuses readably."""
+    if not has_arrangement_clips(parent):
+        raise ValueError("a group track has no arrangement clips; name one of its member tracks")
+    return sorted(parent.arrangement_clips, key=lambda c: c.start_time)
+
+
 def reference_nodes(song, p):
     """Index selectors -> the node path for one reference of kind ``p["kind"]``. Raises
     ValueError when the selectors do not name exactly an object of that kind."""
@@ -333,7 +345,7 @@ def reference_nodes(song, p):
             parent = lanes[i]
             nodes.append(("take_lane", parent, {"index": i}))
         if kind == "arr_clip":
-            clips = sorted(parent.arrangement_clips, key=lambda c: c.start_time)
+            clips = sorted_arrangement_clips(parent)
             c = clips[_index(p.get("arrangement"), "arrangement", len(clips))]
             nodes.append(("arr_clip", c, {"start": c.start_time}))
     if nodes[-1][0] != kind:

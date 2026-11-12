@@ -28,6 +28,7 @@ from .dom_common import (
     _index,
     _number,
     _same,
+    has_arrangement_clips,
     owner_node,
     position_of,
     require,
@@ -101,6 +102,10 @@ def get_arrangement(ctx, p):
             if kind != "track":
                 continue  # return/master tracks have no arrangement clips
             row = {"track": sel, "name": track.name}
+            if not has_arrangement_clips(track):
+                row["group"] = True  # clips live on its member tracks
+                rows.append(row)
+                continue
             if "clips" in include:
                 row["clips"] = clips_of(track)
             if "take_lanes" in include:
@@ -119,6 +124,8 @@ def get_arrangement(ctx, p):
 
 
 def _overlaps(parent, start, end):
+    if not has_arrangement_clips(parent):
+        raise ValueError("a group track cannot hold arrangement clips; use a member track")
     return [c for c in parent.arrangement_clips if c.start_time < end and c.end_time > start]
 
 

@@ -33,7 +33,8 @@ def live_get_arrangement(
     response_format: ResponseFormat = "concise",
 ) -> dict:
     """Arrangement clips per track (index = order by start), take lanes, cue points (index =
-    order by time), song length and loop. 256 clip rows max (truncated)."""
+    order by time), song length and loop. 256 clip rows max (truncated). Group tracks hold no
+    clips: their rows say group: true."""
     params = {"include": include or ["clips", "cues"]}
     if tracks is not None:
         params["tracks"] = tracks

@@ -90,6 +90,10 @@ ALL_LIMIT = 58
 CORE_INPUT_BYTES = 30_000
 CORE_LISTING_BYTES = 68_000  # serialized tools, including concrete output schemas
 CORE_LISTING_TARGET = 64_000
+# What a default install actually lists: core plus the always-on automation and arrangement
+# toolsets. Optional inputs advertise no redundant null branch (server._drop_optional_null).
+DEFAULT_INPUT_BYTES = 36_000
+DEFAULT_LISTING_BYTES = 80_000
 
 # The nine ordered phases of the single end-of-project proof (fast-track plan). Scenario files
 # in scripts/final_cases/*.json name one of these as their ``phase``.
