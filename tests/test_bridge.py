@@ -856,3 +856,57 @@ def test_arrangement_pages_bound_lane_work_and_fit_the_signed_reply(private_conf
     assert seen == [t.name for t in song.tracks]  # every track once, in order
     assert max(f for f, _ in pages) <= bound and max(n for _, n in pages) <= arr.LANE_ROWS
     assert len(pages) == 4 + 160 // (arr.LANE_ROWS // arr.LANE_SCOPE) + 1  # a page per W track
+
+
+def test_arrangement_cues_are_scoped_and_the_largest_page_fits_the_signed_reply(private_config):
+    """F2 (round 8): every arrangement page sorted and listed every cue, so 3,000 cues made a
+    reply core._encode refused (JSON structure exceeds limit). CUE_SCOPE cues plus the largest
+    clip/lane page pass the real signed framing; one more cue refuses before any cue is read."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tests.test_batch3_dom import Clip, Song
+
+    from AbletonLiveMCP import dom_arrangement as arr
+    from AbletonLiveMCP import handlers
+    from AbletonLiveMCP.safety import Safety
+
+    reads = [0]
+
+    class Cue:  # counts every field read
+        def __init__(self, time):
+            self._time = time
+
+        @property
+        def time(self):
+            reads[0] += 1
+            return self._time
+
+        @property
+        def name(self):
+            reads[0] += 1
+            return f"cue {self._time:08.1f} " + "x" * 48
+
+    class Tr:
+        def __init__(self, name, clips=(), lanes=()):
+            self.name, self.arrangement_clips, self.take_lanes = name, list(clips), list(lanes)
+
+    song = Song()
+    # The largest page measured: a clip and an empty take lane on each of 300 tracks (the page
+    # stops at 241 tracks / 241 lanes), about 10,900 JSON nodes before the cues.
+    song.tracks = [Tr(f"T{i}", [Clip(1.0, start=0.0)], [Tr("L")]) for i in range(300)]
+    song.cue_points = [Cue(float(4 * k)) for k in range(arr.CUE_SCOPE)]
+    dispatch = handlers.make_dispatch(
+        lambda: song, types.SimpleNamespace(), Safety(lambda: song, policy=lambda: False)
+    )
+    p = {"include": ["clips", "cues", "take_lanes"]}
+    with running(dispatch) as server:
+        client = bridge.BridgeClient(port=server.port)
+        out = client.call("get_arrangement", p)
+        assert len(out["cues"]) == arr.CUE_SCOPE and "cursor" in out
+        assert sum(len(r["clips"]) for r in out["tracks"]) > 200
+        song.cue_points.append(Cue(99999.0))
+        reads[0] = 0
+        refused = client.call("get_arrangement", p)
+    assert refused["code"] == "beyond_scope" and f"{arr.CUE_SCOPE + 1} cue points" in (
+        refused["message"]
+    )
+    assert reads[0] == 0  # refused on the collection's length: no cue field was read

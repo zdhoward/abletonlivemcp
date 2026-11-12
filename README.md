@@ -135,7 +135,9 @@ Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `recording`,
 Live 12.2 cannot insert rack chains or map macros automatically. Custom drum-pad loading and pad
 copy refuse unsupported; stock kits, pad reads/mute and rack macro values are available. Unsafe
 arrangement split/move/take-lane edits and arrangement automation refuse unsupported. Capabilities
-vary by object; `live_hello` explains support and refusals. See [validation](docs/validation.md)
+vary by object; `live_hello` explains support and refusals. Reads have a supported scope (for
+example 256 arrangement clips per track and 512 cue points per arrangement read); past it they
+refuse `beyond_scope` instead of returning a partial answer. See [validation](docs/validation.md)
 for tested paths and limitations; a listed tool does not imply every action is supported.
 
 Saving is yours: the Live 12.2 control-surface API has no call to save a Set or open one, so

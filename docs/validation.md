@@ -251,7 +251,9 @@ tests and Ruff passed. Server wheel and Remote Script were reinstalled before th
   arrangement clips per track or take lane; since round 7 also 16 take lanes per track (with
   `take_lanes`), checked on collection lengths before any object is read. A larger read
   refuses `beyond_scope`. An arrangement page ends after about 4,096 tracks, lanes and clips
-  scanned, or before it would list more than 256 take lanes.
+  scanned, or before it would list more than 256 take lanes. Since round 8 an arrangement read
+  that includes `cues` supports up to 512 cue points (every page lists them all); more refuses
+  `beyond_scope` on the count before any cue is read. Read clips without `cues` instead.
 - Cue adds and deletes (since round 7): one call plans at most 48 playhead steps (each seek,
   the return, and one step per 32 beats past the song end), so a cue edit reaches about
   1,400 beats past the arrangement content; a longer distance refuses `beyond_scope` before

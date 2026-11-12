@@ -60,6 +60,9 @@ LANE_SCOPE = 16  # take lanes per track a read supports (refused before any lane
 PAGE_WORK = 4096
 LANE_ROWS = 256  # take lane rows per reply (each is listed, with or without clips)
 SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with cursor)
+# Cues an arrangement read lists (every page lists them all). 512 cue rows (~3,600 JSON nodes)
+# plus the largest clip/lane page (~10,900) stay under core.MAX_NODES (16,384) with margin.
+CUE_SCOPE = 512
 CUE_ACTIONS = 8  # adds + deletes per call (one bounded operation)
 EPS = 1e-6
 MAX_TIME = 16384.0
@@ -182,7 +185,14 @@ def get_arrangement(ctx, p):
         "current_song_time": song.current_song_time,
     }
     if "cues" in include:
-        cues = sorted(song.cue_points, key=lambda c: c.time)
+        cues = list(song.cue_points)
+        if len(cues) > CUE_SCOPE:  # checked on the length before any cue is read
+            raise Refused(
+                "beyond_scope",
+                f"the Set has {len(cues)} cue points; reads support up to {CUE_SCOPE} "
+                "(read clips without 'cues' in include)",
+            )
+        cues.sort(key=lambda c: c.time)
         out["cues"] = [{"cue": i, "time": c.time, "name": c.name} for i, c in enumerate(cues)]
     # Explicit `tracks`: at most BATCH_LIMIT selectors, CLIP_ROWS rows (``truncated`` when cut).
     # Omitted: a whole-Set read in pages of CLIP_ROWS rows and SCAN_TRACKS track rows; a page
