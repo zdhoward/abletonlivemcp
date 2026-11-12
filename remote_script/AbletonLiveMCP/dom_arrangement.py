@@ -288,9 +288,12 @@ def _cue_index(song, cue):
     return position_of(sorted(song.cue_points, key=lambda c: c.time), cue)
 
 
-def _cue_task(ctx, queue, previous):
+def _cue_task(ctx, queue, previous, params):
     """The tick-driven cue protocol. ``queue``: ``[("add", time, name) | ("delete", cue, time)]``.
-    Returns None while pending, then a result dict."""
+    Returns None while pending, then a result dict. Before each step that may change the Set,
+    the write policy (read_only, permissions for ``params``) is read again: when it now refuses,
+    the task stops there (``partial``, or ``not_applied`` before the first change) and keeps
+    the earlier results; the playhead is then left where it is."""
     st = {"i": 0, "phase": "seek", "before": None, "waits": 0, "done": []}
 
     def finish(extra=None):
@@ -306,6 +309,21 @@ def _cue_task(ctx, queue, previous):
         st["phase"], st["waits"] = "seek", 0
 
     def step():
+        # an in-flight toggle is observed to its end; the final playhead restore is cleanup
+        in_flight = st["phase"] == "observe_toggle" or st["i"] >= len(queue)
+        try:
+            if not in_flight:
+                ctx.safety.check_policy("set_cue_points", params)
+        except Refused as exc:
+            return {
+                "status": "partial" if st["done"] else "not_applied",
+                "results": st["done"],
+                "stopped_at": st["i"],
+                "error": f"refused:{exc.code}: {exc.message}",
+            }
+        return advance_one()
+
+    def advance_one():
         song = ctx.song
         if st["i"] >= len(queue):
             return finish()
@@ -442,7 +460,7 @@ def set_cue_points(ctx, p, t):
         if label == "jump":
             arg.jump()
             return {"action": "jump", "time": arg.time}
-        step = _cue_task(ctx, arg, song.current_song_time)
+        step = _cue_task(ctx, arg, song.current_song_time, p)
         snap = ctx.operations.start_task("cue_points", step, timeout=10.0)
         _CUE["op"] = snap["operation"]
         return snap

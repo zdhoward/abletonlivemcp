@@ -34,6 +34,10 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   Replies say the exception type and a stable code (for example
   `RuntimeError: write_failed`); deliberate refusals stay readable. Live's log records where
   it failed (code locations only) through one shared helper.
+- Fix: a running cue add/delete operation kept writing after writes were switched off
+  (`read_only`) or the needed permission was removed. It now rereads the policy before each
+  change and stops: `partial` with the earlier results kept, or `failed` (`not_applied`) when
+  nothing had changed yet.
 
 ## [0.11.0] - 2026-11-11
 

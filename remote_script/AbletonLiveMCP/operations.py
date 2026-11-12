@@ -29,8 +29,12 @@ Step tasks (v2 tool contract): ``start_task(kind, step, timeout)`` records
 a bounded multi-tick operation that is not a device load (cue seek/observe/toggle/observe, for
 instance). ``step()`` runs once per tick: it returns None (still pending) or a result dict
 (``ready``); a raise or the timeout makes it ``unknown`` (reason ``error:<Type>`` or
-``timeout``) with ``may_have_applied``. A task never blocks loads, never retries, and reads back
-through the same ``operation`` bridge method as a load (``kind`` tells them apart).
+``timeout``) with ``may_have_applied``. A result with ``status: "not_applied"`` makes it
+``failed`` (reason ``not_applied``). A step that changes the Set rereads the write policy first
+(``Safety.check_policy``, the direct-call gate) and stops when it now refuses (cue tasks); the
+record task's restore and a load's observation are not gated (they only return to or read
+the prior state). A task never blocks loads, never retries, and reads back through the same
+``operation`` bridge method as a load (``kind`` tells them apart).
 
 ``tick`` is called from the entry point's ``update_display``; a soft monotonic budget of
 ``TICK_BUDGET`` s per call stops it between operations (a single native call cannot be preempted).
@@ -217,6 +221,8 @@ class Operations:
             return self._finish(task, UNKNOWN, f"error:{type(exc).__name__}")
         if out is not None:
             task.result = out if isinstance(out, dict) else {"value": out}
+            if task.result.get("status") == "not_applied":  # stopped before its first change
+                return self._finish(task, FAILED, "not_applied")
             self._finish(task, READY, None)
         return None
 

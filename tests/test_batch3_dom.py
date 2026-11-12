@@ -488,6 +488,35 @@ def test_cue_add_is_asynchronous_and_exact(env):
     assert snap["result"]["results"][1]["reused"] is True
 
 
+def test_cue_task_stops_when_writes_are_switched_off_midway():
+    song, read_only = Song(), [False]
+    safety = Safety(lambda: song, policy=lambda: read_only[0])
+    dispatch = handlers.make_dispatch(lambda: song, types.SimpleNamespace(), safety)
+
+    def start():
+        p = {"cues": [], "add": [{"time": 16.0}, {"time": 24.0}], "generation": safety.generation}
+        out = ok(dispatch("set_cue_points", p))
+        return out["applied"][0]["operation"]
+
+    op = start()
+    while len(song.cue_points) == 1:  # until the first add has toggled
+        dispatch.operations.tick()
+        song.settle()
+    read_only[0] = True
+    for _ in range(12):
+        dispatch.operations.tick()
+        song.settle()
+    snap = dispatch.operations.get(op)
+    assert snap["state"] == "ready" and snap["result"]["status"] == "partial", snap
+    assert [r["time"] for r in snap["result"]["results"]] == [16.0]  # earlier result kept
+    assert "refused:read_only" in snap["result"]["error"] and len(song.cue_points) == 2
+    read_only[0] = False
+    op = start()
+    read_only[0] = True  # off before the first tick: nothing changes, the task failed
+    dispatch.operations.tick()
+    assert dispatch.operations.get(op)["state"] == "failed" and len(song.cue_points) == 2
+
+
 def test_cue_add_refuses_while_playing(env):
     song, dispatch = env
     song.is_playing = True
