@@ -496,21 +496,28 @@ def _add_plan(song, time_):
 
 STRETCH = 32.0  # beats the song end runs past a playhead set at it (Live 12.2, measured)
 STEP_LIMIT = 48  # planned playhead steps per cue operation (its seeks and the return)
-CUE_TIMEOUT = 10.0  # the operation's deadline (s); the return stops RESERVE s before it
+CUE_TIMEOUT = 10.0  # the operation's deadline (s)
+# The playhead's return runs until END_MARGIN s before that deadline, so the task reports its own
+# cleanup_issue before the registry's timeout. A forward move (a seek step, a toggle) is admitted
+# only while the time left covers the planned return at STEP_SECONDS a step plus RESERVE.
+END_MARGIN = 0.25
+STEP_SECONDS = 0.1  # Live's display tick; measured in Live 12.2: about one tick per step
 RESERVE = 1.0
 
 
-def _playhead_steps(song, times):
+def _playhead_steps(song, times, back=None):
     """Playhead steps a cue operation plans: a seek to each of ``times`` in order, then the
-    return to where the playhead is now. Each move is one step, plus one per ``STRETCH`` beats
-    past the song end it starts from (see ``_send_playhead``). Conservative: after a move the
-    song is taken to end at the move's time or the last arrangement event, never further."""
+    return to ``back`` (default: where the playhead is now). Each move is one step, plus one per
+    ``STRETCH`` beats past the song end it starts from (see ``_send_playhead``). Conservative:
+    after a move the song is taken to end at the move's time or the last arrangement event,
+    never further."""
     try:
         base = float(song.last_event_time)
     except (AttributeError, TypeError, ValueError):
         base = 0.0
     length, steps = float(song.song_length), 0
-    for t in [*times, float(song.current_song_time)]:
+    back = float(song.current_song_time) if back is None else back
+    for t in [*times, back]:
         steps += 1 + max(0, math.ceil((t - length) / STRETCH - EPS))
         length = max(base, t)
     return steps
@@ -542,19 +549,34 @@ def _cue_task(ctx, queue, previous, params):
     there (cleanup to the prior state, never gated, in steps: see ``_send_playhead``);
     ``playhead`` says where it ended. A playhead that cannot return is a ``cleanup_issue``
     beside the cue results, never a task failure: the cue changes made stay reported. The return
-    goes on while it makes progress, until ``RESERVE`` s before the operation's deadline; then
-    the playhead's place is a ``cleanup_issue`` (the distance was planned within ``STEP_LIMIT``
-    before anything moved, so this needs a stalled Live). ``ticks``: how many ticks it took.
+    goes on while it makes progress, until ``END_MARGIN`` s before the operation's deadline;
+    then the playhead's place is a ``cleanup_issue`` (the distance was planned within
+    ``STEP_LIMIT`` before anything moved, and every forward move is admitted only while the time
+    left covers the planned return, so this needs a stalled Live). A forward move the time no
+    longer covers stops the task there with nothing more changed (``budget``). ``ticks``: how
+    many ticks it took.
     ``status`` (the cue changes only): ``complete``; ``partial`` (stopped after a cue change);
     ``not_applied`` (stopped with nothing changed); ``ambiguous`` (a toggle's change is not the
     expected one: another cue appeared or went, or the new cue is neither at the requested time
     nor on its bar; nothing is renamed, ``ambiguous`` lists what changed, the operation ends
     ``unknown``)."""
     st = {"i": 0, "phase": "seek", "before": None, "done": [], "moved": False, "ticks": 0}
-    st["deadline"] = ctx.operations.now() + CUE_TIMEOUT - RESERVE
+    st["deadline"] = ctx.operations.now() + CUE_TIMEOUT - END_MARGIN
 
     def late():
         return ctx.operations.now() >= st["deadline"]
+
+    def budget(times):
+        """An error text when the time left cannot cover a forward move: the seeks to ``times``
+        and the return to ``previous`` (planned in steps), plus ``RESERVE``; else None."""
+        need = _playhead_steps(ctx.song, times, previous) * STEP_SECONDS + RESERVE
+        left = st["deadline"] - ctx.operations.now()
+        if need > left:
+            return (
+                f"too little time left ({left:.2f} s) for the playhead's planned return "
+                f"({need:.2f} s); nothing toggled"
+            )
+        return None
 
     def toward(target):
         """One tick of moving the playhead to ``target``: None when there, else ``"moving"`` or
@@ -689,6 +711,9 @@ def _cue_task(ctx, queue, previous, params):
             changed = moved_cue(song, a, time_) if action == "delete" else None
             if changed is not None:
                 return end(changed)
+            error = budget([time_])
+            if error is not None:
+                return end(error)
             st["moved"], st["stuck"] = True, 0
             error = _send_playhead(song, time_)
             if error is not None:
@@ -696,6 +721,10 @@ def _cue_task(ctx, queue, previous, params):
             st["phase"] = "observe_seek"
             return None
         if st["phase"] == "observe_seek":
+            here = abs(song.current_song_time - time_) <= EPS
+            error = budget([] if here else [time_])  # the next seek step, or the toggle
+            if error is not None:
+                return end(error)
             moving = toward(time_)  # the next step, past the content end
             if moving == "moving":
                 return None

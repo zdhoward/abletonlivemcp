@@ -896,7 +896,8 @@ def test_a_cue_edit_plans_the_playhead_return_or_refuses_before_moving(case):
         song.settle()
         now[0] += 0.1  # Live's display tick
         if case == "timeout" and not song.cue_points:
-            now[0] = dom_arrangement.CUE_TIMEOUT - 0.5  # past the reserve, not the deadline
+            # past the return's cutoff (END_MARGIN before the deadline), not the deadline
+            now[0] = dom_arrangement.CUE_TIMEOUT - dom_arrangement.END_MARGIN / 2
     snap = dispatch.operations.get(op)
     result = snap["result"]
     assert snap["state"] == "ready" and result["results"] == [{"action": "delete", "time": 8.0}]
@@ -907,6 +908,46 @@ def test_a_cue_edit_plans_the_playhead_return_or_refuses_before_moving(case):
     else:
         assert result["playhead"]["restored"] is False and song.current_song_time < previous
         assert "time ran out" in result["cleanup_issue"]
+
+
+@pytest.mark.parametrize("late", ["first_tick", "seek_arrival"])
+def test_a_late_cue_step_never_toggles_without_time_for_the_return(late):
+    """F1 (round 8): the forward seek and the toggle were not gated by the deadline, so a first
+    tick arriving late toggled after the return's cutoff and the 1-step return was refused (a
+    cleanup_issue). Each forward move now needs time left for the planned return plus RESERVE;
+    otherwise the task stops with nothing toggled, and a moved playhead still goes back."""
+    from AbletonLiveMCP import dom_arrangement
+
+    song = ShrinkingSong()
+    song._time = previous = 600.0  # the return to 600 is planned at 18 steps (1.8 s)
+    dispatch = handlers.make_dispatch(
+        lambda: song, types.SimpleNamespace(), Safety(lambda: song, policy=lambda: False)
+    )
+    now = [0.0]
+    dispatch.operations._clock = lambda: now[0]
+    (r,) = refs(dispatch, {"kind": "cue", "cue": 0})
+    op = ok(dispatch("set_cue_points", {"cues": [{"cue": r["ref"], "action": "delete"}]}))
+    op = op["applied"][0]["operation"]
+    toggles = []
+    song.set_or_delete_cue = lambda: toggles.append(song._time)
+    if late == "first_tick":  # Live busy: the first tick comes 9 s after the start
+        now[0] = 9.0
+    for n in range(dom_arrangement.STEP_LIMIT):
+        dispatch.operations.tick()
+        song.settle()
+        now[0] += 0.1
+        if late == "seek_arrival" and n == 0:  # the seek is made; it is observed at 7 s
+            now[0] = 7.0
+    snap = dispatch.operations.get(op)
+    result = snap["result"]
+    assert toggles == [] and len(song.cue_points) == 1  # nothing toggled
+    assert snap["state"] == "failed" and result["status"] == "not_applied", snap
+    assert "too little time left" in result["error"] and "cleanup_issue" not in result
+    assert song.current_song_time == previous
+    if late == "first_tick":
+        assert result["playhead"] == {"moved": False, "at": previous}  # never moved
+    else:
+        assert result["playhead"]["moved"] and result["playhead"]["restored"]
 
 
 def live_toggle(song):
