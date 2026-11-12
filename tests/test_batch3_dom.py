@@ -833,3 +833,16 @@ def test_warp_marker_add_refuses_without_an_existing_marker(env):
     add = [{"action": "add", "beat_time": 1.0, "sample_time": 0.5}]
     bad(dispatch, "edit_audio_clip", {"targets": [item(r)], "warp_markers": add}, "no warp marker")
     assert clip.warp_markers == []
+
+
+def test_lab_cue_that_lands_elsewhere_is_reported_applied_not_refused():
+    """F6 (round 5): when Live moved the lab cue (the playhead clamps to the song end) the
+    action raised Invalid after creating it, which the bridge reports as not applied."""
+    song = Song()  # this fake defers playhead moves, so the cue lands at 0.0: a mismatch
+    gate = Safety(lambda: song, policy=lambda: False, dev_probes=lambda: True)
+    dispatch = handlers.make_dispatch(lambda: song, types.SimpleNamespace(), gate)
+    lease = dispatch("lease_acquire", {"ttl": 5})["lease"]
+    params = {"action": "create_cue", "time": 99999.0, "lease": lease}
+    out = dispatch("ref_lab", params | {"generation": gate.generation})
+    assert out["status"] == "applied_mismatch" and out["requested"] == 99999.0
+    assert out["time"] == 0.0 and len(song.cue_points) == 2

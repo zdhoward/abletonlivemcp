@@ -693,10 +693,12 @@ def _lab_create_cue(ctx, p):
         song.current_song_time = previous
     cue = _lab_new(before, song.cue_points, "cue point")
     _lab_owned(ctx).append(cue)
-    if abs(cue.time - time_) > 1e-6:  # Live clamps the playhead to the song length
-        raise Invalid(f"cue landed at {cue.time}, not {time_}: use a time inside the song")
     ordered = sorted(song.cue_points, key=lambda c: c.time)
-    return {"time": cue.time, "cue": _position(ordered, cue)}
+    out = {"time": cue.time, "cue": _position(ordered, cue)}
+    if abs(cue.time - time_) > 1e-6:  # Live clamps the playhead to the song length
+        # the cue exists (owned, cleaned up with the lab): a receipt, never "not applied"
+        out.update(status="applied_mismatch", requested=time_)
+    return out
 
 
 def _lab_load_kit(ctx, p):
