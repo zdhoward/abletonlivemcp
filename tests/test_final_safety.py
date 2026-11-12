@@ -52,6 +52,18 @@ def test_cleanup_discovery_failure_still_restores_safe_policy(monkeypatch, tmp_p
     assert json.loads(config.read_text(encoding="utf-8")) == {"read_only": True}
 
 
+def test_cleanup_success_restores_the_policy_it_found(monkeypatch, tmp_path):
+    config = tmp_path / "bridge.json"
+    original = b'{"read_only": false}'
+    config.write_bytes(original)
+    monkeypatch.setattr(cleanup, "config_path", lambda: config)
+    monkeypatch.setattr(sys, "argv", ["cleanup", "--apply"])
+    monkeypatch.setattr(cleanup, "BridgeClient", lambda: None)
+    monkeypatch.setattr(cleanup, "cleanup", lambda client, apply, writable: writable())
+    cleanup.main()
+    assert config.read_bytes() == original
+
+
 def test_reruns_merge_only_same_build_rows_and_never_touch_the_full_run(monkeypatch, tmp_path):
     """F7 (round 5): --only merged earlier rows from any build into the full-run evidence."""
     for name in ("EVIDENCE_MD", "EVIDENCE_JSON", "LEDGER_JSON", "RERUN_MD", "RERUN_JSON",

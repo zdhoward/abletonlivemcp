@@ -94,7 +94,8 @@ def main():
         cleanup(BridgeClient(), False)
         return
     path = config_path()
-    config = json.loads(path.read_text(encoding="utf-8"))
+    original = path.read_bytes()
+    config = json.loads(original.decode("utf-8"))
 
     def policy(writable):
         config["read_only"] = not writable
@@ -104,8 +105,10 @@ def main():
     try:
         policy(False)
         cleanup(BridgeClient(), True, lambda: policy(True))
-    finally:
-        policy(False)
+    except BaseException:
+        policy(False)  # the cleanup's outcome is unknown: leave the bridge locked, no dev probes
+        raise
+    path.write_bytes(original)  # success: restore the owner's policy exactly as found
 
 
 if __name__ == "__main__":
