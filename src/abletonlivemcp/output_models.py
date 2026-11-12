@@ -201,7 +201,8 @@ class Transport(TypedDict):
     is_playing: bool
     current_song_time: float
     tempo: float
-    settled: Row
+    settled: Row | None  # None: the command applied but the readback failed (`verification`)
+    verification: NotRequired[str]
 
 
 @open_output

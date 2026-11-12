@@ -26,6 +26,9 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   server and the Remote Script), `live_create_clips(if_exists="replace")` and
   `live_create_arrangement_clips` with `replace: true` (previously permission only, no
   confirmation). Calls of those tools that delete nothing are unchanged.
+- Fix: `live_transport` and `live_launch` reported "(not applied)" when the command succeeded
+  but the state readback after it failed. They now return the command's reply with
+  `settled` / `state` set to null and a `verification` message.
 
 ## [0.11.0] - 2026-11-11
 

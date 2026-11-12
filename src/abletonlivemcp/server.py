@@ -537,11 +537,20 @@ def _clip_ref(track: int, scene: int) -> str:
     return slot["clip"]
 
 
-def _settled(method: str, params: dict, readback: str, readback_params: dict | None):
-    """Run a command, wait for Live to apply it, then return the real state, not the stale one."""
-    _call(method, params)
+def _read_back(method: str, params: dict | None = None) -> tuple[Any, str | None]:
+    """After a command succeeded: wait for Live to apply it, then read the real state. Returns
+    ``(state, None)`` or ``(None, verification)``; a failed readback must never turn the
+    command's success into "(not applied)", so it is reported beside the command's reply."""
     time.sleep(SETTLE_SECONDS)
-    return _call(readback, readback_params)
+    try:
+        return _call(method, params), None
+    except Refusal as exc:
+        why = f"refused:{exc.code}: {exc.message}"
+    except BridgeError as exc:
+        why = f"{exc.kind}: {exc.message}"
+    except ValueError as exc:
+        why = f"invalid_reply: {exc}"
+    return None, f"the command was applied; reading the state back failed ({why})"
 
 
 # ---- shared tool helpers (v2 tool contract) -----------------------------------------------

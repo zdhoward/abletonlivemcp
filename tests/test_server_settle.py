@@ -1,14 +1,17 @@
 """The one authoritative settle/readback check: commands re-read state after Live applies them."""
 
 from abletonlivemcp import server
+from abletonlivemcp.bridge import BridgeError
 
 
 class FakeBridge:
-    def __init__(self):
-        self.calls = []
+    def __init__(self, fail=()):
+        self.calls, self.fail = [], set(fail)
 
     def call(self, method, params=None):
         self.calls.append((method, params))
+        if method in self.fail:
+            raise BridgeError("timeout", "no reply", may_have_applied=False)
         if method == "session_info":
             return {"generation": 5}
         if method == "clip_slot":
@@ -38,3 +41,12 @@ def test_transport_and_clip_launches_read_back_after_settling(monkeypatch):
     by_method = {m: p for m, p in fake.calls}
     assert by_method["transport"] == {"action": "stop", "generation": 5}  # global: generation
     assert slept == [server.SETTLE_SECONDS] * 2
+
+
+def test_a_failed_readback_keeps_the_applied_command_reply(monkeypatch):
+    monkeypatch.setattr(server, "_bridge", FakeBridge(fail={"get_session"}))
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
+    monkeypatch.setattr(server.time, "sleep", lambda _s: None)
+    out = server.live_transport("play")  # no "(not applied)" ToolFailure: play did happen
+    assert out["method"] == "transport" and out["settled"] is None
+    assert out["verification"].startswith("the command was applied; reading the state back")

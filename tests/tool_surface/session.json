@@ -591,8 +591,15 @@
      "type": "boolean"
     },
     "settled": {
-     "additionalProperties": true,
-     "type": "object"
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ]
     },
     "tempo": {
      "type": "number"
@@ -602,6 +609,9 @@
       "type": "string"
      },
      "type": "array"
+    },
+    "verification": {
+     "type": "string"
     }
    },
    "required": [

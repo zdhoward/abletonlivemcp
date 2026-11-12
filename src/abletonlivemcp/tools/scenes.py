@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import time
 from typing import Literal
 
-from .. import server
 from ..models import Index
 from ..models_control import LaunchTargets, NewScenes, SceneEdits, owner_kind
 from ..server import (
@@ -15,6 +13,7 @@ from ..server import (
     _generation,
     _overwrite,
     _read,
+    _read_back,
     _untrusted,
     issue_refs,
 )
@@ -76,6 +75,7 @@ def live_launch(action: Literal["fire", "stop"], targets: LaunchTargets) -> dict
     rows = issue_refs(selectors)
     items = [{"kind": r["kind"], "ref": r["ref"]} for r in rows]
     receipt = _call("launch", {"action": action, "targets": items})
-    time.sleep(server.SETTLE_SECONDS)
-    state = _call("launch_state", {"targets": selectors})["targets"]
-    return _untrusted({**receipt, "state": state})
+    state, verification = _read_back("launch_state", {"targets": selectors})
+    if verification is not None:
+        return _untrusted({**receipt, "state": None, "verification": verification})
+    return _untrusted({**receipt, "state": state["targets"]})

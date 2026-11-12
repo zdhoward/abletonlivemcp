@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import Annotated, Literal
 
 from pydantic import Field
@@ -19,7 +18,7 @@ from ..models_control import (
     Signature,
     TransportAction,
 )
-from ..server import _call, _control, _generation, _overwrite, _read, _untrusted
+from ..server import _call, _control, _generation, _overwrite, _read, _read_back, _untrusted
 
 
 @_read
@@ -91,8 +90,9 @@ def live_transport(action: TransportAction, beats: float = None) -> dict:
     if beats is not None:
         params["beats"] = beats
     reply = _call("transport", params)
-    time.sleep(server.SETTLE_SECONDS)
-    state = _call("get_session", {"include": ["transport"]})
+    state, verification = _read_back("get_session", {"include": ["transport"]})
+    if verification is not None:
+        return {**reply, "settled": None, "verification": verification}
     keys = ("is_playing", "current_song_time", "tempo")
     return {**reply, "settled": {k: state.get(k) for k in keys}}
 
