@@ -214,6 +214,10 @@ class Operations:
             return False
         return same_items(cur, op.before)
 
+    def now(self):
+        """The registry's clock (task deadlines are on it)."""
+        return self._clock()
+
     def start_task(self, kind, step, timeout=MAX_TASK_TIMEOUT, finalize=None, hold=None):
         """Record a step task (cue protocol etc.); returns its snapshot. Refused when the ring is
         full of unresolved records. ``finalize`` and ``hold``: see the module docstring."""

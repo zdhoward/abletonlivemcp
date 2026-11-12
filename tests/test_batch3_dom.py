@@ -866,7 +866,47 @@ def test_cue_delete_returns_a_playhead_parked_past_the_content(stretch):
         assert song.current_song_time == previous and "cleanup_issue" not in result
     else:  # as close as Live allows, said plainly, and the task still resolved
         assert result["playhead"]["restored"] is False and song.current_song_time == 40.0
-        assert "cannot return to 64.0" in result["cleanup_issue"]
+        assert "cannot reach 64.0" in result["cleanup_issue"]
+
+
+@pytest.mark.parametrize("case", ["long", "unreachable", "timeout"])
+def test_a_cue_edit_plans_the_playhead_return_or_refuses_before_moving(case):
+    """R3 (round 7): the return had a fixed 40-tick budget, so a playhead parked at 1400 (song
+    content ends at 64) was abandoned near 1344 although Live allowed every step. The return now
+    runs while it progresses and time allows; a distance past STEP_LIMIT steps refuses before
+    the playhead moves; time running out mid-return is a cleanup issue, the delete applied."""
+    from AbletonLiveMCP import dom_arrangement
+
+    song = ShrinkingSong()
+    song._time = previous = {"long": 1400.0, "unreachable": 4096.0, "timeout": 600.0}[case]
+    dispatch = handlers.make_dispatch(
+        lambda: song, types.SimpleNamespace(), Safety(lambda: song, policy=lambda: False)
+    )
+    now = [0.0]
+    dispatch.operations._clock = lambda: now[0]
+    (r,) = refs(dispatch, {"kind": "cue", "cue": 0})
+    out = dispatch("set_cue_points", {"cues": [{"cue": r["ref"], "action": "delete"}]})
+    if case == "unreachable":
+        assert out["code"] == "beyond_scope" and "playhead steps" in out["message"]
+        assert song.current_song_time == previous and len(song.cue_points) == 1
+        return
+    op = ok(out)["applied"][0]["operation"]
+    for _ in range(dom_arrangement.STEP_LIMIT + 8):
+        dispatch.operations.tick()
+        song.settle()
+        now[0] += 0.1  # Live's display tick
+        if case == "timeout" and not song.cue_points:
+            now[0] = dom_arrangement.CUE_TIMEOUT - 0.5  # past the reserve, not the deadline
+    snap = dispatch.operations.get(op)
+    result = snap["result"]
+    assert snap["state"] == "ready" and result["results"] == [{"action": "delete", "time": 8.0}]
+    assert song.cue_points == [] and result["status"] == "complete", snap
+    if case == "long":
+        assert song.current_song_time == previous and "cleanup_issue" not in result
+        assert result["ticks"] > 40  # more than the old fixed budget
+    else:
+        assert result["playhead"]["restored"] is False and song.current_song_time < previous
+        assert "time ran out" in result["cleanup_issue"]
 
 
 def live_toggle(song):
