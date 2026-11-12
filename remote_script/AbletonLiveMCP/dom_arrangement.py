@@ -441,15 +441,14 @@ def _cue_task(ctx, queue, previous, params):
     def step():
         if st["phase"] == "restore":
             return settle()
-        try:
-            return advance_one()
-        except Exception:
-            if st["moved"]:  # best effort before the task turns unknown
-                try:
-                    ctx.song.current_song_time = previous
-                except Exception:  # noqa: BLE001
-                    pass
-            raise
+        return advance_one()
+
+    def finalize():
+        """Timeout, error or disconnect: send a moved playhead back (ungated cleanup)."""
+        if not st["moved"]:
+            return {"playhead": {"moved": False, "at": previous}}
+        ctx.song.current_song_time = previous
+        return {"playhead": {"moved": True, "sent_back_to": previous, "observed": False}}
 
     def advance_one():
         song = ctx.song
@@ -524,7 +523,7 @@ def _cue_task(ctx, queue, previous, params):
             return None
         return advance({"action": "delete", "time": time_})
 
-    return step
+    return step, finalize
 
 
 def set_cue_points(ctx, p, t):
@@ -603,8 +602,8 @@ def set_cue_points(ctx, p, t):
         if label == "jump":
             arg.jump()
             return {"action": "jump", "time": arg.time}
-        step = _cue_task(ctx, arg, song.current_song_time, p)
-        snap = ctx.operations.start_task("cue_points", step, timeout=10.0)
+        step, finalize = _cue_task(ctx, arg, song.current_song_time, p)
+        snap = ctx.operations.start_task("cue_points", step, timeout=10.0, finalize=finalize)
         _CUE["op"] = snap["operation"]
         return snap
 

@@ -36,6 +36,15 @@ record task's restore and a load's observation are not gated (they only return t
 the prior state). A task never blocks loads, never retries, and reads back through the same
 ``operation`` bridge method as a load (``kind`` tells them apart).
 
+Finalizers: ``start_task(..., finalize=fn)`` registers a cleanup that runs exactly once when the
+task ends without its own ending: on ``timeout`` (checked before the step, so the step's own
+cleanup would never run), on a step error, and on ``session_ended`` (the script disconnects).
+It returns to the prior state as designed (recording switches and play state, a moved playhead)
+and is not gated. Its report lands in ``result.cleanup``: ``{"ran": true, "result": ...}`` or
+``{"ran": false, "error": <Type>}``. The task stays ``unknown`` either way. After
+``set_changed``/``no_song`` it is skipped (``{"ran": false, "skipped": <reason>}``): the
+objects it would touch belong to a Set that is no longer open.
+
 ``tick`` is called from the entry point's ``update_display``; a soft monotonic budget of
 ``TICK_BUDGET`` s per call stops it between operations (a single native call cannot be preempted).
 """
@@ -107,8 +116,9 @@ class Task:
 
     track = None  # never matches a load target
 
-    def __init__(self, op_id, kind, step, generation, now, timeout):
+    def __init__(self, op_id, kind, step, generation, now, timeout, finalize=None):
         self.id, self.kind, self.step, self.generation = op_id, kind, step, generation
+        self.finalize = finalize  # runs once when the task ends without its own ending
         self.state, self.reason, self.result = PENDING, None, None
         self.deadline, self.watch_until = now + timeout, None
 
@@ -192,9 +202,9 @@ class Operations:
             return False
         return same_items(cur, op.before)
 
-    def start_task(self, kind, step, timeout=MAX_TASK_TIMEOUT):
+    def start_task(self, kind, step, timeout=MAX_TASK_TIMEOUT, finalize=None):
         """Record a step task (cue protocol etc.); returns its snapshot. Refused when the ring is
-        full of unresolved records."""
+        full of unresolved records. ``finalize``: see the module docstring."""
         if not isinstance(kind, str) or not kind or not callable(step):
             raise ValueError("internal: a task needs a kind and a step callable")
         for old_id in [i for i, o in self._ring.items() if o.state in (READY, FAILED)]:
@@ -205,7 +215,13 @@ class Operations:
             raise Refused("operations_full", "too many unresolved operations; reset the session")
         timeout = min(max(float(timeout), 0.1), MAX_TASK_TIMEOUT)
         task = Task(
-            secrets.token_hex(8), kind, step, self._safety.generation, self._clock(), timeout
+            secrets.token_hex(8),
+            kind,
+            step,
+            self._safety.generation,
+            self._clock(),
+            timeout,
+            finalize,
         )
         self._ring[task.id] = task
         self.tasks_started += 1
@@ -218,16 +234,33 @@ class Operations:
                 return op.id
         return None
 
+    def _abort_task(self, task, reason, cleanup=True):
+        """End a task as ``unknown`` and run (or skip) its finalizer, once."""
+        self._finish(task, UNKNOWN, reason)
+        finalize, task.finalize = task.finalize, None
+        if finalize is None:
+            return None
+        if not cleanup:
+            report = {"ran": False, "skipped": reason}
+        else:
+            try:
+                report = {"ran": True, "result": finalize()}
+            except Exception as exc:  # noqa: BLE001 - reported, never retried
+                log_failure(f"task {task.kind} cleanup", exc)
+                report = {"ran": False, "error": type(exc).__name__}
+        task.result = {**(task.result or {}), "cleanup": report}
+        return None
+
     def _advance_task(self, task):
         if task.generation != self._safety.generation:
-            return self._finish(task, UNKNOWN, "set_changed")
+            return self._abort_task(task, "set_changed", cleanup=False)
         if self._clock() >= task.deadline:
-            return self._finish(task, UNKNOWN, "timeout")
+            return self._abort_task(task, "timeout")
         try:
             out = task.step()
         except Exception as exc:  # noqa: BLE001 - outcome unknown, never retried
             log_failure(f"task {task.kind}", exc)
-            return self._finish(task, UNKNOWN, f"error:{type(exc).__name__}")
+            return self._abort_task(task, f"error:{type(exc).__name__}")
         if out is not None:
             task.result = out if isinstance(out, dict) else {"value": out}
             if task.result.get("status") == "not_applied":  # stopped before its first change
@@ -289,7 +322,10 @@ class Operations:
             song = self._safety.song()  # also detects a Set change while idle
         except Refused:
             for op in active:
-                self._finish(op, UNKNOWN, "no_song")
+                if isinstance(op, Task):
+                    self._abort_task(op, "no_song", cleanup=False)
+                else:
+                    self._finish(op, UNKNOWN, "no_song")
             return len(active)
         for op in active:
             if advanced and self._clock() - started > budget:
@@ -302,9 +338,12 @@ class Operations:
         return advanced
 
     def invalidate(self):
-        """Bridge disconnect: no operation survives; later ticks do nothing."""
+        """Script disconnect: no operation survives; later ticks do nothing. A pending task's
+        finalizer runs now (stop a bounded recording, send a moved playhead back)."""
         for op in self._ring.values():
-            if op.state in (PENDING, UNKNOWN):
+            if isinstance(op, Task) and op.state == PENDING:
+                self._abort_task(op, "session_ended")
+            elif op.state in (PENDING, UNKNOWN):
                 self._finish(op, UNKNOWN, "session_ended")
         self.cursors.clear()
         self._closed = True

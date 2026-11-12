@@ -493,6 +493,27 @@ def test_record_is_bounded_and_restores(live):
     assert not song.session_record and not song.is_playing
 
 
+@pytest.mark.parametrize("ending", ["late_tick", "disconnect"])
+def test_a_recording_that_times_out_or_disconnects_still_stops(live, monkeypatch, ending):
+    """The deadline is checked before the step, so a late tick used to mark the task unknown
+    and leave recording on and the transport running; a script disconnect did the same."""
+    song, _a, d, g = live
+    song.current_song_time = 0.0
+    out = d("record", {"generation": g, "action": "session_record", "value": True, "length": 2})
+    assert song.session_record and song.is_playing
+    if ending == "late_tick":
+        clock = d.operations._clock() + 60.0  # Live's ticks stalled past the task deadline
+        monkeypatch.setattr(d.operations, "_clock", lambda: clock)
+        d.operations.tick()
+    else:
+        d.operations.invalidate()
+    snap = d.operations.get(out["operation"]["operation"])
+    assert snap["state"] == "unknown" and snap["may_have_applied"] is True, snap
+    assert snap["reason"] == ("timeout" if ending == "late_tick" else "session_ended")
+    assert snap["result"]["cleanup"]["ran"] is True
+    assert not song.session_record and not song.is_playing
+
+
 def test_a_second_bounded_recording_is_refused_while_one_runs(live):
     """R8: an overlap would snapshot the first one's switch as "before" and leave it on."""
     song, _a, d, g = live

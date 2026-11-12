@@ -75,7 +75,11 @@ def _bounded(ctx, key, attribute, length):
 
     # The task exists before the first write: a full ring refuses with nothing applied, and a
     # failing write below still leaves the restore step scheduled.
-    task = ctx.operations.start_task(f"record:{key}", step, timeout=seconds + TASK_SLACK)
+    # restore is also the finalizer: a late tick (timeout), a step error or a script disconnect
+    # still turns recording off and stops a transport this call started.
+    task = ctx.operations.start_task(
+        f"record:{key}", step, timeout=seconds + TASK_SLACK, finalize=restore
+    )
     setattr(song, attribute, True)
     if not song.is_playing:
         song.start_playing()
