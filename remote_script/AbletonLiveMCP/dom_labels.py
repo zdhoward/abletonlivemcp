@@ -1,7 +1,8 @@
 """Labels domain: free tags and a category stored in the Set, on the Song and on each Track.
 
-Live's ``Song.get_data`` / ``Track.get_data`` store survives Save and reopen (P-02: values
-round-trip in session up to 1 MB; the final proof checks the reopen). One key holds one JSON string
+Experimental: Live's ``Song.get_data`` / ``Track.get_data`` store round-trips in session (P-02:
+values up to 1 MB). Whether it survives a save and reopen is not qualified: the Live 12.2 API
+cannot save or open a Set, so no proof here can check it. One key holds one JSON string
 ``{"v": 1, "labels": [...], "category": "..."}``; an empty string means no labels. Corrupt text is
 reported, never overwritten silently by a read.
 
@@ -23,8 +24,8 @@ CAPABILITY = "labels.data"
 CAPABILITIES = {
     CAPABILITY: (
         "unverified",
-        "P-02: Song/Track get_data/set_data round-trip in session; save and reopen is checked by "
-        "the final proof",
+        "experimental. P-02: Song/Track get_data/set_data round-trip in session; not qualified "
+        "across save and reopen (the Live API cannot save or open a Set)",
     ),
 }
 

@@ -3,7 +3,8 @@
 Label scopes. A label names a thing and gives it free tags and one category:
 
 - ``song`` / ``track`` / ``return_track`` labels live inside the Set (Live's ``get_data`` store on
-  the Song or Track, so they travel with the file; P-02). ``key`` is the track or return index.
+  the Song or Track; P-02 round-trips in session, survival across save and reopen is not
+  qualified: experimental). ``key`` is the track or return index.
 - ``plugin`` / ``device`` / ``sample`` labels are global: they live in the sidecar file of
   ``labelstore`` and apply across Sets. ``key`` is the usage key (``vst3:Serum``, ``Reverb``, a
   sample path) as ``live_usage_report`` prints it.

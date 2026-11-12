@@ -1,9 +1,10 @@
 """Toolset `organize`: your own labels (free tags + one category) on Set and library items.
 
-Track, return-track and Set labels live inside the Set (Live's data store; they travel with the
-file once it is saved). Plugin, device and sample labels live in a global sidecar file in the
-private data directory and apply across Sets. Native Live tags and colours of plugins are not
-reachable through the API.
+Track, return-track and Set labels live inside the Set (Live's data store). They are
+experimental: they round-trip in session, but surviving a save and reopen is not qualified (the
+Live API cannot save or open a Set). Plugin, device and sample labels live in a global sidecar
+file in the private data directory and apply across Sets. Native Live tags and colours of
+plugins are not reachable through the API.
 """
 
 from __future__ import annotations

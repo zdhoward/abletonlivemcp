@@ -127,7 +127,11 @@ def register(server) -> None:
     def operation(operation: str) -> str:
         return _call_tool(server, "live_get_operation", operation=operation)
 
-    @resource("live://labels", "Labels", "Persistent labels and usage tags (toolset organize).")
+    @resource(
+        "live://labels",
+        "Labels",
+        "Labels and usage tags (toolset organize; Set labels: not qualified across save/reopen).",
+    )
     def labels() -> str:
         return _call_tool(server, "live_get_labels")
 
