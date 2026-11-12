@@ -331,6 +331,31 @@ def test_create_clips_replace_validates_everything_before_deleting(env):
     assert out["applied"][0]["replaced"] == "clip" and song.tracks[0].clip_slots[0].clip is not keys
 
 
+def test_replace_flag_is_strict_at_the_gate_and_needs_delete(env):
+    """R1, through the real dispatcher and write gate with only the ``edit`` permission: a
+    malformed ``replace`` refuses before any permission decision, a real one needs ``delete``,
+    and nothing is deleted either way."""
+    song = env[0]
+    gate = Safety(lambda: song, policy=lambda: False, permissions=lambda: {"edit"})
+    dispatch = handlers.make_dispatch(lambda: song, types.SimpleNamespace(), gate)
+    keys = midi_clip(song)
+    song.tracks[0].arrangement_clips.append(arr := Clip(4.0, start=8.0))
+    slot, track = refs(
+        dispatch, {"kind": "slot", "track": 0, "scene": 0}, {"kind": "track", "track": 0}
+    )
+    for method, target in (("create_clips", slot), ("create_arrangement_clips", track)):
+        base = {"ref": target["ref"], "start": 8, "length": 4}
+        if method == "create_clips":
+            base = {"ref": target["ref"]}
+        for value in ("true", 1, "replace", None, [True]):
+            targets = [{**base, "replace": value}]
+            bad(dispatch, method, {"targets": targets}, "'replace' must be a bool")
+        out = dispatch(method, {"targets": [{**base, "replace": True}]})
+        assert out.get("code") == "permission_denied", (method, out)
+        bad(dispatch, method, {"targets": [base]}, "occupied|overlaps")  # absent = no replace
+    assert song.tracks[0].clip_slots[0].clip is keys and song.tracks[0].arrangement_clips == [arr]
+
+
 def test_set_clips_widens_loop_before_narrowing(env):
     song, dispatch = env
     clip = midi_clip(song)

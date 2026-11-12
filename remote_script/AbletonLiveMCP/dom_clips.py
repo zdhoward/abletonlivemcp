@@ -22,6 +22,7 @@ from .dom_common import (
     _same,
     _slot,
     clip_address_nodes,
+    flag,
     for_deletion,
     owner_node,
     position_of,
@@ -355,9 +356,7 @@ def create_clips(ctx, p, t):
         if any(_same(slot, s) for s in planned):
             raise Invalid(f"{where}: this slot is already a target of this call")
         planned.append(slot)
-        replace = item.get("replace", False)
-        if not isinstance(replace, bool):
-            raise Invalid(f"{where}: 'replace' must be a bool")
+        replace = flag(item, "replace", where)  # the gate's DELETING reads it the same way
         if slot.has_clip and not replace:
             raise Invalid(f"{where}: clip slot is occupied")
         kind = item.get("kind", "midi")

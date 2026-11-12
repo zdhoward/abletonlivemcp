@@ -410,6 +410,26 @@ SUPPORTED, UNVERIFIED, DISABLED, UNSUPPORTED = "supported", "unverified", "disab
 CAPABILITY_STATES = (SUPPORTED, UNVERIFIED, DISABLED, UNSUPPORTED)
 
 
+def flag(item, key, where):
+    """A request boolean, read the same way by the write gate and by every handler: absent is
+    False, anything but a JSON true/false is refused (never truthiness: "true" or 1 is not a
+    flag). Delete-controlling flags must go through this helper on both sides."""
+    value = item.get(key, False)
+    if not isinstance(value, bool):
+        raise Invalid(f"{where}: '{key}' must be a bool")
+    return value
+
+
+def flagged(params, key, field):
+    """True when an item of the list ``params[key]`` sets the boolean ``field``. Every item's
+    value is type-checked first, so the gate never decides a permission from a malformed flag."""
+    items = params.get(key) if isinstance(params, dict) else None
+    if not isinstance(items, list):
+        return False
+    hits = [flag(it, field, f"{key}[{i}]") for i, it in enumerate(items) if isinstance(it, dict)]
+    return any(hits)
+
+
 def unsupported(what, reason):
     """The bounded refusal for an ability this Live cannot do: ``refused:unsupported``. Raise it
     only before any write began."""

@@ -107,6 +107,7 @@ from .dom_common import (  # noqa: F401 - re-exported
     WRITE,
     Refused,
     _same,
+    flagged,
     same_items,
 )
 
@@ -312,9 +313,13 @@ def _any_item(params, key, field, value):
 
 
 # Methods that delete only for some params also need "delete" then (host: permissions.DELETING).
+# The handlers read the same fields with the same helpers (``flag`` for ``replace``; an exact
+# string match on a cue's ``action``, anything else refused), so the gate and the write can never
+# disagree about whether a call deletes. A malformed flag is refused here, before any permission
+# decision.
 DELETING = {
-    "create_clips": lambda p: _any_item(p, "targets", "replace", True),
-    "create_arrangement_clips": lambda p: _any_item(p, "targets", "replace", True),
+    "create_clips": lambda p: flagged(p, "targets", "replace"),
+    "create_arrangement_clips": lambda p: flagged(p, "targets", "replace"),
     "set_cue_points": lambda p: _any_item(p, "cues", "action", "delete"),
 }
 

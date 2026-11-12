@@ -29,6 +29,7 @@ from .dom_common import (
     _index,
     _number,
     _same,
+    flag,
     has_arrangement_clips,
     owner_node,
     position_of,
@@ -202,7 +203,8 @@ def create_arrangement_clips(ctx, p, t):
             raise Invalid(f"{where}: 'kind' must be 'midi', 'audio' or 'from_session'")
         overlaps = _overlaps(track, start, end)
         prepared["replace"] = []
-        if item.get("replace"):  # the write gate required the delete permission
+        replace = flag(item, "replace", where)  # the gate's DELETING reads it the same way
+        if replace:  # the write gate required the delete permission
             if kind != "from_session":
                 raise Invalid(f"{where}: replace is only supported for from_session")
             require(ctx, "arrangement.delete_clip", ((track, "delete_clip"),))
@@ -210,7 +212,7 @@ def create_arrangement_clips(ctx, p, t):
                 raise Invalid(f"{where}: replace refuses clips outside the destination")
             prepared["replace"] = overlaps
         collision = any(s < end and e > start for s, e in reserved)
-        if (overlaps and not item.get("replace")) or collision:
+        if (overlaps and not replace) or collision:
             raise Invalid(
                 f"{where}: the range overlaps an existing clip (nothing is overwritten"
                 + ("; audio clips go after the track's last clip)" if kind == "audio" else ")")
