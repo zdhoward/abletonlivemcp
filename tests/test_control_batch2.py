@@ -430,6 +430,18 @@ def test_delete_and_duplicate_tracks(live):
     assert out["applied"][0]["track"] == 1 and song.tracks[1].name == "B copy"
 
 
+def test_track_batches_stay_inside_the_bridge_deadline(live):
+    """R10: a batch Live cannot finish within the request budget refuses before any write."""
+    song, _a, d, g = live
+    before = len(song.tracks)
+    with pytest.raises(ValueError, match="at most 32"):
+        d("create_tracks", {"tracks": [{"kind": "midi"}] * 33, "generation": g})
+    (ref,) = refs(d, {"kind": "track", "track": 0})
+    with pytest.raises(ValueError, match="at most 16"):
+        d("duplicate_tracks", {"targets": [{"kind": "track", "ref": ref}] * 17})
+    assert len(song.tracks) == before
+
+
 # ---- scenes and launch ---------------------------------------------------------------------
 
 

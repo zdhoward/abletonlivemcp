@@ -46,7 +46,7 @@
      "items": {
       "$ref": "#/$defs/NewTrack"
      },
-     "maxItems": 64,
+     "maxItems": 32,
      "minItems": 1,
      "type": "array"
     }

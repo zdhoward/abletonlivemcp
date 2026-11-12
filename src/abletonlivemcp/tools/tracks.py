@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from ..errors import Invalid
-from ..models import DELETE_ROUTES, DUPLICATE_ROUTES, ROUTE_ORDER, TrackSel
+from ..models import DELETE_ROUTES, DUPLICATE_ROUTES, ROUTE_LIMITS, ROUTE_ORDER, TrackSel
 from ..models_control import (
     IncludeTracks,
     MixerEdits,
@@ -134,6 +134,12 @@ def _structural(
                 if t.to is not None:
                     item["to"] = t.to.model_dump()
                 groups.setdefault(routes[kind], []).append(item)
+    for method, items in groups.items():
+        if len(items) > ROUTE_LIMITS.get(method, len(items)):
+            raise Invalid(
+                f"{verb} takes at most {ROUTE_LIMITS[method]} tracks per call (larger batches "
+                "outrun the bridge deadline); split the batch"
+            )
     steps = [
         (method, lambda m=method, items=items: _call(m, {"targets": items}))
         for method, items in groups.items()

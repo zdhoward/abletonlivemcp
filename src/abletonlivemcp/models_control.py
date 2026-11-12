@@ -255,7 +255,7 @@ class ViewTarget(_Lean):
 
 # ---- batch parameter types (1..64 items) ----------------------------------------------------
 
-NewTracks = _batch(NewTrack)
+NewTracks = Annotated[list[NewTrack], Field(min_length=1, max_length=32)]  # ROUTE_LIMITS
 TrackEdits = _batch(TrackEdit)
 MixerEdits = _batch(MixerEdit)
 NewScenes = _batch(NewScene)

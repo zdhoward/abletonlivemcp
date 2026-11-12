@@ -319,9 +319,25 @@ def _items(p, key):
     return items
 
 
+# Track structure is slow in Live (measured on 12.2: about 0.17 s per created track, 0.2 s
+# per duplicated empty track; a 64-track create ran 11-13 s). One call must finish inside the
+# bridge's 10 s request budget, or an applied batch is reported as "may have been applied".
+TRACK_BATCH = {"create_tracks": 32, "delete_tracks": 32, "duplicate_tracks": 16}
+
+
+def _track_batch(method, count):
+    limit = TRACK_BATCH[method]
+    if count > limit:
+        raise Invalid(
+            f"{method} takes at most {limit} tracks per call (larger batches outrun the "
+            "bridge deadline); split the batch"
+        )
+
+
 def create_tracks(ctx, p, _t):
     song = ctx.song
     items = _items(p, "tracks")
+    _track_batch("create_tracks", len(items))
     prepared = []
     for n, item in enumerate(items):
         label = f"tracks[{n}]"
@@ -580,6 +596,7 @@ def delete_tracks(ctx, p, t):
     song = ctx.song
     _owner_kinds(t, ("track", "return_track"))
     resolved = t["targets"]
+    _track_batch("delete_tracks", len(resolved))
     require(ctx, "track.delete")
     regular = sum(1 for r in resolved if r.path[-1][0] == "track")
     if regular and regular >= len(song.tracks):
@@ -601,6 +618,7 @@ def delete_tracks(ctx, p, t):
 def duplicate_tracks(ctx, p, t):
     song = ctx.song
     _owner_kinds(t, ("track",))
+    _track_batch("duplicate_tracks", len(t["targets"]))
     require(ctx, "track.duplicate", ((song, "duplicate_track"),))
     ordered = sorted(t["targets"], key=lambda r: -r.path[-1][2].get("index", 0))
 

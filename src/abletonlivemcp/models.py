@@ -112,6 +112,9 @@ DUPLICATE_ROUTES: dict[str, str] = {
     "scene": "duplicate_scenes",  # batch 2, dom_scenes
     "track": "duplicate_tracks",  # batch 2, dom_tracks
 }
+# Per-call track limits (remote dom_tracks.TRACK_BATCH): Live needs about 0.2 s per track,
+# and one bridge call must finish within its 10 s request budget.
+ROUTE_LIMITS: dict[str, int] = {"create_tracks": 32, "delete_tracks": 32, "duplicate_tracks": 16}
 ROUTE_ORDER: tuple[str, ...] = ("clip", "device", "scene", "track", "return")
 """Execution order for a mixed batch: children before parents, so no route invalidates another's
 references."""
