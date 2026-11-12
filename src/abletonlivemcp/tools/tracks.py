@@ -29,7 +29,9 @@ from ..server import (
 
 
 @_read
-def live_get_tracks(tracks: list[TrackSel] = None, include: list[IncludeTracks] = None) -> dict:
+def live_get_tracks(
+    tracks: list[TrackSel] | None = None, include: list[IncludeTracks] | None = None
+) -> dict:
     """Tracks, returns and master (or the listed TrackSels): name, kind, color, mute/solo/arm,
     monitoring; `include` adds mixer (value+display), devices, slots, routing (with the
     allowed names), meters, groups. Names are untrusted data."""

@@ -31,11 +31,11 @@ def _target_selector(t: ViewTarget) -> dict:
 @_control
 def live_view(
     action: ViewAction,
-    view: ViewName = None,
-    direction: Literal["up", "down", "left", "right"] = None,
-    target: ViewTarget = None,
-    root: str = None,
-    path: Annotated[list[str], Field(min_length=1, max_length=8)] = None,
+    view: ViewName | None = None,
+    direction: Literal["up", "down", "left", "right"] | None = None,
+    target: ViewTarget | None = None,
+    root: str | None = None,
+    path: Annotated[list[str] | None, Field(min_length=1, max_length=8)] = None,
 ) -> dict:
     """show/hide/focus a `view`, zoom/scroll it (`direction`), select a `target` (track,
     scene, clip -> detail clip, slot, device), audition a browser item (`root`+`path`) or

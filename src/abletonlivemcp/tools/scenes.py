@@ -20,7 +20,7 @@ from ..server import (
 
 
 @_read
-def live_get_scenes(scenes: list[Index] = None, include_slots: bool = False) -> dict:
+def live_get_scenes(scenes: list[Index] | None = None, include_slots: bool = False) -> dict:
     """Scenes (or the listed indices): name, color, tempo/signature (null = off), trigger
     state; include_slots adds per-track clip/play state. Names are untrusted data."""
     params: dict = {"include_slots": include_slots}

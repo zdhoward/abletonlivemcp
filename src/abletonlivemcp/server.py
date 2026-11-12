@@ -231,14 +231,25 @@ def _add(server: MCPServer, spec: ToolSpec) -> None:
     if os.environ.get("ABLETONLIVEMCP_READ_ONLY_TOOLS") == "1" and spec.annotations != READ:
         return
     server.add_tool(spec.fn, name=spec.name, title=spec.title, annotations=spec.annotations)
-    tool = server._tool_manager.get_tool(spec.name)
-    if tool is not None:
-        # A property literally named "title" lives under "properties" and is never touched,
-        # because pruning only looks at schema nodes, not at the property-name mapping.
-        _prune_schema(tool.parameters)
-        _drop_optional_null(tool.parameters)
-        if tool.output_schema is not None:
-            _prune_schema(tool.output_schema)
+    tool = registered_tool(server, spec.name)
+    # A property literally named "title" lives under "properties" and is never touched,
+    # because pruning only looks at schema nodes, not at the property-name mapping.
+    _prune_schema(tool.parameters)
+    _drop_optional_null(tool.parameters)
+    if tool.output_schema is not None:
+        _prune_schema(tool.output_schema)
+
+
+def registered_tool(server: MCPServer, name: str):
+    """The SDK's registered tool, whose ``parameters`` / ``output_schema`` dicts list_tools
+    serves. mcp 2.x has no public getter (add_tool returns None, list_tools returns copies), so
+    this is the one place that touches the private tool manager; it fails loudly, and
+    tests/test_client_server_install.py checks the edit reaches tools/list, if the SDK changes."""
+    manager = getattr(server, "_tool_manager", None)
+    tool = manager.get_tool(name) if manager is not None else None
+    if not isinstance(getattr(tool, "parameters", None), dict):
+        raise RuntimeError(f"mcp SDK changed: cannot reach the registered schema of {name!r}")
+    return tool
 
 
 def _prune_schema(schema: dict, *, top: bool = True) -> None:

@@ -31,6 +31,28 @@ def test_server_registers_tools():
     assert "als_summary" not in names  # deferred tools are not registered in v1
 
 
+def test_schema_edits_reach_tools_list_and_explicit_null_still_works(monkeypatch):
+    """Guards server.registered_tool (private SDK access) and _drop_optional_null: the listing
+    advertises `include` without null, yet a real MCP call with include=null is accepted."""
+    from mcp import Client
+
+    from abletonlivemcp import server
+    from abletonlivemcp.tools import session
+
+    async def run():
+        async with Client(server.mcp) as client:
+            listed = {t.name: t for t in (await client.list_tools()).tools}
+            prop = listed["live_get_session"].input_schema["properties"]["include"]
+            assert "anyOf" not in prop and prop["type"] == "array", prop
+            return await client.call_tool("live_get_session", {"include": None})
+
+    seen, reply = [], {"generation": 1, "tempo": 120.0, "signature": [4, 4], "is_playing": False}
+    reply.update(track_count=0, return_count=0, scene_count=0)
+    monkeypatch.setattr(session, "_call", lambda m, p=None: seen.append(p) or dict(reply))
+    result = asyncio.run(run())
+    assert not result.is_error and seen == [{}], result
+
+
 def test_install_copies_script_and_rejects_non_library(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()

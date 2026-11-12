@@ -31,6 +31,10 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   even at the same version. The version now has one source
   (`remote_script/AbletonLiveMCP/version.py`), read by the package build and the bridge, which
   used to report a fixed "0.9.0".
+- Fix: an explicit `null` for an optional input is accepted everywhere. Fourteen inputs
+  (for example `live_get_session.include`, every `live_set_session` field,
+  `live_transport.beats`, `live_get_tracks` and the view/recording tools) refused it with a
+  validation error. The advertised schemas are unchanged.
 - Fix: `live_get_arrangement` without `tracks` no longer refuses on a Set with more than 64
   tracks. A whole-Set read stops at the 256-row clip budget and returns `next_track`; call
   again with `next_track` to continue.

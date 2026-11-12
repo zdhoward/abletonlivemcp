@@ -13,9 +13,9 @@ from ..server import _call, _control, _generation
 @_control
 def live_record(
     action: RecordAction,
-    value: bool = None,
-    length: Annotated[float, Field(gt=0, le=1024)] = None,
-    destination: Literal[0, 1, 2] = None,
+    value: bool | None = None,
+    length: Annotated[float | None, Field(gt=0, le=1024)] = None,
+    destination: Literal[0, 1, 2] | None = None,
 ) -> dict:
     """Recording controls (unverified on Live 12.2). session_record / arrangement_record /
     overdub take `value`; turning one on needs `length` (beats, <= 8 s) and returns an
