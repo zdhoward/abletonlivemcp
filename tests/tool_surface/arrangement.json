@@ -39,7 +39,7 @@
        "items": {
         "$ref": "#/$defs/Note"
        },
-       "maxItems": 2000,
+       "maxItems": 400,
        "type": "array"
       },
       "replace": {

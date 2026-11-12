@@ -7,7 +7,16 @@ from typing import Annotated
 from pydantic import Field
 
 from ..models import ClipRef, ExpectName, ResponseFormat
-from ..models_clips import Ids, NoteMod, NoteRange, Notes, Quantize, Region, Transpose
+from ..models_clips import (
+    READ_PAGE,
+    Ids,
+    NoteMods,
+    NoteRange,
+    Notes,
+    Quantize,
+    Region,
+    Transpose,
+)
 from ..server import _call, _overwrite, _read, clip_selector, issue_refs, shape
 
 
@@ -18,7 +27,7 @@ def live_get_notes(
     pitch_span: Annotated[int, Field(ge=1, le=128)] = 128,
     time_from: Annotated[float, Field(ge=-16384, allow_inf_nan=False)] | None = None,
     time_span: Annotated[float, Field(gt=0, le=65536, allow_inf_nan=False)] | None = None,
-    limit: Annotated[int, Field(ge=1, le=1000)] = 500,
+    limit: Annotated[int, Field(ge=1, le=READ_PAGE)] = READ_PAGE,
     offset: Annotated[int, Field(ge=0, le=1000000)] = 0,
     response_format: ResponseFormat = "detailed",
 ) -> dict:
@@ -44,7 +53,7 @@ def live_edit_notes(
     clip: ClipRef,
     expect_name: ExpectName | None = None,
     add: Notes | None = None,
-    modify: list[NoteMod] | None = None,
+    modify: NoteMods | None = None,
     remove_ids: Ids | None = None,
     remove_range: NoteRange | None = None,
     transpose: Transpose | None = None,

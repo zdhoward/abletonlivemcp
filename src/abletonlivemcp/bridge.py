@@ -329,6 +329,25 @@ def _reject_unsigned_error(frame, transmitted):
             raise BridgeError(kind, "bridge exchange incomplete", transmitted)
 
 
+def check_request_size(method: str, params: dict) -> None:
+    """Refuse, before connecting, a request whose signed envelope would exceed MAX_NODES or
+    MAX_FRAME (it could never be sent). The envelope is the real one with a stand-in id and
+    mac, so the bound is exact; a too-large reply is the remote's ReplyTooLarge."""
+    body = {"type": "request", "protocol": 2, "id": 2**53 - 1, "method": method}
+    try:
+        _encode({**body, "params": params, "mac": "0" * 64})
+    except (ValueError, RecursionError) as exc:
+        sizes = {"JSON structure exceeds limit", "frame exceeds limit", "JSON string exceeds limit"}
+        if not isinstance(exc, RecursionError) and str(exc) not in sizes:
+            raise BridgeError("BadRequest", "params are not bounded JSON", False) from None
+        raise BridgeError(
+            "RequestTooLarge",
+            f"the request exceeds the bridge limit ({MAX_NODES} JSON values or "
+            f"{MAX_FRAME} bytes); split it into smaller calls",
+            False,
+        ) from None
+
+
 class BridgeClient:
     def __init__(
         self,
@@ -412,6 +431,7 @@ class BridgeClient:
             params = {}
         if not isinstance(params, dict):
             raise BridgeError("BadRequest", "params must be an object")
+        check_request_size(method, params)
         try:
             secret = _load_secret()
         except (OSError, ValueError, RecursionError):

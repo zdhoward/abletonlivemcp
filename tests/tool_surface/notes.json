@@ -218,7 +218,7 @@
         "minimum": 0,
         "type": "integer"
        },
-       "maxItems": 2000,
+       "maxItems": 500,
        "type": "array"
       }
      },
@@ -264,7 +264,7 @@
         "minimum": 0,
         "type": "integer"
        },
-       "maxItems": 2000,
+       "maxItems": 500,
        "type": "array"
       },
       "semitones": {
@@ -284,7 +284,7 @@
      "items": {
       "$ref": "#/$defs/Note"
      },
-     "maxItems": 2000,
+     "maxItems": 400,
      "type": "array"
     },
     "clip": {
@@ -308,6 +308,7 @@
      "items": {
       "$ref": "#/$defs/NoteMod"
      },
+     "maxItems": 200,
      "type": "array"
     },
     "quantize": {
@@ -318,7 +319,7 @@
       "minimum": 0,
       "type": "integer"
      },
-     "maxItems": 2000,
+     "maxItems": 500,
      "type": "array"
     },
     "remove_range": {
@@ -503,7 +504,7 @@
     },
     "limit": {
      "default": 500,
-     "maximum": 1000,
+     "maximum": 500,
      "minimum": 1,
      "type": "integer"
     },

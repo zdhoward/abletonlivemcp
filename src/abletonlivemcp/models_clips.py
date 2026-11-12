@@ -10,13 +10,24 @@ from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints
 
+from .errors import Invalid
 from .models import ArrangementClipAddr, ClipAddr, ClipRef, DevicePath, ExpectName, Index
 from .models import _Model as Model
 
 Beats = Annotated[float, Field(ge=0, le=16384)]
 Span = Annotated[list[float], Field(min_length=2, max_length=2)]
 Name = Annotated[str, StringConstraints(max_length=256)]
-Ids = Annotated[list[Index], Field(max_length=2000)]
+# Wire budget (bridge MAX_NODES = 16384 JSON nodes per signed envelope). Worst case per item:
+# a written note with all 8 fields is 17 nodes, a NoteMod 19, a read row 19, an id 1. Every
+# schema-valid call then fits with margin: the largest live_edit_notes (400 adds, 200 modifies,
+# 3 x 500 ids) is 12.2k nodes (74%), 400 notes over 64 new clips 7.6k, a 500-row read page 9.5k
+# (a 1000-row page was 19k and failed ReplyTooLarge). Pinned through real signed framing by
+# tests/test_bridge.py::test_published_note_limits_fit_full_signed_envelopes.
+NOTES_PER_CALL = 400
+MODS_PER_CALL = 200
+IDS_PER_LIST = 500
+READ_PAGE = 500
+Ids = Annotated[list[Index], Field(max_length=IDS_PER_LIST)]
 Quant = Literal[
     "global", "none", "8 bars", "4 bars", "2 bars", "1 bar", "1/2", "1/2t", "1/4", "1/4t",
     "1/8", "1/8t", "1/16", "1/16t", "1/32",
@@ -36,7 +47,17 @@ class Note(Model):
     release_velocity: Annotated[float, Field(ge=0, le=127)] = 64
 
 
-Notes = Annotated[list[Note], Field(max_length=2000)]
+Notes = Annotated[list[Note], Field(max_length=NOTES_PER_CALL)]
+
+
+def check_note_total(clips) -> None:
+    """A batch of new clips carries at most NOTES_PER_CALL notes in all (one bridge request)."""
+    total = sum(len(c.notes or ()) for c in clips)
+    if total > NOTES_PER_CALL:
+        raise Invalid(
+            f"the clips carry {total} notes; one call takes at most {NOTES_PER_CALL} in all "
+            "(add more with live_edit_notes)"
+        )
 
 
 class ClipFields(Model):
@@ -86,6 +107,9 @@ class NoteMod(Model):
     probability: Annotated[float, Field(ge=0, le=1)] | None = None
     velocity_deviation: Annotated[float, Field(ge=-127, le=127)] | None = None
     release_velocity: Annotated[float, Field(ge=0, le=127)] | None = None
+
+
+NoteMods = Annotated[list[NoteMod], Field(max_length=MODS_PER_CALL)]
 
 
 class NoteRange(Model):

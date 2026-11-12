@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Literal
 
 from ..models import ClipRef, ResponseFormat, TrackSel
-from ..models_clips import ClipEdit, NewClip
+from ..models_clips import ClipEdit, NewClip, check_note_total
 from ..server import (
     Plan,
     _call,
@@ -95,6 +95,7 @@ def live_create_clips(
     then delete the old clip and create; rows say replaced; needs the local "delete"
     permission and your confirmation). Re-running with skip or replace is idempotent.
     Arrangement: live_create_arrangement_clips; from a .mid: live_import_midi."""
+    check_note_total(clips)
     skipped: list[dict] = []
     if if_exists == "skip":
         busy = _occupied(clips)

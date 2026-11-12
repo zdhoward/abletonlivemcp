@@ -24,7 +24,7 @@ CAPABILITIES = {
 }
 
 WIDE_FROM, WIDE_SPAN = -16384.0, 65536.0  # every note Live keeps, past the clip end included
-READ_LIMIT = 1000
+READ_LIMIT = 500  # 19 JSON nodes per row: 500 rows are ~9.5k of the 16384-node reply cap
 MAX_TIME = 16384.0
 FIELDS = (
     "note_id", "pitch", "start_time", "duration", "velocity", "mute", "probability",

@@ -121,7 +121,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Import a .mid (SMF 0/1, all tracks merged, 2000 notes max) as a new MIDI clip: in the\nempty Session slot `scene`, or in the arrangement at `start` beats. Length defaults to the\nnotes rounded up to a bar.",
+  "description": "Import a .mid (SMF 0/1, all tracks merged, first 1000 notes) as a new MIDI clip: in the\nempty Session slot `scene`, or in the arrangement at `start` beats. Length defaults to the\nnotes rounded up to a bar.",
   "inputSchema": {
    "properties": {
     "file": {

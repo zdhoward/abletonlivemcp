@@ -707,3 +707,53 @@ def test_review_fixes_outcome_text_refusals_auth_deadline_and_busy(private_confi
         "review: str() carries outcome; ValueError readable/not applied; other=HandlerError "
         "no text; auth deadline 0.3s; unsigned Busy=BridgeBusy not applied"
     )
+
+
+def test_published_note_limits_fit_full_signed_envelopes(private_config):
+    """F2 (round 5): every schema-valid note call, at its worst case (every field set, long
+    floats, maximal lists), fits the real signed frame; the old 1000-row read page did not."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
+    from AbletonLiveMCP import dom_notes
+    from abletonlivemcp import models_clips as mc
+    from abletonlivemcp.tools import files
+
+    far = 16383.123456789012  # a long float repr
+    row = {f: far for f in dom_notes.FIELDS} | {"note_id": 2**31, "pitch": 127, "mute": True}
+    note = mc.Note(pitch=127, start_time=far, duration=far, velocity=126.5, mute=True,
+                   probability=0.123456789, velocity_deviation=-126.5, release_velocity=126.5)
+    mod = mc.NoteMod(note_id=2**31, **note.model_dump())
+    add = [note.model_dump()] * mc.NOTES_PER_CALL
+    ids = [2**31] * mc.IDS_PER_LIST
+    span = {"pitch_from": 0, "pitch_span": 128, "time_from": far, "time_span": far}
+    edit = {
+        "targets": [{"kind": "arr_clip", "ref": "f" * 16, "expect_name": "x" * 256}],
+        "add": add, "modify": [mod.model_dump()] * mc.MODS_PER_CALL, "remove_ids": ids,
+        "remove_range": span, "transpose": {"semitones": -127, "ids": ids},
+        "quantize": {"grid": far, "amount": 0.5, "ids": ids},
+        "duplicate_region": {"start": far, "length": far, "dest": far, "transpose": -127},
+    }  # fmt: skip
+    clip = {"ref": "f" * 16, "track": 63, "scene": 63, "name": "x" * 256, "length": far}
+    clips = [dict(clip, notes=add[:6])] * 63 + [dict(clip, notes=add[:22])]  # 400 in all
+    imported = [{"pitch": 127, "start_time": far, "duration": far, "velocity": 127.0}]
+    page = {"total": 10**6, "next_offset": 10**6, "clip_end": far, "past_clip_end": 10**6}
+
+    def dispatch(method, params):
+        if method == "get_notes":
+            return {**page, "notes": [row] * params["limit"]}
+        return {"status": "complete", "note_ids": [2**31] * mc.NOTES_PER_CALL}
+
+    with running(dispatch) as server:
+        client = bridge.BridgeClient(port=server.port)
+        assert dom_notes.READ_LIMIT == mc.READ_PAGE == files.NOTE_PAGE
+        assert len(client.call("get_notes", {"limit": mc.READ_PAGE})["notes"]) == mc.READ_PAGE
+        with pytest.raises(bridge.BridgeError) as error:  # the page size published before
+            client.call("get_notes", {"limit": 1000})
+        assert error.value.kind == "ReplyTooLarge"
+        assert client.call("edit_notes", edit)["status"] == "complete"
+        assert client.call("create_clips", {"targets": clips})["status"] == "complete"
+        one = [dict(clip, notes=imported * files.IMPORT_NOTES)]
+        assert client.call("create_clips", {"targets": one})["status"] == "complete"
+        # an oversized request is refused before connecting: nothing is sent
+        with pytest.raises(bridge.BridgeError) as error:
+            client.call("edit_notes", {**edit, "add": add * 3})
+        assert error.value.kind == "RequestTooLarge" and not error.value.may_have_applied

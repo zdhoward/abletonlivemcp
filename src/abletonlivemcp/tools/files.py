@@ -16,9 +16,13 @@ from pydantic import Field
 from .. import midi_file
 from ..errors import Invalid
 from ..models import ClipRef, Index
+from ..models_clips import READ_PAGE
 from ..server import _call, _create, clip_selector, issue_refs
 
-NOTE_PAGE = 1000
+NOTE_PAGE = READ_PAGE  # the bridge read page (a larger page cannot be encoded)
+# An imported note is a 4-field row (9 JSON nodes): 1000 fit one create request at about 9k
+# of the bridge's 16384 nodes (pinned by tests/test_bridge.py, worst-case floats).
+IMPORT_NOTES = 1000
 
 
 def file_roots() -> list[Path]:
@@ -64,7 +68,7 @@ def live_import_midi(
     length: Annotated[float, Field(gt=0, le=1024)] | None = None,
     name: Annotated[str, Field(max_length=256)] | None = None,
 ) -> dict:
-    """Import a .mid (SMF 0/1, all tracks merged, 2000 notes max) as a new MIDI clip: in the
+    """Import a .mid (SMF 0/1, all tracks merged, first 1000 notes) as a new MIDI clip: in the
     empty Session slot `scene`, or in the arrangement at `start` beats. Length defaults to the
     notes rounded up to a bar."""
     if (scene is None) == (start is None):
@@ -75,6 +79,8 @@ def live_import_midi(
     if path.stat().st_size > midi_file.MAX_BYTES:
         raise Invalid(f"file larger than {midi_file.MAX_BYTES} bytes")
     content = midi_file.parse(path.read_bytes())
+    if len(content.notes) > IMPORT_NOTES:
+        content.notes, content.truncated = content.notes[:IMPORT_NOTES], True
     if not content.notes:
         raise Invalid("the file holds no notes")
     end = max(n.start_time + n.duration for n in content.notes)

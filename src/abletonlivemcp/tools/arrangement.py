@@ -7,7 +7,14 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from ..models import ResponseFormat, TrackSel
-from ..models_clips import ArrangementEdit, CueAdd, CueEdit, NewArrangementClip, Span
+from ..models_clips import (
+    ArrangementEdit,
+    CueAdd,
+    CueEdit,
+    NewArrangementClip,
+    Span,
+    check_note_total,
+)
 from ..server import (
     Plan,
     _call,
@@ -96,6 +103,7 @@ def live_create_arrangement_clips(clips: list[NewArrangementClip]) -> dict:
     direct arrangement envelope reads are unavailable. replace=True deletes only clips wholly
     inside the destination span (needs the local delete permission and your confirmation).
     Take lanes refuse on 12.2."""
+    check_note_total(clips)
     plan = None
     if any(c.replace for c in clips):  # the confirmed clips (or, unconfirmed, read now)
         plan = confirmed_plan() or _plan_replace({"clips": clips}).data
