@@ -123,9 +123,19 @@ def _clip_end(clip):
     return float(getattr(clip, "end_marker", clip.length))
 
 
-def _snapshot(clip, window):
-    """The window's notes as field tuples (``FIELDS`` order), sorted by time, pitch, id."""
+def _snapshot(clip, window, expect=None):
+    """The window's notes as field tuples (``FIELDS`` order), sorted by time, pitch, id. The
+    count is checked before any note is read: past ``NOTE_SCOPE`` a read refuses; with
+    ``expect`` (the rows of the first page) another count is ``None`` (the notes changed)."""
     raw = clip.get_notes_extended(*window)
+    if expect is not None and len(raw) != len(expect):
+        return None
+    if len(raw) > NOTE_SCOPE:
+        raise Refused(
+            "beyond_scope",
+            f"that window holds {len(raw)} notes; reads support up to {NOTE_SCOPE} "
+            "(narrow time_from/time_span or pitch_from/pitch_span)",
+        )
     rows = [tuple(getattr(n, f) for f in FIELDS) for n in raw]
     rows.sort(key=lambda r: (r[2], r[1], r[0]))
     return rows
@@ -166,12 +176,6 @@ def get_notes(ctx, p):
         raise _stale("the clip at that address is gone") from None
     if token is None:
         rows, start = _snapshot(clip, window), 0
-        if len(rows) > NOTE_SCOPE:
-            raise Refused(
-                "beyond_scope",
-                f"that window holds {len(rows)} notes; reads support up to {NOTE_SCOPE} "
-                "(narrow time_from/time_span or pitch_from/pitch_span)",
-            )
         state = {"generation": ctx.safety.generation, "clip": clip, "args": args, "rows": rows}
     else:
         if not isinstance(token, str) or len(token) > 64:
@@ -185,7 +189,7 @@ def get_notes(ctx, p):
     end = _clip_end(clip)
     page = rows[start : start + limit]
     more = start + limit < len(rows)
-    if token is not None and not more and _snapshot(clip, window) != rows:
+    if token is not None and not more and _snapshot(clip, window, rows) != rows:
         raise _stale("the clip's notes changed")
     cursor = None
     if more:

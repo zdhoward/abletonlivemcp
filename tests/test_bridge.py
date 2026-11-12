@@ -792,3 +792,67 @@ def test_whole_clip_note_edit_receipt_fits_the_signed_reply(private_config, monk
     moved = {"transpose": lambda n: n.pitch == 37 + (n.note_id % 60),
              "quantize": lambda n: n.start_time == n.note_id * 0.25}[edit]  # fmt: skip
     assert all(moved(n) for n in clip.notes)
+
+
+def test_arrangement_pages_bound_lane_work_and_fit_the_signed_reply(private_config):
+    """R2 (round 7): a page fetched every take lane's clips before its row budget (80 lanes x
+    256 clips = 20,480 fetched for 256 rows) and listed every lane, so 2,400 empty lanes made a
+    reply core._encode refused. Lanes past LANE_SCOPE refuse before any is read; a page ends at
+    PAGE_WORK native objects or LANE_ROWS lanes; every page passes the real signed framing."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tests.test_batch3_dom import Clip, Song
+
+    from AbletonLiveMCP import dom_arrangement as arr
+    from AbletonLiveMCP import handlers
+    from AbletonLiveMCP.safety import Safety
+
+    fetched = [0]
+
+    class Counted:  # Live returns a whole collection on every access: count what it hands out
+        def __init__(self, name, clips=(), lanes=()):
+            self.name, self._clips, self._lanes = name, list(clips), list(lanes)
+
+        @property
+        def arrangement_clips(self):
+            fetched[0] += len(self._clips)
+            return list(self._clips)
+
+        @property
+        def take_lanes(self):
+            fetched[0] += len(self._lanes)
+            return list(self._lanes)
+
+    Tr = Counted  # a track: only its clips and lanes are read
+
+    far = [Clip(1.0, start=1000.0 + k) for k in range(arr.CLIP_SCOPE)]  # outside the range
+    song = Song()
+    lanes = [Counted(f"L{k}", far) for k in range(arr.LANE_SCOPE)]
+    song.tracks = [Tr(f"W{i}", far, lanes) for i in range(4)]  # 4,369 objects a track
+    full = [Counted(f"E{k}", [Clip(1.0, start=0.0)]) for k in range(arr.LANE_SCOPE)]
+    song.tracks += [Tr(f"F{i}", [], full) for i in range(20)]  # a clip on every lane
+    song.tracks += [Tr(f"E{i}", [], [Counted(str(k)) for k in range(16)]) for i in range(150)]
+    dispatch = handlers.make_dispatch(
+        lambda: song, types.SimpleNamespace(), Safety(lambda: song, policy=lambda: False)
+    )
+    p = {"include": ["clips", "take_lanes"], "range": [0.0, 8.0]}
+    bound = arr.PAGE_WORK + (1 + arr.LANE_SCOPE) * arr.CLIP_SCOPE + arr.LANE_SCOPE + 1
+    pages, seen, cursor = [], [], None
+    with running(dispatch) as server:
+        client = bridge.BridgeClient(port=server.port)
+        while True:
+            fetched[0] = 0
+            out = client.call("get_arrangement", {**p, **({"cursor": cursor} if cursor else {})})
+            lanes_out = sum(len(r.get("take_lanes", [])) for r in out["tracks"])
+            pages.append((fetched[0], lanes_out))
+            seen += [r["name"] for r in out["tracks"]]
+            cursor = out.get("cursor")
+            if cursor is None:
+                break
+        song.tracks[0]._lanes.append(Counted("one too many"))
+        fetched[0] = 0
+        out = client.call("get_arrangement", p)
+    assert out["code"] == "beyond_scope" and "17 take lanes" in out["message"]
+    assert fetched[0] <= 1 + arr.CLIP_SCOPE + arr.LANE_SCOPE + 1  # no lane's clips were read
+    assert seen == [t.name for t in song.tracks]  # every track once, in order
+    assert max(f for f, _ in pages) <= bound and max(n for _, n in pages) <= arr.LANE_ROWS
+    assert len(pages) == 4 + 160 // (arr.LANE_ROWS // arr.LANE_SCOPE) + 1  # a page per W track

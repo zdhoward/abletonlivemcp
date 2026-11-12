@@ -44,12 +44,13 @@ def live_get_arrangement(
     cursor: Annotated[str, Field(max_length=64)] | None = None,
 ) -> dict:
     """Arrangement clips per track (index = order by start), take lanes, cue points (index =
-    order by time), song length and loop. 256 clip rows per reply. With `tracks`, a longer read
-    is cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`,
-    call again with it (same other arguments) to continue exactly there, even inside a track
-    (that row says partial). A cursor is single use (10 min); one from a Set whose tracks
-    changed, or with other arguments, is refused. Group tracks: rows say group: true. A track
-    or take lane over 256 clips refuses (beyond_scope)."""
+    order by time), song length and loop. 256 clip rows and 256 take lane rows per reply; a
+    page also ends after about 4,096 clips and lanes scanned. With `tracks`, a longer read is
+    cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`, call
+    again with it (same other arguments) to continue exactly there, even inside a track (that
+    row says partial). A cursor is single use (10 min); one from a Set whose tracks changed, or
+    with other arguments, is refused. Group tracks: rows say group: true. A track or take lane
+    over 256 clips, or a track over 16 take lanes (with take_lanes), refuses (beyond_scope)."""
     params = {"include": include or ["clips", "cues"]}
     if tracks is not None:
         params["tracks"] = tracks

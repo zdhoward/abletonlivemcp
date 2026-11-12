@@ -1109,8 +1109,19 @@ def test_paged_reads_do_bounded_native_work_and_enforce_scope(env):
     assert seen == page["total"] == 12000 and len(per_page) == 24
     assert per_page[0] == per_page[-1] == 12000 and set(per_page[1:-1]) == {0}
     clip.notes.append(Note(99999, 60, 0.0, 0.1))
+    reads = [0]
+
+    class Spy:  # R2 (round 7): the scope is checked before any note field is read
+        def __init__(self, note):
+            self._note = note
+
+        def __getattr__(self, name):
+            reads[0] += 1
+            return getattr(self._note, name)
+
+    clip.get_notes_extended = lambda *window: [Spy(n) for n in real(*window)]
     out = dispatch("get_notes", {"track": 0, "scene": 0, "limit": 500})
-    assert out["code"] == "beyond_scope"
+    assert out["code"] == "beyond_scope" and reads == [0]
 
     track = song.tracks[0]
     track.arrangement_clips = [Clip(1.0, start=float(i)) for i in range(dom_arrangement.CLIP_SCOPE)]

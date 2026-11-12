@@ -53,6 +53,12 @@ CLIP_ROWS = 256
 # Supported scope: arrangement clips per track and per take lane. Live returns a whole collection
 # on every access, so this bounds the native work of each read page; past it a read refuses.
 CLIP_SCOPE = 256
+LANE_SCOPE = 16  # take lanes per track a read supports (refused before any lane is read)
+# Native objects (tracks, take lanes, clips) one read page fetches. A page ends after the track
+# that reaches it, so its work stays under PAGE_WORK + one track's scope ((1 + LANE_SCOPE) *
+# CLIP_SCOPE + LANE_SCOPE + 1); an explicit `tracks` read is then ``truncated``.
+PAGE_WORK = 4096
+LANE_ROWS = 256  # take lane rows per reply (each is listed, with or without clips)
 SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with cursor)
 CUE_ACTIONS = 8  # adds + deletes per call (one bounded operation)
 EPS = 1e-6
@@ -69,29 +75,41 @@ def _in_range(clip, span):
 
 
 def _scoped_clips(parent, where):
-    """``_sorted_clips`` for a read, refused past ``CLIP_SCOPE`` (the supported scope)."""
-    clips = _sorted_clips(parent)
+    """``_sorted_clips`` for a read, refused past ``CLIP_SCOPE`` (the supported scope) before
+    any clip is read: the collection's length is checked first."""
+    clips = list(parent.arrangement_clips)
     if len(clips) > CLIP_SCOPE:
         raise Refused(
             "beyond_scope",
             f"{where} holds {len(clips)} arrangement clips; reads support up to {CLIP_SCOPE}",
         )
-    return clips
+    return sorted(clips, key=lambda c: c.start_time)
 
 
 def _track_rows(track, include, span, sel=None):
     """A track's in-range clip rows in reading order: its own clips, then each take lane's.
-    Returns ``(rows, lane_names)``; a row is ``(lane index or None, clip index, clip)``."""
-    rows, lanes, where = [], [], f"track {sel}"
+    Returns ``(rows, lane_names, work)``; a row is ``(lane index or None, clip index, clip)``
+    and ``work`` counts the native objects fetched (the track, its lanes, their clips)."""
+    rows, lanes, where, work = [], [], f"track {sel}", 1
     if "clips" in include:
         clips = _scoped_clips(track, where)
+        work += len(clips)
         rows += [(None, i, c) for i, c in enumerate(clips) if _in_range(c, span)]
     if "take_lanes" in include:
-        for k, lane in enumerate(list(getattr(track, "take_lanes", None) or ())):
+        takes = list(getattr(track, "take_lanes", None) or ())
+        if len(takes) > LANE_SCOPE:
+            raise Refused(
+                "beyond_scope",
+                f"{where} has {len(takes)} take lanes; reads support up to {LANE_SCOPE} "
+                "(read its clips with include ['clips'])",
+            )
+        work += len(takes)
+        for k, lane in enumerate(takes):
             lanes.append(lane.name)
             clips = _scoped_clips(lane, f"{where} take lane {k}")
+            work += len(clips)
             rows += [(k, i, c) for i, c in enumerate(clips) if _in_range(c, span)]
-    return rows, lanes
+    return rows, lanes, work
 
 
 def _row_ids(rows):
@@ -189,14 +207,23 @@ def get_arrangement(ctx, p):
     if not ("clips" in include or "take_lanes" in include):
         return out
     rows, budget, truncated, nxt = [], CLIP_ROWS, False, None
+    work = lanes_out = 0
     for n, sel in enumerate(sels):
+        if n and (work >= PAGE_WORK or lanes_out + LANE_SCOPE > LANE_ROWS):
+            if scan:  # the rest on the next page
+                nxt = _cursor(ctx, tracks, args, sel, 0, ())
+            else:
+                truncated = True
+            break
         kind, track, _snap = owner_node(song, sel)
+        work += 1
         if kind != "track":
             continue  # return/master tracks have no arrangement clips
         if not has_arrangement_clips(track):
             rows.append({"track": sel, "name": track.name, "group": True})  # clips on members
             continue
-        items, lanes = _track_rows(track, include, span, sel)
+        items, lanes, cost = _track_rows(track, include, span, sel)
+        work, lanes_out = work + cost, lanes_out + len(lanes)
         done = skip if scan and n == 0 else 0
         now = _row_ids(items)
         if done and not (
