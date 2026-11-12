@@ -635,7 +635,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Rename/jump/delete cues (index from live_get_arrangement) and add cues (transport\nstopped). Live 12.2 puts a new cue on the nearest bar: the result gives its `time` and the\n`requested` one. A cue at that time, or alone on that bar, is reused; another cue within\nhalf a bar refuses the add. Deleting needs the local delete permission and your\nconfirmation. Adds and deletes run as an operation: poll live_get_operation until ready,\nthen read its result `status` (complete, partial, not_applied) and any `cleanup_issue`\n(the playhead was not put back). Not one undo step.",
+  "description": "Rename/jump/delete cues (index from live_get_arrangement) and add cues (transport\nstopped). Live 12.2 puts a new cue on the nearest bar: the result gives its `time` and the\n`requested` one. A cue at that time, or alone on that bar, is reused; another cue within\nhalf a bar refuses the add. Deleting needs the local delete permission and your\nconfirmation. Adds and deletes run as an operation: poll live_get_operation only while it is\npending; ready, failed and unknown are final. Then read its result `status` (complete,\npartial, not_applied) and any `cleanup_issue` (the playhead was not put back). After\nunknown, read the cues and playhead back before any further write. Not one undo step.",
   "inputSchema": {
    "$defs": {
     "CueAdd": {
