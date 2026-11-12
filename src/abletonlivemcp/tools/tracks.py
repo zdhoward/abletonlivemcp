@@ -15,6 +15,7 @@ from ..models_control import (
     owner_kind,
 )
 from ..server import (
+    Plan,
     _call,
     _create,
     _destructive,
@@ -23,7 +24,9 @@ from ..server import (
     _read,
     _untrusted,
     clip_selector,
+    confirmed_plan,
     issue_refs,
+    planned,
     run_steps,
     unsupported,
 )
@@ -114,13 +117,15 @@ def _selector(t: StructTarget) -> dict:
     return {"kind": "device", "track": track, "path": t.path}
 
 
-def _structural(targets: list[StructTarget], routes: dict[str, str], verb: str) -> dict:
-    """Validate every target and issue every reference first, then one route call per bridge
-    method in ROUTE_ORDER (children before parents). Receipt via run_steps."""
-    for t in targets:
-        if t.kind not in routes:
-            raise unsupported(f"{verb} {t.kind}", "Live 12.2 has no API for it")
-    rows = issue_refs([{**_selector(t), "expect_name": t.expect_name} for t in targets])
+def _structural(
+    targets: list[StructTarget], routes: dict[str, str], verb: str, rows: list | None = None
+) -> dict:
+    """Validate every target and issue every reference first (or use ``rows``, references a
+    confirmation already showed), then one route call per bridge method in ROUTE_ORDER
+    (children before parents). Receipt via run_steps."""
+    _routable(targets, routes, verb)
+    if rows is None:
+        rows = issue_refs([{**_selector(t), "expect_name": t.expect_name} for t in targets])
     groups: dict[str, list[dict]] = {}
     for kind in ROUTE_ORDER:
         for t, r in zip(targets, rows, strict=True):
@@ -136,14 +141,40 @@ def _structural(targets: list[StructTarget], routes: dict[str, str], verb: str) 
     return _untrusted(run_steps(steps))
 
 
-@_destructive
-def live_delete(targets: StructTargets) -> dict:
-    """Delete tracks, returns, scenes, clips or devices (mixed). Every target needs
-    expect_name; a human confirms. Children are deleted before parents; no rollback."""
+def _routable(targets: list[StructTarget], routes: dict[str, str], verb: str) -> None:
+    for t in targets:
+        if t.kind not in routes:
+            raise unsupported(f"{verb} {t.kind}", "Live 12.2 has no API for it")
+
+
+def _check_expect_names(targets: list[StructTarget]) -> None:
     missing = [i for i, t in enumerate(targets) if t.expect_name is None]
     if missing:
         raise Invalid(f"live_delete needs expect_name on every target (missing: {missing})")
-    return _structural(targets, DELETE_ROUTES, "delete")
+
+
+@planned("live_delete")
+def _plan_delete(args: dict) -> Plan:
+    """References bound to each target object, issued (and name-checked) before asking."""
+    targets = args["targets"]
+    _check_expect_names(targets)
+    _routable(targets, DELETE_ROUTES, "delete")
+    rows = issue_refs([{**_selector(t), "expect_name": t.expect_name} for t in targets])
+    lines = []
+    for t, r in zip(targets, rows, strict=True):
+        where = ", ".join(f"{k} {v}" for k, v in _selector(t).items() if k != "kind")
+        lines.append(f"{r['kind']} {r['name']!r} ({where})")
+    return Plan(lines, {"rows": rows})
+
+
+@_destructive
+def live_delete(targets: StructTargets) -> dict:
+    """Delete tracks, returns, scenes, clips or devices (mixed). Every target needs
+    expect_name; a human confirms the objects read from Live. Children are deleted before
+    parents; no rollback."""
+    _check_expect_names(targets)
+    plan = confirmed_plan()
+    return _structural(targets, DELETE_ROUTES, "delete", plan["rows"] if plan else None)
 
 
 @_create

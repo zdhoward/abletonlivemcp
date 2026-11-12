@@ -23,13 +23,17 @@ and refuse.
 
 from __future__ import annotations
 
+import contextvars
 import functools
+import hashlib
 import inspect
+import json
 import logging
 import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Any
 
@@ -344,25 +348,95 @@ def _brief(value):
     return f"<{len(value)} items>" if isinstance(value, list) and len(value) > 8 else value
 
 
-def confirmation_message(name: str, args: dict) -> str:
-    """What the human reads: the tool, every target with its expect_name, the other arguments.
-    A tool that deletes only for some arguments also says what this call deletes."""
+@dataclass(frozen=True)
+class Plan:
+    """What a destructive call will delete, resolved in Live before the human is asked:
+    ``lines`` describe the real objects (names, times, spans) for the question, ``data`` holds
+    the references bound to exactly those objects. The write uses ``data``, so a Set changed
+    while the form was open refuses at the bridge instead of deleting something else."""
+
+    lines: list[str]
+    data: dict
+
+
+# tool name -> plan(arguments) for the deleting paths; filled by the tool modules.
+PLANS: dict[str, Callable[[dict], Plan]] = {}
+_PLAN_TTL = 900.0  # seconds a shown plan stays bindable (a form left open longer re-asks)
+_plans: dict[str, tuple[float, dict]] = {}
+_plans_lock = threading.Lock()
+_confirmed_plan: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "abletonlivemcp_confirmed_plan", default=None
+)
+
+
+def planned(tool: str):
+    """Register ``fn(arguments) -> Plan`` as the confirmation plan of ``tool``."""
+
+    def register(fn):
+        PLANS[tool] = fn
+        return fn
+
+    return register
+
+
+def confirmed_plan() -> dict | None:
+    """The plan data the human confirmed for the running call (None outside a confirmed call)."""
+    return _confirmed_plan.get()
+
+
+def _plan_key(name: str, args: dict) -> str:
+    plain = {k: _plain(v) for k, v in args.items() if k != CONFIRM_PARAM}
+    blob = json.dumps([name, plain], sort_keys=True, default=repr)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _remember_plan(name: str, args: dict, data: dict) -> None:
+    now = time.monotonic()
+    with _plans_lock:
+        for key in [k for k, (at, _d) in _plans.items() if now - at > _PLAN_TTL]:
+            del _plans[key]
+        _plans[_plan_key(name, args)] = (now, data)
+
+
+def _take_plan(name: str, args: dict) -> dict | None:
+    with _plans_lock:
+        entry = _plans.pop(_plan_key(name, args), None)
+    if entry is None or time.monotonic() - entry[0] > _PLAN_TTL:
+        return None
+    return entry[1]
+
+
+def _make_plan(name: str, args: dict) -> Plan:
+    try:
+        return PLANS[name](args)
+    except ToolError:
+        raise
+    except (Invalid, ValidationError, BridgeError) as exc:
+        raise ToolFailure(_explain(exc)) from exc
+
+
+def confirmation_message(name: str, args: dict, plan: Plan | None = None) -> str:
+    """What the human reads: the tool, the real objects this call deletes (from ``plan``, read
+    in Live), every target, the other arguments. expect_name is shown only when given."""
     args = {k: _plain(v) for k, v in args.items() if v is not None}
     key = next((k for k in ("targets", "clips", "cues") if isinstance(args.get(k), list)), None)
     targets = args.pop(key) if key else None
     lines = [f"Confirm the destructive operation {_title(name)} ({name})."]
     if name in DELETING:
         lines.append(f"This call deletes: {DELETING[name][1]}.")
+    if plan is not None:
+        lines.append("Read from Live just now, this call deletes exactly:")
+        lines += [f"- {line}" for line in plan.lines] or ["- nothing"]
+        lines.append("If any of these changes before the write, nothing is applied.")
     if isinstance(targets, list):
         lines.append(f"Targets ({len(targets)}):")
         for i, target in enumerate(targets, 1):
             if isinstance(target, dict):
-                rest = ", ".join(
-                    f"{k}={_brief(v)!r}" for k, v in target.items() if k != "expect_name"
+                lines.append(
+                    f"{i}. " + ", ".join(f"{k}={_brief(v)!r}" for k, v in target.items())
                 )
-                lines.append(f"{i}. {rest}; expect_name={target.get('expect_name')!r}")
             else:
-                lines.append(f"{i}. {target!r}; expect_name=None")
+                lines.append(f"{i}. {target!r}")
     if args:
         lines.append("Arguments: " + ", ".join(f"{k}={v!r}" for k, v in sorted(args.items())))
     lines.append("Nothing is applied unless you tick Apply and accept.")
@@ -402,7 +476,11 @@ def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
                     )
                 )
             )
-        return Elicit(confirmation_message(name, kwargs), Confirmation)
+        plan = None
+        if name in PLANS:  # bind the question to the objects it names (read now, in Live)
+            plan = _make_plan(name, kwargs)
+            _remember_plan(name, kwargs, plan.data)
+        return Elicit(confirmation_message(name, kwargs, plan), Confirmation)
 
     kw = inspect.Parameter.KEYWORD_ONLY
     ask.__name__ = f"confirm_{name}"
@@ -453,11 +531,25 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
 
     @functools.wraps(fn)
     def run(*args, **kwargs):
+        token = None
         try:
             if confirm:
                 outcome = kwargs.pop(CONFIRM_PARAM, None)
                 if always or deletes(fn.__name__, kwargs):
                     _check_confirmed(fn.__name__, outcome)
+                    if fn.__name__ in PLANS:
+                        data = _take_plan(fn.__name__, kwargs)
+                        if data is None:
+                            raise ToolFailure(
+                                _explain(
+                                    Refusal(
+                                        "confirmation_stale",
+                                        "the confirmed targets were not found (expired or "
+                                        "a different call); call again to be asked anew",
+                                    )
+                                )
+                            )
+                        token = _confirmed_plan.set(data)
             if not mutation:
                 return fn(*args, **kwargs)
             _writable(fn.__name__, kwargs)
@@ -475,6 +567,9 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
         except ValueError as exc:  # not a deliberate refusal: its text may hold private data
             _log.warning("tool %s failed: %s", fn.__name__, type(exc).__name__)
             raise ToolFailure(_withheld(exc, "tool_failed")) from exc
+        finally:
+            if token is not None:
+                _confirmed_plan.reset(token)
 
     # Publish the resolved signature (annotations evaluated in the tool's own module) so the MCP
     # library derives the input schema and, from the return annotation, the outputSchema.

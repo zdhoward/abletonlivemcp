@@ -361,20 +361,48 @@ def _items(p, key):
     return items
 
 
+_DESCRIBE = ("time", "start_time", "end_time", "length")  # what a confirmation can show
+
+
 def ref_issue(ctx, p):
-    """References for a batch of index selectors (all or nothing)."""
+    """References for a batch of index selectors (all or nothing). Each row also describes
+    the object it binds (a cue's time, a clip's span and length) so a confirmation can show
+    exactly what that reference will act on."""
     out = []
     for item in _items(p, "targets"):
         nodes = reference_nodes(ctx.song, item)
-        name = getattr(nodes[-1][1], "name", None)
-        out.append(
-            {
-                "kind": nodes[-1][0],
-                "ref": ctx.safety.issue(*nodes),
-                "name": name if isinstance(name, str) else None,
-            }
-        )
+        obj = nodes[-1][1]
+        name = getattr(obj, "name", None)
+        row = {
+            "kind": nodes[-1][0],
+            "ref": ctx.safety.issue(*nodes),
+            "name": name if isinstance(name, str) else None,
+        }
+        if nodes[-1][0] in ("cue", "clip", "arr_clip"):
+            for attr in _DESCRIBE:
+                try:
+                    value = getattr(obj, attr, None)
+                except Exception:  # noqa: BLE001 - a description is optional
+                    value = None
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    row[attr] = value
+        out.append(row)
     return {"generation": ctx.safety.generation, "refs": out}
+
+
+def confirmed_clips(ctx, refs, where, key, kind="clip"):
+    """``refs`` (clip references a confirmation showed) -> the clips they bind; a missing,
+    stale or changed one refuses as ``target_changed`` before anything is written."""
+    if not isinstance(refs, list) or not all(isinstance(r, str) for r in refs):
+        raise Invalid(f"{where}: {key!r} must be a list of clip references")
+    try:
+        return [ctx.safety.resolve(kind, r, ctx.song).obj for r in refs]
+    except Refused as exc:
+        raise Refused(
+            "target_changed",
+            f"{where}: a clip confirmed for deletion changed or is gone ({exc.code}); "
+            "nothing was applied, read again and confirm anew",
+        ) from None
 
 
 def ref_check(ctx, p):

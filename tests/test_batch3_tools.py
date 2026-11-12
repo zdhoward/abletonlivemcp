@@ -170,14 +170,24 @@ def test_create_clips_if_exists_skip_leaves_occupied_slots_alone(bridge):
     assert out["skipped"] == [{"track": 0, "scene": 0}]
 
 
-def test_create_clips_replace_is_one_bridge_call(bridge):
-    target = {"clips": [{"track": 0, "scene": 0}], "if_exists": "replace"}
+def test_create_clips_replace_writes_against_the_confirmed_occupant(bridge, monkeypatch):
+    """R3: the write reuses the references the confirmation showed; none are issued after."""
+    bridge.replies["get_clips"] = {"clips": [{"track": 0, "scene": 0, "name": "n", "length": 4}]}
+    monkeypatch.setattr(server, "_plans", {})
+    args = call_args(clips.live_create_clips, clips=[{"track": 0, "scene": 0}], if_exists="replace")
     with pytest.raises(server.ToolFailure, match="not_confirmed"):  # replace deletes: confirm
-        call(clips.live_create_clips, **target)
+        clips.live_create_clips(**args)
     yes = AcceptedElicitation(data=server.Confirmation(confirm=True))
-    clips.live_create_clips(**call_args(clips.live_create_clips, **target), confirmation=yes)
-    assert [m for m, _ in bridge.calls] == ["ref_issue", "create_clips"]  # no separate delete
-    assert bridge.last()[1]["targets"][0]["replace"] is True
+    with pytest.raises(server.ToolFailure, match="confirmation_stale"):  # nothing was shown
+        clips.live_create_clips(**args, confirmation=yes)
+    plan = server.PLANS["live_create_clips"](args)  # what the resolver reads before asking
+    assert plan.lines == ["Session clip 'n' (length None beats) at track 0, scene 0"]
+    server._remember_plan("live_create_clips", args, plan.data)
+    shown = len(bridge.calls)
+    clips.live_create_clips(**args, confirmation=yes)
+    assert [m for m, _ in bridge.calls[shown:]] == ["create_clips"]  # no new refs, no delete
+    (target,) = bridge.last()[1]["targets"]
+    assert target["replace"] is True and target["expect_clip"] == "R0"
 
 
 def test_automation_parameter_by_name_resolves_to_its_index(bridge):

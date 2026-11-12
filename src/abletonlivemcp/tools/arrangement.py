@@ -9,6 +9,7 @@ from pydantic import Field
 from ..models import ResponseFormat, TrackSel
 from ..models_clips import ArrangementEdit, CueAdd, CueEdit, NewArrangementClip, Span
 from ..server import (
+    Plan,
     _call,
     _create,
     _generation,
@@ -16,7 +17,9 @@ from ..server import (
     _read,
     _untrusted,
     clip_selector,
+    confirmed_plan,
     issue_refs,
+    planned,
     shape,
 )
 from .clips import fields
@@ -53,6 +56,36 @@ def live_get_arrangement(
     return _untrusted(out)
 
 
+@planned("live_create_arrangement_clips")
+def _plan_replace(args: dict) -> Plan:
+    """replace=True: track references plus references to the clips each target deletes."""
+    clips = args["clips"]
+    tracks = issue_refs([{"kind": "track", "track": c.track} for c in clips])
+    expect: list[list[str] | None] = []
+    lines: list[str] = []
+    for c in clips:
+        if not (c.replace and c.kind == "from_session" and c.scene is not None):
+            expect.append(None)  # nothing replaced here (the bridge refuses a bad replace)
+            continue
+        (source,) = _call("get_clips", {"clips": [{"track": c.track, "scene": c.scene}]})["clips"]
+        if source.get("empty") or not isinstance(source.get("length"), int | float):
+            expect.append(None)
+            continue
+        end = c.start + float(source["length"])
+        (row,) = _call("get_arrangement", {"tracks": [c.track], "include": ["clips"]})["tracks"]
+        hits = [k for k in row.get("clips", ()) if k["start"] < end and k["end"] > c.start]
+        found = issue_refs(
+            [{"kind": "arr_clip", "track": c.track, "arrangement": k["arrangement"]} for k in hits]
+        )
+        expect.append([r["ref"] for r in found])
+        lines += [
+            f"arrangement clip {r['name']!r} at beats {r.get('start_time')}-{r.get('end_time')}"
+            f" on track {c.track}"
+            for r in found
+        ]
+    return Plan(lines, {"tracks": tracks, "expect": expect})
+
+
 @_create
 def live_create_arrangement_clips(clips: list[NewArrangementClip]) -> dict:
     """New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;
@@ -61,8 +94,17 @@ def live_create_arrangement_clips(clips: list[NewArrangementClip]) -> dict:
     direct arrangement envelope reads are unavailable. replace=True deletes only clips wholly
     inside the destination span (needs the local delete permission and your confirmation).
     Take lanes refuse on 12.2."""
-    refs = issue_refs([{"kind": "track", "track": c.track} for c in clips])
+    plan = None
+    if any(c.replace for c in clips):  # the confirmed clips (or, unconfirmed, read now)
+        plan = confirmed_plan() or _plan_replace({"clips": clips}).data
+        refs = plan["tracks"]
+    else:
+        refs = issue_refs([{"kind": "track", "track": c.track} for c in clips])
     targets = [{"ref": r["ref"], **fields(c, ("track",))} for r, c in zip(refs, clips, strict=True)]
+    if plan is not None:
+        for target, expect in zip(targets, plan["expect"], strict=True):
+            if expect is not None:
+                target["expect_replace"] = expect
     return _call("create_arrangement_clips", {"targets": targets})
 
 
@@ -78,13 +120,30 @@ def live_edit_arrangement_clips(targets: list[ArrangementEdit]) -> dict:
     return _call("edit_arrangement_clips", {"targets": items})
 
 
+@planned("live_set_cue_points")
+def _plan_cues(args: dict) -> Plan:
+    """Cue references, issued now, bound to each cue's object and time."""
+    cues = args.get("cues") or []
+    refs = issue_refs([{"kind": "cue", "cue": c.cue} for c in cues]) if cues else []
+    lines = [
+        f"cue {r['name']!r} at beat {r.get('time')} (index {c.cue})"
+        for r, c in zip(refs, cues, strict=True)
+        if c.action == "delete"
+    ]
+    return Plan(lines, {"refs": refs})
+
+
 @_overwrite
 def live_set_cue_points(cues: list[CueEdit] | None = None, add: list[CueAdd] | None = None) -> dict:
     """Rename/jump/delete cues (index from live_get_arrangement) and add cues at exact times
     (transport stopped; an existing cue there is reused). Deleting needs the local delete
     permission and your confirmation. Adds and deletes run as an operation: poll
     live_get_operation until ready."""
-    refs = issue_refs([{"kind": "cue", "cue": c.cue} for c in cues]) if cues else []
+    plan = confirmed_plan()  # deletes: the cues the human confirmed
+    if plan is not None:
+        refs = plan["refs"]
+    else:
+        refs = issue_refs([{"kind": "cue", "cue": c.cue} for c in cues]) if cues else []
     params: dict = {
         "cues": [
             {"cue": r["ref"], **fields(c, ("cue",))} for r, c in zip(refs, cues or [], strict=True)

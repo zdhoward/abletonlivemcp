@@ -31,6 +31,7 @@ from .dom_common import (
     _index,
     _number,
     _same,
+    confirmed_clips,
     flag,
     has_arrangement_clips,
     owner_node,
@@ -261,6 +262,18 @@ def create_arrangement_clips(ctx, p, t):
             require(ctx, "arrangement.delete_clip", ((track, "delete_clip"),))
             if any(c.start_time < start or c.end_time > end for c in overlaps):
                 raise Invalid(f"{where}: replace refuses clips outside the destination")
+            expected = item.get("expect_replace")
+            if expected is None and overlaps:
+                raise Invalid(f"{where}: replace needs 'expect_replace' (the clips' references)")
+            bound = confirmed_clips(ctx, expected or [], where, "expect_replace", "arr_clip")
+            if len(bound) != len(overlaps) or not all(
+                any(_same(c, b) for b in bound) for c in overlaps
+            ):
+                raise Refused(
+                    "target_changed",
+                    f"{where}: the clips in the destination are not the ones confirmed for "
+                    "deletion; nothing was applied",
+                )
             prepared["replace"] = overlaps
         collision = any(s < end and e > start for s, e in reserved)
         if (overlaps and not replace) or collision:

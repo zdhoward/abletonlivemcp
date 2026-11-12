@@ -25,11 +25,13 @@ class DeleteTarget(BatchTarget):
     track: TrackSel
 
 
-def _surface(applied: list, monkeypatch) -> MCPServer:
+def _surface(applied: list, monkeypatch, seen: list | None = None) -> MCPServer:
     monkeypatch.setattr(server, "_writable", lambda *_args: None)
 
     def live_fake_delete(targets: list[DeleteTarget], keep_empty: bool = False) -> dict:
         """Remove tracks (test double)."""
+        if seen is not None:
+            seen.append(server.confirmed_plan())
         applied.append([t.track for t in targets])
         return {"applied": [t.track for t in targets]}
 
@@ -64,6 +66,28 @@ def _answer(action, content=None, asked=None):
 
 
 @pytest.mark.parametrize("mode", MODES)
+def test_the_question_names_live_objects_and_the_write_uses_them(mode, monkeypatch):
+    """R3: the plan read in Live before asking is what the human sees and what the write
+    receives (bound references), in the legacy and the input-required flows."""
+    reads, seen = [], []
+
+    def plan(args):
+        reads.append(len(args["targets"]))
+        return server.Plan(["track 'Bass' (track 2)"], {"rows": ["ref-shown"]})
+
+    monkeypatch.setitem(server.PLANS, "live_fake_delete", plan)
+    monkeypatch.setattr(server, "_plans", {})
+    applied, asked = [], []
+    result = _call(
+        _surface(applied, monkeypatch, seen), mode, _answer("accept", {"confirm": True}, asked)
+    )
+    assert not result.is_error, _text(result)
+    assert "deletes exactly:\n- track 'Bass' (track 2)" in asked[-1].message
+    assert applied == [[2, "return:0"]] and reads and seen == [{"rows": ["ref-shown"]}]
+    assert server._plans == {}  # consumed by the write, never reused
+
+
+@pytest.mark.parametrize("mode", MODES)
 def test_accept_lists_targets_and_applies(mode, monkeypatch):
     applied, asked = [], []
     result = _call(
@@ -73,8 +97,8 @@ def test_accept_lists_targets_and_applies(mode, monkeypatch):
     assert applied == [[2, "return:0"]]
     (params,) = asked
     assert params.mode == "form"
-    assert "1. track=2; expect_name='Bass'" in params.message
-    assert "2. track='return:0'; expect_name=None" in params.message
+    assert "1. expect_name='Bass', track=2" in params.message
+    assert "2. track='return:0'" in params.message and "expect_name=None" not in params.message
     assert "keep_empty=False" in params.message
     assert set(params.requested_schema["properties"]) == {"confirm"}
 

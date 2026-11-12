@@ -16,12 +16,14 @@ from .dom_common import (
     SUPPORTED,
     UNVERIFIED,
     WRITE,
+    Refused,
     _index,
     _note_specification,
     _number,
     _same,
     _slot,
     clip_address_nodes,
+    confirmed_clips,
     flag,
     for_deletion,
     owner_node,
@@ -362,6 +364,18 @@ def create_clips(ctx, p, t):
         kind = item.get("kind", "midi")
         prepared = {"slot": slot, "track": track, "kind": kind, "notes": ()}
         prepared["replace"] = slot.has_clip and replace
+        if replace:  # bound to the clip a confirmation showed, never just to the slot
+            expected = item.get("expect_clip")
+            if expected is None and slot.has_clip:
+                raise Invalid(f"{where}: replace needs 'expect_clip' (the occupant's reference)")
+            if expected is not None:
+                (clip,) = confirmed_clips(ctx, [expected], where, "expect_clip")
+                if not (slot.has_clip and _same(slot.clip, clip)):
+                    raise Refused(
+                        "target_changed",
+                        f"{where}: the slot no longer holds the clip confirmed for deletion; "
+                        "nothing was applied",
+                    )
         if kind == "midi":
             if not track.has_midi_input:
                 raise Invalid(f"{where}: a MIDI clip needs a MIDI track")

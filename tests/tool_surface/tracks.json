@@ -170,7 +170,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Delete tracks, returns, scenes, clips or devices (mixed). Every target needs\nexpect_name; a human confirms. Children are deleted before parents; no rollback.",
+  "description": "Delete tracks, returns, scenes, clips or devices (mixed). Every target needs\nexpect_name; a human confirms the objects read from Live. Children are deleted before\nparents; no rollback.",
   "inputSchema": {
    "$defs": {
     "ClipAddr": {

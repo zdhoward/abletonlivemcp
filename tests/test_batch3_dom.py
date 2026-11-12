@@ -204,6 +204,13 @@ class Track:
         self.arrangement_clips.remove(clip)
 
 
+class CopyTrack(Track):
+    """A track whose Live has duplicate_clip_to_arrangement (the plain fake has none)."""
+
+    def duplicate_clip_to_arrangement(self, clip, start):
+        self.arrangement_clips.append(Clip(clip.length, start=start))
+
+
 class Cue:
     def __init__(self, time, name=""):
         self.time, self.name = time, name
@@ -323,12 +330,45 @@ def test_create_clips_replace_validates_everything_before_deleting(env):
     a, b = refs(
         dispatch, {"kind": "slot", "track": 0, "scene": 0}, {"kind": "slot", "track": 1, "scene": 0}
     )
+    ka, kb = refs(
+        dispatch, {"kind": "clip", "track": 0, "scene": 0}, {"kind": "clip", "track": 1, "scene": 0}
+    )
     # a MIDI clip on the audio track refuses: neither occupied slot loses its clip
-    targets = [{"ref": a["ref"], "replace": True}, {"ref": b["ref"], "replace": True}]
+    targets = [
+        {"ref": a["ref"], "replace": True, "expect_clip": ka["ref"]},
+        {"ref": b["ref"], "replace": True, "expect_clip": kb["ref"]},
+    ]
     bad(dispatch, "create_clips", {"targets": targets}, "MIDI track")
     assert song.tracks[0].clip_slots[0].clip is keys and song.tracks[1].clip_slots[0].clip is old
     out = ok(dispatch("create_clips", {"targets": targets[:1]}))
     assert out["applied"][0]["replaced"] == "clip" and song.tracks[0].clip_slots[0].clip is not keys
+
+
+def test_replace_is_bound_to_the_confirmed_clips(env):
+    """R3: a replace names the clips it may delete; a different occupant refuses."""
+    song, dispatch = env
+    keys = midi_clip(song)
+    (slot,) = refs(dispatch, {"kind": "slot", "track": 0, "scene": 0})
+    (shown,) = refs(dispatch, {"kind": "clip", "track": 0, "scene": 0})
+    target = {"ref": slot["ref"], "replace": True}
+    bad(dispatch, "create_clips", {"targets": [target]}, "needs 'expect_clip'")
+    song.tracks[0].clip_slots[0].clip = other = Clip(4.0)  # swapped while the form was open
+    out = dispatch("create_clips", {"targets": [{**target, "expect_clip": shown["ref"]}]})
+    assert out["code"] == "target_changed" and song.tracks[0].clip_slots[0].clip is other
+    assert keys is not other
+    # arrangement: the destination must hold exactly the confirmed clips
+    song.tracks[0].__class__ = CopyTrack
+    song.tracks[0].clip_slots[0].clip = Clip(4.0)
+    song.tracks[0].arrangement_clips.append(arr := Clip(4.0, start=8.0))
+    (track,) = refs(dispatch, {"kind": "track", "track": 0})
+    (old,) = refs(dispatch, {"kind": "arr_clip", "track": 0, "arrangement": 0})
+    copy = {"ref": track["ref"], "kind": "from_session", "scene": 0, "start": 8, "replace": True}
+    bad(dispatch, "create_arrangement_clips", {"targets": [copy]}, "needs 'expect_replace'")
+    out = dispatch("create_arrangement_clips", {"targets": [{**copy, "expect_replace": []}]})
+    assert out["code"] == "target_changed" and song.tracks[0].arrangement_clips == [arr]
+    bound = {**copy, "expect_replace": [old["ref"]]}
+    out = dispatch("create_arrangement_clips", {"targets": [bound]})
+    assert ok(out)["applied"][0]["start"] == 8.0 and arr not in song.tracks[0].arrangement_clips
 
 
 def test_replace_flag_is_strict_at_the_gate_and_needs_delete(env):

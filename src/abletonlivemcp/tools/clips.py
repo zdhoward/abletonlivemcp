@@ -10,7 +10,19 @@ from typing import Literal
 
 from ..models import ClipRef, ResponseFormat, TrackSel
 from ..models_clips import ClipEdit, NewClip
-from ..server import _call, _create, _overwrite, _read, _untrusted, clip_selector, issue_refs, shape
+from ..server import (
+    Plan,
+    _call,
+    _create,
+    _overwrite,
+    _read,
+    _untrusted,
+    clip_selector,
+    confirmed_plan,
+    issue_refs,
+    planned,
+    shape,
+)
 
 CONCISE = ("track", "scene", "arrangement", "name", "kind", "length", "start", "is_playing")
 CONCISE += ("empty",)
@@ -55,6 +67,21 @@ def _occupied(clips: list[NewClip]) -> set[tuple[int, int]]:
     return found
 
 
+@planned("live_create_clips")
+def _plan_replace(args: dict) -> Plan:
+    """if_exists='replace': slot references plus a reference to each occupant to delete."""
+    clips = args["clips"]
+    slots = issue_refs([{"kind": "slot", "track": c.track, "scene": c.scene} for c in clips])
+    occupied = sorted(_occupied(clips))
+    rows = issue_refs([{"kind": "clip", "track": t, "scene": s} for t, s in occupied])
+    lines = [
+        f"Session clip {r['name']!r} (length {r.get('length')} beats) at track {t}, scene {s}"
+        for (t, s), r in zip(occupied, rows, strict=True)
+    ]
+    occupants = {key: r["ref"] for key, r in zip(occupied, rows, strict=True)}
+    return Plan(lines, {"slots": slots, "occupants": occupants})
+
+
 @_create
 def live_create_clips(
     clips: list[NewClip], if_exists: Literal["error", "skip", "replace"] = "error"
@@ -76,12 +103,21 @@ def live_create_clips(
             "status": "complete", "items": [], "stopped_at": None, "error": None,
             "applied": [], "skipped": skipped,
         }  # fmt: skip
-    refs = issue_refs([{"kind": "slot", "track": c.track, "scene": c.scene} for c in clips])
-    extra = {"replace": True} if if_exists == "replace" else {}
-    targets = [
-        {"ref": r["ref"], **fields(c, ("track", "scene")), **extra}
-        for r, c in zip(refs, clips, strict=True)
-    ]
+    plan = None
+    if if_exists == "replace":  # the confirmed occupants (or, unconfirmed, read now)
+        plan = confirmed_plan() or _plan_replace({"clips": clips}).data
+        refs = plan["slots"]
+    else:
+        refs = issue_refs([{"kind": "slot", "track": c.track, "scene": c.scene} for c in clips])
+    targets = []
+    for r, c in zip(refs, clips, strict=True):
+        target = {"ref": r["ref"], **fields(c, ("track", "scene"))}
+        if plan is not None:
+            target["replace"] = True
+            occupant = plan["occupants"].get((c.track, c.scene))
+            if occupant is not None:
+                target["expect_clip"] = occupant
+        targets.append(target)
     receipt = _call("create_clips", {"targets": targets})
     return {**receipt, "skipped": skipped} if skipped else receipt
 
