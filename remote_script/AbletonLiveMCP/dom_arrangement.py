@@ -9,6 +9,8 @@ observe the playhead, toggle on a later tick, observe the cue at the exact time)
 ``current_song_time`` applies late and ``set_or_delete_cue`` acts at the playhead.
 """
 
+import re
+
 from .core import Invalid
 from .dom_clips import (
     MAX_NEW_LENGTH,
@@ -46,7 +48,9 @@ CAPABILITIES = {
 }
 
 CLIP_ROWS = 256
-SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with next_track)
+SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with cursor)
+# generation . track count . track . rows of that track already read . fingerprint of its rows
+_CURSOR = re.compile(r"(\d{1,12})\.(\d{1,5})\.(\d{1,5})\.(\d{1,7})\.([0-9a-f]{12}|-)")
 CUE_ACTIONS = 8  # adds + deletes per call (one bounded operation)
 EPS = 1e-6
 MAX_TIME = 16384.0
@@ -59,6 +63,60 @@ def _sorted_clips(parent):
 
 def _in_range(clip, span):
     return span is None or (clip.end_time > span[0] and clip.start_time < span[1])
+
+
+def _track_rows(track, include, span):
+    """A track's in-range clip rows in reading order: its own clips, then each take lane's.
+    Returns ``(rows, lane_names)``; a row is ``(lane index or None, clip index, clip)``."""
+    rows, lanes = [], []
+    if "clips" in include:
+        rows += [(None, i, c) for i, c in enumerate(_sorted_clips(track)) if _in_range(c, span)]
+    if "take_lanes" in include:
+        for k, lane in enumerate(list(getattr(track, "take_lanes", None) or ())):
+            lanes.append(lane.name)
+            rows += [(k, i, c) for i, c in enumerate(_sorted_clips(lane)) if _in_range(c, span)]
+    return rows, lanes
+
+
+def _fingerprint(rows):
+    """Identifies a track's rows between pages: a continuation refuses when it changed."""
+    # hash() of numbers is not salted, and a cursor only lives as long as this Live process
+    key = tuple((k, round(c.start_time, 6), round(c.end_time, 6)) for k, _i, c in rows)
+    return format(hash((len(key), key)) & 0xFFFFFFFFFFFF, "012x")
+
+
+def _cursor(ctx, count, track, skip, rows):
+    fp = _fingerprint(rows) if skip else "-"
+    return f"{ctx.safety.generation}.{count}.{track}.{skip}.{fp}"
+
+
+def _read_cursor(ctx, value, count):
+    """``(track, skip, fingerprint)`` from a cursor this reader issued for the current Set."""
+    if not isinstance(value, str) or len(value) > 64:
+        raise Invalid("'cursor' must be the cursor string of a previous reply")
+    match = _CURSOR.fullmatch(value)
+    if match is None:
+        raise Invalid("'cursor' must be the cursor string of a previous reply")
+    gen, was, track, skip, fp = match.groups()
+    if int(gen) != ctx.safety.generation or int(was) != count or int(track) >= count:
+        raise Refused("stale_cursor", "the Set changed since that page; read again from the start")
+    return int(track), int(skip), fp
+
+
+def _emit(sel, track, picked, include, lanes):
+    row = {"track": sel, "name": track.name}
+    if "clips" in include:
+        row["clips"] = [{"arrangement": i, **clip_row(c)} for k, i, c in picked if k is None]
+    if "take_lanes" in include:
+        row["take_lanes"] = [
+            {
+                "take_lane": k,
+                "name": name,
+                "clips": [{"arrangement": i, **clip_row(c)} for kk, i, c in picked if kk == k],
+            }
+            for k, name in enumerate(lanes)
+        ]
+    return row
 
 
 def get_arrangement(ctx, p):
@@ -79,70 +137,63 @@ def get_arrangement(ctx, p):
     if "cues" in include:
         cues = sorted(song.cue_points, key=lambda c: c.time)
         out["cues"] = [{"cue": i, "time": c.time, "name": c.name} for i, c in enumerate(cues)]
-    # Explicit `tracks`: at most BATCH_LIMIT selectors. Omitted: a whole-Set scan from
-    # `next_track` (default 0), bounded by the clip-row budget and SCAN_TRACKS track rows; it
-    # returns `next_track` (the first track not fully read) when there is more to read.
-    sels, start_at = p.get("tracks"), p.get("next_track")
+    # Explicit `tracks`: at most BATCH_LIMIT selectors, CLIP_ROWS rows (``truncated`` when cut).
+    # Omitted: a whole-Set read in pages of CLIP_ROWS rows and SCAN_TRACKS track rows; a page
+    # that stops early returns `cursor`, and calling again with it continues exactly there, even
+    # inside one track (that row then says ``partial``). Never a row lost or repeated: a cursor
+    # is refused when the Set, its track count or the cut track's clips changed in between.
+    sels, cursor = p.get("tracks"), p.get("cursor")
     scan = sels is None
+    count = len(song.tracks)
+    start_at, skip, fp = 0, 0, "-"
     if scan:
-        count = len(song.tracks)
-        start_at = 0 if start_at is None else _index(start_at, "next_track", count)
+        if cursor is not None:
+            start_at, skip, fp = _read_cursor(ctx, cursor, count)
         sels = list(range(start_at, min(count, start_at + SCAN_TRACKS)))
-    elif start_at is not None:
-        raise Invalid("'next_track' continues a whole-Set read; do not combine it with 'tracks'")
+    elif cursor is not None:
+        raise Invalid("'cursor' continues a whole-Set read; do not combine it with 'tracks'")
     if not isinstance(sels, list) or (not scan and len(sels) > BATCH_LIMIT):
         raise Invalid(f"'tracks' must be a list of at most {BATCH_LIMIT} track selectors")
-    rows, budget, truncated = [], CLIP_ROWS, False
-
-    def clips_of(parent):
-        nonlocal budget, truncated
-        found = []
-        for i, c in enumerate(_sorted_clips(parent)):
-            if not _in_range(c, span):
-                continue
-            if budget <= 0:
-                truncated = True
-                break
-            budget -= 1
-            found.append({"arrangement": i, **clip_row(c)})
-        return found
-
-    if "clips" in include or "take_lanes" in include:
-        next_track = sels[-1] + 1 if scan and sels and sels[-1] + 1 < len(song.tracks) else None
-        for sel in sels:
-            kind, track, _snap = owner_node(song, sel)
-            if kind != "track":
-                continue  # return/master tracks have no arrangement clips
-            if scan and budget <= 0:
-                next_track = sel  # this track was not read at all
-                break
-            row = {"track": sel, "name": track.name}
-            if not has_arrangement_clips(track):
-                row["group"] = True  # clips live on its member tracks
+    if not ("clips" in include or "take_lanes" in include):
+        return out
+    rows, budget, truncated, nxt = [], CLIP_ROWS, False, None
+    for n, sel in enumerate(sels):
+        kind, track, _snap = owner_node(song, sel)
+        if kind != "track":
+            continue  # return/master tracks have no arrangement clips
+        if not has_arrangement_clips(track):
+            rows.append({"track": sel, "name": track.name, "group": True})  # clips on members
+            continue
+        items, lanes = _track_rows(track, include, span)
+        done = skip if scan and n == 0 else 0
+        if done and _fingerprint(items) != fp:
+            raise Refused(
+                "stale_cursor",
+                f"track {sel} changed since that page; read again from the start",
+            )
+        left = items[done:]
+        if scan and budget <= 0 and left:
+            nxt = _cursor(ctx, count, sel, done, items)  # this track's rest: next page
+            break
+        picked = left[:budget]
+        budget -= len(picked)
+        row = _emit(sel, track, picked, include, lanes)
+        if len(picked) < len(left):
+            truncated = True
+            if scan:
+                row["partial"] = True
                 rows.append(row)
-                continue
-            if "clips" in include:
-                row["clips"] = clips_of(track)
-            if "take_lanes" in include:
-                lanes = list(getattr(track, "take_lanes", None) or ())
-                row["take_lanes"] = [
-                    {"take_lane": k, "name": lane.name, "clips": clips_of(lane)}
-                    for k, lane in enumerate(lanes)
-                ]
-            rows.append(row)
-            if scan and truncated:
-                # cut inside this track: read it again next time, unless it alone overflows
-                nxt = sel if sel != sels[0] else sel + 1
-                next_track = nxt if nxt < len(song.tracks) else None
+                nxt = _cursor(ctx, count, sel, done + len(picked), items)
                 break
-        out["tracks"] = rows
-        out["truncated"] = truncated
-        if next_track is not None:
-            out["next_track"] = next_track
+        rows.append(row)
+    else:
+        if scan and sels and sels[-1] + 1 < count:
+            nxt = _cursor(ctx, count, sels[-1] + 1, 0, ())
+    out["tracks"] = rows
+    out["truncated"] = truncated
+    if nxt is not None:
+        out["cursor"] = nxt
     return out
-
-
-# ---- clips --------------------------------------------------------------------------------------
 
 
 def _overlaps(parent, start, end):

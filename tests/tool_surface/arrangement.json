@@ -511,9 +511,13 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows max (truncated). Without `tracks` it\nreads the whole Set; when a reply has next_track, call again with it to continue. Group\ntracks hold no clips: their rows say group: true.",
+  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows per reply. With `tracks`, a longer read\nis cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`,\ncall again with it (same other arguments) to continue exactly there, even inside a track\n(that row says partial). A stale cursor is refused. Group tracks: rows say group: true.",
   "inputSchema": {
    "properties": {
+    "cursor": {
+     "maxLength": 64,
+     "type": "string"
+    },
     "include": {
      "items": {
       "enum": [
@@ -524,10 +528,6 @@
       "type": "string"
      },
      "type": "array"
-    },
-    "next_track": {
-     "minimum": 0,
-     "type": "integer"
     },
     "range": {
      "items": {
@@ -579,14 +579,14 @@
       "current_song_time": {
        "type": "number"
       },
+      "cursor": {
+       "type": "string"
+      },
       "loop": {
        "items": {
         "type": "number"
        },
        "type": "array"
-      },
-      "next_track": {
-       "type": "integer"
       },
       "song_length": {
        "type": "number"

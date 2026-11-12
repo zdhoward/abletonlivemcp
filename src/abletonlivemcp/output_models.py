@@ -320,7 +320,7 @@ class Arrangement(TypedDict):
     cues: NotRequired[list[Row]]
     tracks: NotRequired[list[Row]]
     truncated: NotRequired[bool]
-    next_track: NotRequired[int]  # whole-Set read: continue from this track
+    cursor: NotRequired[str]  # whole-Set read: pass back to continue exactly here
 
 
 @open_output

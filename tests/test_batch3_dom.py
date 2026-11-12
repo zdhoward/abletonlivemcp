@@ -514,16 +514,65 @@ def test_group_track_is_marked_in_a_whole_set_read_and_refused_as_a_reference(en
     bad(dispatch, "ref_issue", {"targets": [sel]}, "a group track has no arrangement clips")
 
 
+def read_all(dispatch, **params):
+    """Every whole-Set page: ``(pages, [(track, clip index)...] in reading order)``."""
+    pages, seen, cursor = [], [], None
+    while True:
+        page = dispatch(
+            "get_arrangement",
+            {"include": ["clips"], **params, **({"cursor": cursor} if cursor else {})},
+        )
+        pages.append(page)
+        seen += [(r["track"], c["arrangement"]) for r in page["tracks"] for c in r["clips"]]
+        cursor = page.get("cursor")
+        if cursor is None:
+            return pages, seen
+
+
 def test_whole_set_read_pages_past_64_tracks(env):
     song, dispatch = env
     song.tracks = [Track(f"T{i}") for i in range(70)]
-    for t in song.tracks:  # 4 clips per track: the 256-row budget ends inside track 64
+    for t in song.tracks:  # 4 clips per track: the 256-row budget ends exactly after track 63
         t.arrangement_clips = [Clip(1.0, start=float(k)) for k in range(4)]
+    pages, seen = read_all(dispatch)
+    assert [len(p["tracks"]) for p in pages] == [64, 6] and not pages[0]["truncated"]
+    assert seen == [(t, k) for t in range(70) for k in range(4)]  # nothing lost or repeated
+
+
+def test_a_track_denser_than_one_page_continues_inside_it(env):
+    """R7: the old next_track skipped the rest of a track holding more than 256 clips."""
+    song, dispatch = env
+    song.tracks = [Track("Dense"), Track("After")]
+    song.tracks[0].arrangement_clips = [Clip(1.0, start=float(k)) for k in range(300)]
+    song.tracks[1].arrangement_clips = [Clip(1.0, start=0.0)]
+    pages, seen = read_all(dispatch)
+    assert seen == [(0, k) for k in range(300)] + [(1, 0)]
+    assert pages[0]["tracks"][0]["partial"] is True and len(pages) == 2
+    # the cut track changed before the next page: refused, never a silent skip or repeat
     first = dispatch("get_arrangement", {"include": ["clips"]})
-    assert len(first["tracks"]) == 64 and first["truncated"] is False, first.get("next_track")
-    assert first["next_track"] == 64
-    rest = dispatch("get_arrangement", {"include": ["clips"], "next_track": 64})
-    assert [r["track"] for r in rest["tracks"]] == list(range(64, 70)) and "next_track" not in rest
+    song.tracks[0].arrangement_clips.pop(0)
+    out = dispatch("get_arrangement", {"include": ["clips"], "cursor": first["cursor"]})
+    assert out["code"] == "stale_cursor"
+    song.tracks.append(Track("New"))  # so does a changed track count
+    out = dispatch("get_arrangement", {"include": ["clips"], "cursor": first["cursor"]})
+    assert out["code"] == "stale_cursor"
+    bad(dispatch, "get_arrangement", {"cursor": "nope"}, "'cursor' must be")
+
+
+def test_the_cursor_continues_through_take_lanes(env):
+    song, dispatch = env
+    lane = types.SimpleNamespace(name="Take 1")
+    lane.arrangement_clips = [Clip(1.0, start=float(k)) for k in range(10)]
+    song.tracks = [Track("Comp")]
+    song.tracks[0].arrangement_clips = [Clip(1.0, start=float(k)) for k in range(250)]
+    song.tracks[0].take_lanes = [lane]
+    p = {"include": ["clips", "take_lanes"]}
+    first = dispatch("get_arrangement", p)
+    rest = dispatch("get_arrangement", {**p, "cursor": first["cursor"]})
+    lanes = [r["take_lanes"][0]["clips"] for r in (first["tracks"][0], rest["tracks"][0])]
+    assert [len(x) for x in lanes] == [6, 4] and "cursor" not in rest
+    assert [c["arrangement"] for c in lanes[0] + lanes[1]] == list(range(10))
+    assert rest["tracks"][0]["clips"] == []
 
 
 def test_cue_add_is_asynchronous_and_exact(env):

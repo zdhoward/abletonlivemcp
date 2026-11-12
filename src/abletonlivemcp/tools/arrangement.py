@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from ..models import Index, ResponseFormat, TrackSel
+from pydantic import Field
+
+from ..models import ResponseFormat, TrackSel
 from ..models_clips import ArrangementEdit, CueAdd, CueEdit, NewArrangementClip, Span
 from ..server import (
     _call,
@@ -29,17 +31,18 @@ def live_get_arrangement(
     range: Span | None = None,  # noqa: A002 - the planned parameter name
     include: list[Part] | None = None,
     response_format: ResponseFormat = "concise",
-    next_track: Index | None = None,
+    cursor: Annotated[str, Field(max_length=64)] | None = None,
 ) -> dict:
     """Arrangement clips per track (index = order by start), take lanes, cue points (index =
-    order by time), song length and loop. 256 clip rows max (truncated). Without `tracks` it
-    reads the whole Set; when a reply has next_track, call again with it to continue. Group
-    tracks hold no clips: their rows say group: true."""
+    order by time), song length and loop. 256 clip rows per reply. With `tracks`, a longer read
+    is cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`,
+    call again with it (same other arguments) to continue exactly there, even inside a track
+    (that row says partial). A stale cursor is refused. Group tracks: rows say group: true."""
     params = {"include": include or ["clips", "cues"]}
     if tracks is not None:
         params["tracks"] = tracks
-    if next_track is not None:
-        params["next_track"] = next_track
+    if cursor is not None:
+        params["cursor"] = cursor
     if range is not None:
         params["range"] = range
     out = _call("get_arrangement", params)
