@@ -8,6 +8,40 @@ minor version once the first public release is tagged.
 
 Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live.
 
+- Fix: on MCP 2026-07-28 clients, a confirmation could approve objects other than the ones it
+  showed. Resuming after the answer read the targets again, so a track replaced by another
+  with the same name while the form was open was deleted and reported complete. Each
+  question now carries a single-use approval (expires after 10 minutes, at most 64 open) bound
+  to the tool, its arguments and the targets read before asking. The write uses exactly
+  those targets, so a replacement is refused `stale_target` (not applied) on both protocol
+  versions.
+- Fix: note limits now fit the bridge's signed frame (16,384 JSON values). The old limits
+  allowed requests the bridge could not carry: 1000-row reads failed `ReplyTooLarge`, and
+  2000-note writes could not be encoded. `live_get_notes` pages at most 500 notes. A write
+  takes at most 400 notes in all, also summed across the clips of one
+  `live_create_clips`/`live_create_arrangement_clips` call. `modify` takes at most 200
+  rows and each id list at most 500. MIDI import keeps the first 1000 notes, and
+  `live_export_midi` reads 500-note pages. An oversized request is refused
+  `RequestTooLarge` before anything is sent.
+- Removed: `live_record` action `trigger_session_record`. It could run unbounded (no length,
+  or up to 1024 beats), outside the operation registry and the one-recording guard. Use the
+  bounded `session_record` switch.
+- Fix: when a bounded recording ends, every cleanup step runs even if an earlier one fails.
+  A failed record-switch restore no longer leaves the transport playing. The result lists
+  each step under `cleanup` and reads the state back under `restored`.
+- Fix: `live_edit_notes` checks `duplicate_region` against the notes as the earlier edits
+  leave them. Before, modifying a note to pitch 127 and duplicating it transposed +1 applied
+  the modify and then failed.
+- Dev only: a `ref_lab` cue that Live placed at another time is reported
+  `applied_mismatch` (it exists), not as a not-applied refusal.
+- The real-Live write ledger records the build each result ran on: git revision, Remote
+  Script build, Live version, environment roots and a hash of the scenario. `--only` reruns
+  go to separate files and merge only results from the same build. The scratch write policy
+  restores `bridge.json` byte for byte.
+- Docs: saving and reopening a Set is not qualified by this server (the Live 12.2 API cannot
+  save or open a Set). Validation lists the qualified build and the measured paging cost of
+  dense clips.
+
 - Fix: `live_get_arrangement` failed with a bare `HandlerError` whenever the read included a
   group track, which every whole-Set read does. Group rows now say `group: true`, and an
   arrangement-clip reference or placement on a group track refuses with a readable message.

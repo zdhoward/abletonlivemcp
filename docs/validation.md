@@ -5,6 +5,54 @@ versions and operating systems have not been qualified against a running DAW.
 
 What has been checked, newest first:
 
+- **Unreleased, review round 5 (2026-11-12, Live 12.2.0, disposable Basic Set, never saved).**
+  Qualified build: git `c3db845` (clean tree), Remote Script 0.11.0 build
+  `sha256:f8097f8b0e94c3b7` (matches the host), reinstalled before the runs.
+  - Full write ledger (`scripts/live_v2_final.py`, one full run, no `--only` merge) covered
+    37 scenarios and every registered tool. 34 passed and 3 were explicit `unsupported`
+    (`dev-extras`, `dev-fx-rack`, `dev-drums`, as in round 4). None failed or blocked, with
+    no coverage gaps. `ABLETONLIVEMCP_FILE_ROOTS` and `ABLETONLIVEMCP_ALS_ROOTS` were set.
+    Every row records this build, Live's version, the environment roots and its scenario
+    hash.
+  - Confirmation bound to the shown plan, through a real MCP client against Live in both
+    the legacy and input-required (2026-07-28) flows. While the form was open, the confirmed
+    track was replaced by a same-named track at the same index. `live_delete` refused
+    `stale_target` (not applied) and the replacement remained. The question was asked once
+    and carried its approval token.
+  - Paging cost (median of 3 calls; one bridge round trip measured ~2.1 s this session for
+    `session_info`):
+
+    | Read | Latency |
+    | --- | --- |
+    | `get_notes`, 1-note clip | 2.2 s |
+    | `get_notes`, 500-note page of a 2000-note clip | 2.5-2.7 s |
+    | Full paged read of 2000 notes (4 pages) | 10.0 s |
+    | `get_notes`, 500-note page of a 12,000-note clip | 2.5-2.7 s (2.2 s for a 1-note clip) |
+    | `get_arrangement`, empty track | 2.1 s |
+    | `get_arrangement`, 256-clip track | 2.4 s |
+    | `get_arrangement`, whole Set (2 pages) | 4.9 s |
+    | Track duplicate, empty | 2.3 s |
+    | Track duplicate, 2000 notes + 256 arrangement clips | 2.2 s |
+
+    Each page still re-reads and sorts the whole clip in Live. Measured overhead stays under
+    0.5 s per page even at 12,000 notes, so pages are not windowed. Supported and measured
+    limits: 12,000 notes per clip and 256 arrangement clips per track.
+  - Regression tests: F1
+    `test_destructive_confirm.py::test_a_same_named_replacement_while_asking_is_refused_not_deleted`
+    (legacy + input-required). F2
+    `test_bridge.py::test_published_note_limits_fit_full_signed_envelopes` (real signed
+    framing). F3 `test_control_batch2.py::test_trigger_session_record_is_not_exposed`. F4
+    `test_control_batch2.py::test_a_failing_switch_restore_still_stops_the_transport`. F5
+    `test_batch3_dom.py::test_edit_notes_validates_duplicates_in_the_edited_state`. F6
+    `test_batch3_dom.py::test_lab_cue_that_lands_elsewhere_is_reported_applied_not_refused`.
+    F7 `test_final_safety.py::test_reruns_merge_only_same_build_rows_and_never_touch_the_full_run`.
+  - Open: after this run, the proof cleanup's scratch cue delete (`scripts/live_final_cleanup.py`)
+    reported `unknown`. Restoring the playhead raised `RuntimeError` in Live (Log.txt:
+    `dom_arrangement.py:420`, finalizer `:467`). A read-back showed the cue was deleted. The
+    cause is not verified.
+  - Not verified on Live: save and reopen (no API, see Limits), and the F3/F4/F5 paths
+    (covered offline only).
+
 - **Unreleased, review round 4 (2026-11-12, Live 12.2.0, disposable Basic Set, never saved;
   Remote Script reinstalled with every round-4 fix before the runs):**
   - The full write ledger (`scripts/live_v2_final.py`, 37 scenarios, every registered tool)
