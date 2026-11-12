@@ -423,6 +423,16 @@ def _cue_task(ctx, queue, previous, params):
             out["error"] = f"the playhead stayed at {out['playhead']['at']}, not {previous}"
         return out
 
+    def moved_cue(song, cue, time_):
+        """The confirmed cue no longer sits alone at its confirmed time: the toggle there would
+        delete another cue or add one. An error text, or None when the delete may go ahead."""
+        if abs(cue.time - time_) > EPS:
+            return f"the cue confirmed at {time_} moved to {cue.time}; nothing toggled"
+        here = [c for c in song.cue_points if abs(c.time - time_) <= EPS]
+        if len(here) != 1 or not _same(here[0], cue):
+            return f"the cue at {time_} is not the confirmed one; nothing toggled"
+        return None
+
     def advance(row):
         st["done"].append(row)
         st["i"] += 1
@@ -461,6 +471,9 @@ def _cue_task(ctx, queue, previous, params):
                 return advance({"action": "add", "time": cue.time, "reused": True})
             if action == "delete" and not any(_same(c, a) for c in song.cue_points):
                 return advance({"action": "delete", "time": time_, "already_gone": True})
+            changed = moved_cue(song, a, time_) if action == "delete" else None
+            if changed is not None:
+                return end(changed)
             st["moved"] = True
             song.current_song_time = time_
             st["phase"] = "observe_seek"
@@ -480,8 +493,14 @@ def _cue_task(ctx, queue, previous, params):
                 if cue is not None and b:
                     cue.name = b
                 return advance({"action": "add", "time": time_, "reused": True})
-            if action == "delete" and not selected:
-                raise RuntimeError("the cue is not selected at its own time")
+            if action == "delete":  # just before the toggle: still the confirmed cue, here?
+                if not any(_same(c, a) for c in song.cue_points):
+                    return advance({"action": "delete", "time": time_, "already_gone": True})
+                changed = moved_cue(song, a, time_)
+                if changed is not None:
+                    return end(changed)
+                if not selected:
+                    raise RuntimeError("the cue is not selected at its own time")
             st["before"] = list(song.cue_points)
             song.set_or_delete_cue()
             st["phase"], st["waits"] = "observe_toggle", 0

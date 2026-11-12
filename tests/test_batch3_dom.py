@@ -702,6 +702,31 @@ def test_cue_task_rechecks_policy_before_every_write(revoke, ticks, status, cues
     assert result["playhead"]["moved"] is playhead_moved and song.current_song_time == 4.0
 
 
+@pytest.mark.parametrize("ticks", [0, 1])  # before the seek; after it, just before the toggle
+def test_cue_delete_refuses_when_the_confirmed_cue_moved_and_another_took_its_place(env, ticks):
+    """The toggle deletes whatever cue sits at the playhead: if the confirmed cue moved and a
+    different one now sits at its time, the task stops without toggling and says why."""
+    song, dispatch = env
+    song._time = 2.0
+    (r,) = refs(dispatch, {"kind": "cue", "cue": 0})
+    out = ok(dispatch("set_cue_points", {"cues": [{"cue": r["ref"], "action": "delete"}]}))
+    op = out["applied"][0]["operation"]
+    for _ in range(ticks):
+        dispatch.operations.tick()
+        song.settle()
+    confirmed = song.cue_points[0]
+    confirmed.time = 12.0  # dragged away; an unrelated cue now sits at the confirmed time
+    song.cue_points.append(Cue(8.0, "Other"))
+    for _ in range(6):
+        dispatch.operations.tick()
+        song.settle()
+    snap = dispatch.operations.get(op)
+    assert snap["state"] == "failed" and snap["result"]["status"] == "not_applied", snap
+    assert "nothing toggled" in snap["result"]["error"]
+    assert sorted((c.time, c.name) for c in song.cue_points) == [(8.0, "Other"), (12.0, "Verse")]
+    assert song.current_song_time == 2.0
+
+
 def test_cue_add_refuses_while_playing(env):
     song, dispatch = env
     song.is_playing = True
