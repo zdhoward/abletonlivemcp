@@ -5,6 +5,43 @@ versions and operating systems have not been qualified against a running DAW.
 
 What has been checked, newest first:
 
+- **Unreleased, review round 7 (2026-11-12, Live 12.2.0 build 2025-05-20_1c7a2c5dac,
+  disposable Basic Set, never saved).** Qualified build: git `cae1b07` (clean tree), Remote
+  Script 0.11.0 build `sha256:37ec9964034b3165` (matches the host). The script was
+  reinstalled and Live restarted before the checks, then restarted again before the ledger.
+  - Full write ledger (`scripts/live_v2_final.py --scratch-writes`, one full run, no `--only`
+    merge): 37 scenarios and every registered tool. 34 passed and 3 were explicit
+    `unsupported` (`dev-extras`, `dev-fx-rack`, `dev-drums`, as before). None failed or
+    blocked, and there were no coverage gaps. `ABLETONLIVEMCP_FILE_ROOTS` and
+    `ABLETONLIVEMCP_ALS_ROOTS` were set. Live's `Log.txt` shows no handler error during the
+    run.
+  - `scripts/live_final_cleanup.py --apply` deleted 1 scratch cue, 5 scratch tracks, 1
+    scratch return track and the MIDI export. Read-back afterwards: 10 tracks, 4 returns, only
+    the Set's own cues (Intro 0, DROP 16).
+  - Cue placement, measured in Live. A new cue goes on the nearest bar of the Set's
+    signature, and an exact tie goes to the later bar. In 4/4: 33 -> 32, 42 -> 44, 51 -> 52,
+    61.5 -> 60, 86.5 -> 88, 98 -> 100, 46.5 -> 48. In 3/4: 113 -> 112, 127 -> 126,
+    137.5 -> 138. `set_or_delete_cue` deletes a cue within half a bar of the playhead
+    instead of adding one. An add at 33 deleted the cue at 32. In 3/4, 113 deleted 112 and
+    45.4 deleted 44, while 101.6 left 100 alone. On the fixed build, the 4/4 cases are
+    ready with `requested`. 33.5 next to the cue at 32 reuses it with no toggle. 34 (a tie,
+    with a cue at 32) refuses `not_applied` with nothing toggled. A delete at 48 is ready.
+  - Playhead return, measured in Live. Setting the playhead at the song end stretches the
+    song by 32 beats (232 -> 264 -> 296 -> 328), in 4/4 and 3/4 alike. On the fixed build:
+    an add at 1400 from 8 is ready in 42 ticks. With the playhead parked at 1400, a delete
+    there and an add at 40 (a 1,360-beat return) are ready and the playhead is restored to
+    1400. A 3-cue delete from 1400 took 48 ticks. An add at 9000 refuses `beyond_scope`
+    (239 steps planned, limit 48) with the playhead untouched. Supported range: 48 planned
+    steps per call, about 1,400 beats past the content.
+  - Regression tests:
+    `test_a_cue_add_accepts_only_its_own_bar_and_never_toggles_another_cue` (unrelated
+    arrival, snap, tie, collision, occupied, delete, two cues gone),
+    `test_a_cue_edit_plans_the_playhead_return_or_refuses_before_moving` (long, unreachable,
+    timeout), `test_arrangement_pages_bound_lane_work_and_fit_the_signed_reply` (native
+    fetches counted per page, real signed framing),
+    `test_paged_reads_do_bounded_native_work_and_enforce_scope` (no note field read past
+    scope), `test_safety_doc_names_every_multi_step_write_the_readme_lists`.
+
 - **Unreleased, review round 6 (2026-11-12, Live 12.2.0, disposable Basic Set, never saved).**
   Qualified build: git `ff992fc` (clean tree), Remote Script 0.11.0 build
   `sha256:bf378cce783b59d2` (matches the host), reinstalled and Live restarted before the run.
@@ -211,7 +248,14 @@ tests and Ruff passed. Server wheel and Remote Script were reinstalled before th
   driving Live's dialogs from outside is not used (round 4: unreliable and unsafe). Set labels
   passed an in-session roundtrip; their persistence after a save is experimental for v1.
 - Supported scope, enforced since round 6: 12,000 notes per note read window and 256
-  arrangement clips per track or take lane. A larger read refuses `beyond_scope`. A note
+  arrangement clips per track or take lane; since round 7 also 16 take lanes per track (with
+  `take_lanes`), checked on collection lengths before any object is read. A larger read
+  refuses `beyond_scope`. An arrangement page ends after about 4,096 tracks, lanes and clips
+  scanned, or before it would list more than 256 take lanes.
+- Cue adds and deletes (since round 7): one call plans at most 48 playhead steps (each seek,
+  the return, and one step per 32 beats past the song end), so a cue edit reaches about
+  1,400 beats past the arrangement content; a longer distance refuses `beyond_scope` before
+  the playhead moves. A note
   edit receipt lists at most 4000 note ids, flags `note_ids_truncated` and always gives exact
   counts.
 - Knowledge is optional local reference material, not an audio analysis or automatic mixing engine.

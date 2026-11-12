@@ -8,6 +8,26 @@ minor version once the first public release is tagged.
 
 Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live.
 
+- Fix: a cue add accepts only a cue at the requested time or on its bar. Before, any new
+  cue counted, so a cue someone else added at 200 during an add at 10 was renamed and
+  reported applied. Live 12.2 puts a new cue on the nearest bar of the Set's signature
+  (exact ties go to the later bar). Another change now ends the operation `unknown`
+  (`ambiguous_change`), nothing is renamed, and the result lists what appeared or went.
+  If a cue is already alone on the landing bar it is reused. Any other cue within half a
+  bar refuses the add before the toggle, which would delete that cue.
+- Fix: a cue delete no longer ends `unknown` (ArgumentError). It used to read the handle of
+  the cue Live had just deleted.
+- Fix: cue edits plan their playhead moves. Before, a fixed 40-tick budget abandoned
+  reachable returns. A distance over 48 steps (about 1,400 beats past the content) refuses
+  before the playhead moves. Seeks and the return run while they make progress. Running
+  out of time is reported as `cleanup_issue`, and the cue change stays applied.
+- Fix: paged reads check the scope on collection lengths before reading any note or clip.
+  An arrangement page bounds its native work (about 4,096 tracks, lanes and clips) and its
+  take lane rows (256), and a track over 16 take lanes refuses. Before, 80 lanes x 256
+  clips were fetched for one page, and 2,400 empty lanes made a reply too large to send.
+- Docs: `docs://safety` no longer claims every write is one undo step, and
+  `live_set_cue_points` no longer promises exact cue times.
+
 - Fix: a bounded recording whose cleanup fails now ends `unknown` (reason
   `cleanup_failed`), never ready. Before, a raising record-switch restore left
   `session_record` and the transport on, the task said applied and another recording could
