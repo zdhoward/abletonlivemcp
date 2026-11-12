@@ -110,24 +110,22 @@ def live_import_midi(
 @_create
 def live_export_midi(clip: ClipRef, file: str) -> dict:
     """Export a MIDI clip's notes (from beat 0 of the clip, Set tempo and signature) to a NEW
-    .mid file (SMF 0; an existing file refuses)."""
+    .mid file (SMF 0; an existing file refuses). The file is written only after every page
+    came from one snapshot of the same clip, unchanged until the last page."""
     path = confined(file)
     clip_selector(clip)
     if path.exists():
         raise Invalid(f"{path} exists; export writes new files only")
     if not path.parent.is_dir():
         raise Invalid(f"no such directory: {path.parent}")
-    notes, offset = [], 0
-    while offset is not None and len(notes) < midi_file.MAX_NOTES:
-        page = _call(
-            "get_notes",
-            {**clip.model_dump(exclude_none=True), "time_from": 0.0, "time_span": 16384.0,
-             "limit": NOTE_PAGE, "offset": offset},
-        )  # fmt: skip
-        notes += page["notes"]
-        offset = page["next_offset"]
-    if offset is not None:
+    window = {**clip.model_dump(exclude_none=True), "time_from": 0.0, "time_span": 16384.0}
+    page = _call("get_notes", {**window, "limit": NOTE_PAGE})
+    if page["total"] > midi_file.MAX_NOTES:
         raise Invalid(f"the clip holds more than {midi_file.MAX_NOTES} notes")
+    notes = list(page["notes"])
+    while page["cursor"] is not None:  # the remote refuses a replaced or edited clip
+        page = _call("get_notes", {**window, "limit": NOTE_PAGE, "cursor": page["cursor"]})
+        notes += page["notes"]
     session = _call("session_info")
     sig = session.get("signature")
     audible = [n for n in notes if not n.get("mute")]

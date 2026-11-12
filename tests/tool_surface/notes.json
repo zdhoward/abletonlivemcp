@@ -431,7 +431,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity); page with next_offset. The default window includes notes past the clip\nend (past_clip_end counts them).",
+  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity). The default window includes notes past the clip end (past_clip_end\ncounts them). More pages: call again with the same clip/window and the reply's `cursor`;\nall pages are one snapshot (single-use cursor, 30 s to use it), refused if the clip is replaced\nor its notes change before the last page.",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
@@ -502,16 +502,14 @@
       }
      ]
     },
+    "cursor": {
+     "maxLength": 64,
+     "type": "string"
+    },
     "limit": {
      "default": 500,
      "maximum": 500,
      "minimum": 1,
-     "type": "integer"
-    },
-    "offset": {
-     "default": 0,
-     "maximum": 1000000,
-     "minimum": 0,
      "type": "integer"
     },
     "pitch_from": {
@@ -556,10 +554,10 @@
     "clip_end": {
      "type": "number"
     },
-    "next_offset": {
+    "cursor": {
      "anyOf": [
       {
-       "type": "integer"
+       "type": "string"
       },
       {
        "type": "null"
@@ -583,7 +581,7 @@
    "required": [
     "notes",
     "total",
-    "next_offset",
+    "cursor",
     "clip_end",
     "past_clip_end"
    ],

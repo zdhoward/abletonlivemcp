@@ -736,7 +736,7 @@ def test_published_note_limits_fit_full_signed_envelopes(private_config):
     clip = {"ref": "f" * 16, "track": 63, "scene": 63, "name": "x" * 256, "length": far}
     clips = [dict(clip, notes=add[:6])] * 63 + [dict(clip, notes=add[:22])]  # 400 in all
     imported = [{"pitch": 127, "start_time": far, "duration": far, "velocity": 127.0}]
-    page = {"total": 10**6, "next_offset": 10**6, "clip_end": far, "past_clip_end": 10**6}
+    page = {"total": 10**6, "cursor": "f" * 64, "clip_end": far, "past_clip_end": 10**6}
 
     def dispatch(method, params):
         if method == "get_notes":

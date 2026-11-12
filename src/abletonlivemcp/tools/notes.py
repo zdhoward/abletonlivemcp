@@ -28,14 +28,18 @@ def live_get_notes(
     time_from: Annotated[float, Field(ge=-16384, allow_inf_nan=False)] | None = None,
     time_span: Annotated[float, Field(gt=0, le=65536, allow_inf_nan=False)] | None = None,
     limit: Annotated[int, Field(ge=1, le=READ_PAGE)] = READ_PAGE,
-    offset: Annotated[int, Field(ge=0, le=1000000)] = 0,
+    cursor: Annotated[str, Field(max_length=64)] | None = None,
     response_format: ResponseFormat = "detailed",
 ) -> dict:
     """Notes by time with note_id (detailed adds probability, velocity_deviation,
-    release_velocity); page with next_offset. The default window includes notes past the clip
-    end (past_clip_end counts them)."""
+    release_velocity). The default window includes notes past the clip end (past_clip_end
+    counts them). More pages: call again with the same clip/window and the reply's `cursor`;
+    all pages are one snapshot (single-use cursor, 30 s to use it), refused if the clip is replaced
+    or its notes change before the last page."""
     params = {**clip.model_dump(exclude_none=True), "pitch_from": pitch_from}
-    params.update(pitch_span=pitch_span, limit=limit, offset=offset)
+    params.update(pitch_span=pitch_span, limit=limit)
+    if cursor is not None:
+        params["cursor"] = cursor
     if time_from is not None:
         params["time_from"] = time_from
     if time_span is not None:

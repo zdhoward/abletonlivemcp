@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Export a MIDI clip's notes (from beat 0 of the clip, Set tempo and signature) to a NEW\n.mid file (SMF 0; an existing file refuses).",
+  "description": "Export a MIDI clip's notes (from beat 0 of the clip, Set tempo and signature) to a NEW\n.mid file (SMF 0; an existing file refuses). The file is written only after every page\ncame from one snapshot of the same clip, unchanged until the last page.",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {

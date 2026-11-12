@@ -108,7 +108,7 @@ def test_get_notes_concise_drops_extended_fields(bridge):
         "velocity_deviation": 0,
         "release_velocity": 64,
     }
-    bridge.replies["get_notes"] = {"notes": [row], "total": 1, "next_offset": None}
+    bridge.replies["get_notes"] = {"notes": [row], "total": 1, "cursor": None}
     out = call(notes.live_get_notes, clip={"track": 0, "scene": 0}, response_format="concise")
     assert "probability" not in out["notes"][0] and out["notes"][0]["note_id"] == 1
 
@@ -285,7 +285,7 @@ def test_export_then_import_round_trip(bridge, monkeypatch, tmp_path):
         "velocity": 90.0,
         "mute": False,
     }
-    bridge.replies["get_notes"] = {"notes": [row], "total": 1, "next_offset": None}
+    bridge.replies["get_notes"] = {"notes": [row], "total": 1, "cursor": None}
     out = call(files.live_export_midi, clip={"track": 0, "scene": 0}, file=str(tmp_path / "x.mid"))
     assert out["notes"] == 1
     with pytest.raises(Exception, match="new files only"):
@@ -295,3 +295,48 @@ def test_export_then_import_round_trip(bridge, monkeypatch, tmp_path):
     (t,) = params["targets"]
     assert method == "create_clips" and t["length"] == 4.0
     assert t["notes"] == [{"pitch": 62, "start_time": 1.0, "duration": 0.5, "velocity": 90.0}]
+
+
+@pytest.mark.parametrize("change", ["none", "replace", "edit"])
+def test_export_refuses_a_clip_changed_between_pages(bridge, monkeypatch, tmp_path, change):
+    """N4 (round 6): export paged by address + offset, so a clip replaced or edited between
+    pages became a hybrid file reported as success. The host tool now runs against the real
+    remote get_notes; a change after page 1 refuses and no file is written."""
+    import sys
+    import types
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tests.test_batch3_dom import Clip, Note, Song, midi_clip
+
+    from AbletonLiveMCP import handlers
+    from AbletonLiveMCP.safety import Safety
+
+    monkeypatch.setenv("ABLETONLIVEMCP_FILE_ROOTS", str(tmp_path))
+    song = Song()
+    clip = midi_clip(song)
+    clip.notes = [Note(i, 60 + i % 12, i * 0.25, 0.2) for i in range(1, 1201)]  # 3 pages
+    dispatch = handlers.make_dispatch(
+        lambda: song, types.SimpleNamespace(), Safety(lambda: song, policy=lambda: False)
+    )
+    pages = []
+
+    def get_notes(params):
+        if len(pages) == 1 and change == "replace":
+            song.tracks[0].clip_slots[0].clip = other = Clip(4.0)
+            other.notes = list(clip.notes)  # same notes, another clip object
+        elif len(pages) == 1 and change == "edit":
+            clip.notes[1100].pitch = 30  # lands on the last page's snapshot, not its read
+        pages.append(dispatch("get_notes", params))
+        return pages[-1]
+
+    bridge.replies["get_notes"] = get_notes
+    target = tmp_path / "x.mid"
+    if change == "none":
+        out = call(files.live_export_midi, clip={"track": 0, "scene": 0}, file=str(target))
+        assert out["notes"] == 1200 and target.exists() and len(pages) == 3
+        assert sum(len(p["notes"]) for p in pages) == 1200
+        return
+    with pytest.raises(Exception, match="stale_cursor"):
+        call(files.live_export_midi, clip={"track": 0, "scene": 0}, file=str(target))
+    assert not target.exists()

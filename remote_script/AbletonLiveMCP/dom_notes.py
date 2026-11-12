@@ -11,7 +11,9 @@ from .dom_common import (
     NOTE_LIMIT,
     READ,
     WRITE,
+    Refused,
     _number,
+    _same,
     clip_address_nodes,
     require,
     run_writes,
@@ -118,10 +120,29 @@ def _clip_end(clip):
     return float(getattr(clip, "end_marker", clip.length))
 
 
+def _snapshot(clip, window):
+    """The window's notes as field tuples (``FIELDS`` order), sorted by time, pitch, id."""
+    raw = clip.get_notes_extended(*window)
+    rows = [tuple(getattr(n, f) for f in FIELDS) for n in raw]
+    rows.sort(key=lambda r: (r[2], r[1], r[0]))
+    return rows
+
+
+def _stale(why):
+    return Refused("stale_cursor", f"{why} since the first page; read again from the start")
+
+
 def get_notes(ctx, p):
-    """Notes with IDs and every extended field, sorted by time then pitch; paged by offset.
-    The default window is wide (notes past the clip end are listed and counted)."""
-    clip = midi_clip(ctx.song, p)
+    """Notes with IDs and every extended field, sorted by time then pitch. The default window
+    is wide (notes past the clip end are listed and counted).
+
+    Paging reads one snapshot: the first page reads the window once and, when more pages
+    follow, keeps the sorted rows here behind a single-use ``cursor`` token (bound to the Set,
+    the clip object at that address and the read's window). A continuation re-reads nothing
+    but the clip's identity and is refused (``stale_cursor``) when the clip was replaced; the
+    last page reads the window again and is refused when any note changed, so a completed
+    multi-page read is one consistent, still-current state."""
+    addr = {k: p.get(k) for k in ("track", "scene", "arrangement", "take_lane") if k in p}
     pitch_from = _int(p.get("pitch_from", 0), "pitch_from", 0, 127)
     pitch_span = _int(p.get("pitch_span", 128), "pitch_span", 1, 128)
     time_from = p.get("time_from")
@@ -129,18 +150,43 @@ def get_notes(ctx, p):
     span = p.get("time_span")
     span = WIDE_SPAN if span is None else float(_number(span, "time_span", 0, WIDE_SPAN, True))
     limit = _int(p.get("limit", 500), "limit", 1, READ_LIMIT)
-    offset = _int(p.get("offset", 0), "offset", 0, 10**6)
-    raw = clip.get_notes_extended(pitch_from, pitch_span, time_from, span)
-    notes = sorted(raw, key=lambda n: (n.start_time, n.pitch, n.note_id))
+    if p.get("offset") is not None:
+        raise Invalid("'offset' paging was replaced by 'cursor' (from the previous reply)")
+    window = (pitch_from, pitch_span, time_from, span)
+    args = (tuple(sorted(addr.items(), key=lambda kv: kv[0])), window)
+    token = p.get("cursor")
+    try:
+        clip = midi_clip(ctx.song, p)
+    except Invalid:
+        if token is None:
+            raise
+        raise _stale("the clip at that address is gone") from None
+    if token is None:
+        rows, start = _snapshot(clip, window), 0
+        state = {"generation": ctx.safety.generation, "clip": clip, "args": args, "rows": rows}
+    else:
+        if not isinstance(token, str) or len(token) > 64:
+            raise Invalid("'cursor' must be the cursor string of a previous reply")
+        state = ctx.operations.page_cursors.take(token, "notes")  # unknown_cursor otherwise
+        if state["args"] != args:
+            raise Refused("cursor_mismatch", "that cursor continues a read of another clip/window")
+        if state["generation"] != ctx.safety.generation or not _same(clip, state["clip"]):
+            raise _stale("the clip at that address was replaced")
+        rows, start = state["rows"], state["next"]
     end = _clip_end(clip)
-    page = notes[offset : offset + limit]
-    nxt = offset + limit if offset + limit < len(notes) else None
+    page = rows[start : start + limit]
+    more = start + limit < len(rows)
+    if token is not None and not more and _snapshot(clip, window) != rows:
+        raise _stale("the clip's notes changed")
+    cursor = None
+    if more:
+        cursor = ctx.operations.page_cursors.put("notes", {**state, "next": start + limit})
     return {
-        "notes": [note_row(n) for n in page],
-        "total": len(notes),
-        "next_offset": nxt,
+        "notes": [dict(zip(FIELDS, r, strict=True)) for r in page],
+        "total": len(rows),
+        "cursor": cursor,
         "clip_end": end,
-        "past_clip_end": sum(1 for n in notes if n.start_time >= end),
+        "past_clip_end": sum(1 for r in rows if r[2] >= end),
     }
 
 

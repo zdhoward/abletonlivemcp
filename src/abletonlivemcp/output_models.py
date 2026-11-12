@@ -115,7 +115,7 @@ class Clips(TypedDict):
 class Notes(TypedDict):
     notes: list[Row]
     total: int
-    next_offset: int | None
+    cursor: str | None
     clip_end: float
     past_clip_end: int
 
