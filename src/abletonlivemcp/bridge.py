@@ -253,8 +253,12 @@ class _Wire:
     def __init__(self, conn, deadline):
         self.conn, self.deadline, self.buf = conn, deadline, b""
 
-    def read(self):
-        end = min(self.deadline, time.monotonic() + FRAME_TIMEOUT)
+    def read(self, reply=False):
+        """One frame. FRAME_TIMEOUT bounds a frame from its start; a command's ``reply`` may
+        take as long as the command runs in Live, so until its first byte arrives the wait is
+        bounded only by the exchange deadline (expiry: ExchangeTimeout)."""
+        waiting = reply and not self.buf
+        end = self.deadline if waiting else min(self.deadline, time.monotonic() + FRAME_TIMEOUT)
         while True:
             newline = self.buf.find(b"\n")
             if newline >= 0:
@@ -267,16 +271,20 @@ class _Wire:
                     raise _FrameError("BadFrame") from None
             if len(self.buf) > MAX_FRAME:
                 raise _FrameError("FrameTooLarge")
+            expired = "ExchangeTimeout" if waiting else "FrameTimeout"
             left = end - time.monotonic()
             if left <= 0:
-                raise _FrameError("FrameTimeout")
+                raise _FrameError(expired)
             self.conn.settimeout(left)
             try:
                 chunk = self.conn.recv(min(65536, MAX_FRAME + 1 - len(self.buf)))
             except TimeoutError:
-                raise _FrameError("FrameTimeout") from None
+                raise _FrameError(expired) from None
             if not chunk:
                 raise _FrameError("ConnectionClosed")
+            if waiting:  # the reply has started: the rest of it gets one frame window
+                waiting = False
+                end = min(self.deadline, time.monotonic() + FRAME_TIMEOUT)
             self.buf += chunk
 
     def send(self, body):
@@ -443,7 +451,7 @@ class BridgeClient:
                 _encode(request)  # validate and bound everything before attempting transmission
                 transmitted = True  # even a failed sendall may have transmitted the entire request
                 wire.send(request)
-                frame = wire.read()
+                frame = wire.read(reply=True)
                 _reject_unsigned_error(frame, True)
                 reply = _verify(secret, "response", context, frame)
                 if (

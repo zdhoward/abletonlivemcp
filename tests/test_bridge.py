@@ -498,14 +498,19 @@ def test_bounds_deadlines_shutdown_and_atomic_cancellation(private_config, monke
         with pytest.raises(bridge.BridgeError) as error:
             bridge.BridgeClient(port=server.port).call("overall")
         elapsed = time.monotonic() - began
-        assert error.value.may_have_applied and not error.value.retryable
+        # The server either replies Timeout (queued, never dispatched: a definite not-applied)
+        # or, at the same deadline, closes the exchange (response loss: may have applied).
+        kind = error.value.kind
+        assert kind in {"Timeout", "ConnectionClosed"}, kind
+        assert error.value.may_have_applied is (kind == "ConnectionClosed")
+        assert not error.value.retryable or kind == "Timeout"
         assert 0.15 <= elapsed < 0.7
         eventually(lambda: not server._pending and not server._connections)
         server.drain()
         assert calls == []
     print(
-        f"overall: test limit=0.2s observed={elapsed:.3f}s response-loss "
-        "may_have_applied=True dispatch=0"
+        f"overall: test limit=0.2s observed={elapsed:.3f}s {kind} "
+        f"may_have_applied={kind == 'ConnectionClosed'} dispatch=0"
     )
 
 
@@ -587,13 +592,18 @@ def test_client_rejects_impersonation_spoofed_and_unbounded_replies(private_conf
                             pass
                     elif mode == "idle-reply":
                         assert closed(conn) == b""
+                    elif mode == "stalled-frame":  # a started reply that stops mid-frame
+                        conn.sendall(b'{"type":')
+                        assert closed(conn) == b""
                     else:
+                        if mode == "late-reply":  # a command running longer than one frame
+                            time.sleep(0.5)
                         wire.send(signed)
 
         job = Job(peer)
         try:
-            client = bridge.BridgeClient(port=port)
-            if mode == "compatible-patch":
+            client = bridge.BridgeClient(port=port, timeout=1.5)
+            if mode in {"compatible-patch", "late-reply"}:
                 assert client.call("record") == "inert"
                 return
             with pytest.raises(bridge.BridgeError) as error:
@@ -604,7 +614,9 @@ def test_client_rejects_impersonation_spoofed_and_unbounded_replies(private_conf
                 assert error.value.may_have_applied and not error.value.retryable
                 if mode.startswith("oversize"):
                     assert error.value.kind == "FrameTooLarge"
-                elif mode == "idle-reply":
+                elif mode == "idle-reply":  # waited for the reply up to the exchange deadline
+                    assert error.value.kind == "ExchangeTimeout"
+                elif mode == "stalled-frame":
                     assert error.value.kind == "FrameTimeout"
                 else:
                     assert error.value.kind == "ProtocolError"
@@ -620,6 +632,8 @@ def test_client_rejects_impersonation_spoofed_and_unbounded_replies(private_conf
         "oversize-line",
         "oversize-partial",
         "idle-reply",
+        "stalled-frame",
+        "late-reply",
         "compatible-patch",
     ):
         exchange(mode)
@@ -629,11 +643,14 @@ def test_client_rejects_impersonation_spoofed_and_unbounded_replies(private_conf
         "oversize-line",
         "oversize-partial",
         "idle-reply",
+        "stalled-frame",
+        "late-reply",
         "compatible-patch",
     ]
     print(
         "client: impersonator/missing-capability commands=0; spoof/wrong-id=ProtocolError; "
-        "reply line/partial >1048576=FrameTooLarge; idle-reply=FrameTimeout; "
+        "reply line/partial >1048576=FrameTooLarge; idle-reply=ExchangeTimeout; "
+        "stalled-frame=FrameTimeout; late-reply (past one frame window)=ok; "
         "post-transmit errors may_have_applied=True retryable=False; compatible-patch=ok"
     )
 
