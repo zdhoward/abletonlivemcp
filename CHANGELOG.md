@@ -79,6 +79,24 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
 - Build: developer probe modules are no longer shipped in wheels built straight from the
   source tree; the distribution check refuses probes, caches and development directories.
 - Docs: the README's list of tools that can take several undo steps is corrected.
+- Fix: `live_plan_chain`/`live_build_chain` (chains and drum racks) failed on a running
+  server: the confirmation cache rebound the module's plan store at import.
+- Fix: a destructive confirmation's targets now travel inside the request that asked. They
+  were cached by tool and arguments, so two identical concurrent calls could swap forms and
+  one could delete what the other's human saw; declined or failed plans no longer linger.
+- Fix: a deferred cue delete re-checks, just before toggling, that the confirmed cue is still
+  the only cue at its time; otherwise it stops with nothing toggled.
+- Fix: a bounded recording or cue task that times out, errors or loses the script session
+  still runs its cleanup (recording off, transport stopped if the call started it, playhead
+  back) and reports it in `result.cleanup`; the outcome stays `unknown`.
+- Fix: `if_exists="replace"` (Session) and `replace: true` (Arrangement) into empty
+  destinations no longer refuse before asking.
+- Fix: the whole-Set `live_get_arrangement` cursor is an opaque, single-use token held by the
+  Remote Script and bound to the Set's tracks (identity and order) and the read's arguments;
+  a changed Set or other arguments refuse (`stale_cursor`, `cursor_mismatch`), an unknown
+  token refuses `unknown_cursor`.
+- Fix: replies no longer carry native exception text (preferences file, dev probes); a dev
+  `ref_lab` failure reports "may have applied" instead of "not applied".
 
 ## [0.11.0] - 2026-11-11
 

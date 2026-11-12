@@ -5,6 +5,33 @@ versions and operating systems have not been qualified against a running DAW.
 
 What has been checked, newest first:
 
+- **Unreleased, review round 4 (2026-11-12, Live 12.2.0, disposable Basic Set, never saved;
+  Remote Script reinstalled with every round-4 fix before the runs):**
+  - The full write ledger (`scripts/live_v2_final.py`, 37 scenarios, every registered tool)
+    ran against the current bridge: 34 pass and 3 explicit `unsupported` (`dev-extras`: no
+    preset selection on that device; `dev-fx-rack`: no `insert_chain`; `dev-drums`: pad load
+    disabled), with nothing failed or blocked. The MIDI file round trip, clip
+    duplicate/delete and project scan scenarios need `ABLETONLIVEMCP_FILE_ROOTS` and
+    `ABLETONLIVEMCP_ALS_ROOTS`. They were rerun with those set and passed.
+  - On a running server, `live_plan_chain` then `live_build_chain` (EQ Eight, Compressor)
+    completed. Before this round the plan store was overwritten at import.
+  - Populated tracks (a MIDI track with a 4-note clip, an audio track with EQ Eight and
+    Compressor): a duplicate kept the clip, and both devices read back. Undo reverted one
+    rename. Replace into an empty slot asked and created the clip. Replace into an occupied
+    slot listed the old clip and swapped it.
+  - Concurrency: two stdio server processes sent the same confirmed `live_delete` with both
+    forms open at once. One deleted the track; the other refused `stale_target` (not
+    applied). A declined confirmation deleted nothing, and a fresh accept then deleted the
+    clip. Parallel writes and reads through one server all landed. Across two server
+    processes, a call that hits the other's open bridge exchange is refused
+    `BridgeBusy ... (not applied)`, and the read-back confirmed nothing was applied.
+  - Deferred ticks: a cue add, then a confirmed cue delete, both `ready`, with the playhead
+    back where it was (8.0 -> 8.0). A bounded 2-beat Session recording ended `ready` with
+    recording off and the transport stopped. A forged whole-Set arrangement cursor was refused
+    `unknown_cursor`.
+  - Not verified on Live: saving a copy and reopening it. Driving Live's Save As dialog from
+    outside was not reliable. The timeout, step-error and disconnect cleanup paths are covered
+    offline only.
 - **Unreleased, review round 2 (2026-11-12, Live 12.2, disposable Basic Set, never saved;
   Remote Script reinstalled before each run):**
   - A `"replace"` of `"true"`, `1` or `"replace"` sent straight to the bridge with only `edit`
@@ -34,8 +61,8 @@ What has been checked, newest first:
   arrangement-clip reference on a group track refused with a readable message. Before this
   fix any group track made the whole read fail.
 - **0.10.0:** seven read-only tools validated against their schemas over stdio on Live 12.2.0.
-- **0.9.0:** the full real-Live scenario ledger below. It has not been rerun since; treat
-  write paths changed after 0.9 as covered by the offline suite only.
+- **0.9.0:** the full real-Live scenario ledger below (rerun in review round 4 above with the
+  same totals).
 
 The 0.9.0 real-Live scenario ledger records 34 passing scenarios and 3 scenarios with explicit
 unsupported results, with no failed or blocked scenarios. It covers the 57 registered tools,
@@ -57,9 +84,7 @@ Personal knowledge and development artifacts are excluded from both package form
 Release 0.10.0 passed 398 local tests, Ruff, archive checks (no developer probes in either
 archive) and a clean wheel stdio install. Over stdio against Live 12.2.0, seven read-only tools
 (`live_hello`, session, tracks, scenes, clips, device list, browser roots) returned output that
-validated against their schemas. The 0.9 mutation ledger above has not been rerun against a
-freshly installed 0.10 bridge; new permissions are not a claim of full Live qualification.
-Report write problems found in real projects as issues.
+validated against their schemas. Report write problems found in real projects as issues.
 
 ## Known limits
 
