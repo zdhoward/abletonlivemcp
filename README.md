@@ -86,8 +86,10 @@ Destructive operations also require an MCP client that supports form elicitation
 
 ## Using it on a real project
 
-1. **Save a copy of the Set first.** Writes are verified and each tool write is one Live undo
-   step (`live_undo`), but a batch has no rollback.
+1. **Save a copy of the Set first.** Writes are verified and most tool writes are one Live undo
+   step (`live_undo`). `live_set_mixer` with routing, `live_set_labels`, `live_build_chain`
+   and `live_set_cue_points` make several bridge calls (or run as an operation), so one call
+   can take several undo steps. A batch has no rollback.
 2. Start read-only: ask for `live_hello` and a summary of the Set. Nothing can change yet.
 3. When you want edits, set `"read_only": false` in `~/.abletonlivemcp/bridge.json`. The default
    permissions (`transport`, `edit`) allow playback and edits but not deletion or MIDI files.
