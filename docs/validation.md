@@ -108,7 +108,11 @@ tests and Ruff passed. Server wheel and Remote Script were reinstalled before th
 - Plugin preset selection depends on the plugin and exposed API; the tested unsupported path refuses.
 - Unsafe arrangement split/move/take-lane writes and arrangement automation are disabled.
 - Native browser Collections cannot be written; organization uses local labels and track properties.
-- Set labels passed an in-session roundtrip. Persistence after saving/reopening is unproved.
+- Save and reopen is not qualified by this server. The Live 12.2 API dump
+  (`docs/data/live-12.2-api.json`) has no member that saves a Set to a path or opens one
+  (only read-only `file_path` properties and a `saved` mention in documentation text), and
+  driving Live's dialogs from outside is not used (round 4: unreliable and unsafe). Set labels
+  passed an in-session roundtrip; their persistence after a save is experimental for v1.
 - Knowledge is optional local reference material, not an audio analysis or automatic mixing engine.
 
 Writes are off by default. Unknown mutation outcomes must be read back before any further edits;

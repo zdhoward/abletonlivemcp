@@ -138,6 +138,11 @@ arrangement split/move/take-lane edits and arrangement automation refuse unsuppo
 vary by object; `live_hello` explains support and refusals. See [validation](docs/validation.md)
 for tested paths and limitations; a listed tool does not imply every action is supported.
 
+Saving is yours: the Live 12.2 control-surface API has no call to save a Set or open one, so
+this server never saves and does not qualify what survives a save and reopen. Set labels
+(`live_set_labels`, stored with `get_data`/`set_data` on the Song and tracks) are experimental
+for that reason; every other write is ordinary Live state that Live saves with the Set.
+
 Offline scans use `ABLETONLIVEMCP_ALS_ROOTS`; MIDI files use `ABLETONLIVEMCP_FILE_ROOTS`
 (both separated with the platform path separator). Global labels use `ABLETONLIVEMCP_DATA_DIR`.
 Writes remain off by default and destructive tools require client form elicitation.
