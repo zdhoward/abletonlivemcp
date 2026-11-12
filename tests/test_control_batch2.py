@@ -516,6 +516,28 @@ def test_a_recording_that_times_out_or_disconnects_still_stops(live, monkeypatch
     assert not song.session_record and not song.is_playing
 
 
+def test_a_failing_switch_restore_still_stops_the_transport(live, monkeypatch):
+    """F4 (round 5): restoring the record switch raised and stop_playing was skipped. Each
+    cleanup step now runs on its own and is reported with a readback."""
+    song, _a, d, g = live
+    song.current_song_time = 0.0
+    out = d("record", {"generation": g, "action": "session_record", "value": True, "length": 2})
+
+    def refuse(self, value):
+        raise RuntimeError("D:/Music/someone/private.als")
+
+    monkeypatch.setattr(type(song), "session_record", property(lambda s: True, refuse), False)
+    song.current_song_time = 3.0
+    d.operations.tick()
+    result = d.operations.get(out["operation"]["operation"])["result"]
+    assert result["cleanup"] == [
+        {"step": "session_record", "ok": False, "error": "RuntimeError"},
+        {"step": "stop_playing", "ok": True},
+    ]
+    assert result["restored"] == {"session_record": True, "is_playing": False}
+    assert not song.is_playing and "private" not in repr(result)
+
+
 def test_trigger_session_record_is_not_exposed(live):
     """F3 (round 5): trigger_session_record ran unbounded, outside the operation and guard."""
     song, _a, d, g = live

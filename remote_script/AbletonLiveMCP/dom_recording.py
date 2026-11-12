@@ -42,6 +42,15 @@ def _state(song):
     }
 
 
+def _attempt(name, fn):
+    """One cleanup step: ``{"step", "ok"}`` plus the exception type when it failed."""
+    try:
+        fn()
+        return {"step": name, "ok": True}
+    except Exception as exc:  # noqa: BLE001 - the next step still runs
+        return {"step": name, "ok": False, "error": type(exc).__name__}
+
+
 def _bounded(ctx, key, attribute, length):
     """Switch ``attribute`` on for ``length`` beats, then restore; returns the task snapshot."""
     song = ctx.song
@@ -63,12 +72,25 @@ def _bounded(ctx, key, attribute, length):
     started = time.monotonic()
 
     def restore():
-        setattr(song, attribute, before[attribute])
+        # Independent steps: a failing switch restore must never skip stopping the transport.
+        steps = [(attribute, lambda: setattr(song, attribute, before[attribute]))]
         if not before["was_playing"]:
-            song.stop_playing()
+            steps.append(("stop_playing", song.stop_playing))
+        cleanup = [_attempt(name, fn) for name, fn in steps]
+        readback = {}
+        for key, read in (
+            (attribute, lambda: getattr(song, attribute)),
+            ("is_playing", lambda: song.is_playing),
+            ("recorded_beats", lambda: max(0.0, song.current_song_time - start)),
+        ):
+            try:
+                readback[key] = read()
+            except Exception as exc:  # noqa: BLE001 - reported, never raised from cleanup
+                readback[key] = f"unreadable: {type(exc).__name__}"
         return {
-            "recorded_beats": max(0.0, song.current_song_time - start),
-            "restored": {attribute: getattr(song, attribute), "is_playing": song.is_playing},
+            "recorded_beats": readback.pop("recorded_beats"),
+            "cleanup": cleanup,
+            "restored": readback,
         }
 
     def step():
