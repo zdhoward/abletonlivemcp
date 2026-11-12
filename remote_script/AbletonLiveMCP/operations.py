@@ -40,6 +40,7 @@ import collections
 import secrets
 import time
 
+from .core import log_failure
 from .safety import Refused, _same, same_items
 
 RING = 16
@@ -173,6 +174,7 @@ class Operations:
         return op
 
     def native_error(self, op, exc):
+        log_failure("load", exc)
         op.reason = f"native_error:{type(exc).__name__}"
         if self._unchanged(op):
             op.state = FAILED  # observed unchanged right after the native call raised
@@ -211,6 +213,7 @@ class Operations:
         try:
             out = task.step()
         except Exception as exc:  # noqa: BLE001 - outcome unknown, never retried
+            log_failure(f"task {task.kind}", exc)
             return self._finish(task, UNKNOWN, f"error:{type(exc).__name__}")
         if out is not None:
             task.result = out if isinstance(out, dict) else {"value": out}

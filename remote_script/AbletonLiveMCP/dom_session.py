@@ -8,7 +8,7 @@ step (``handlers.OWN_UNDO_STEPS``).
 """
 
 from . import dom_song
-from .core import PROTOCOL_VERSION
+from .core import PROTOCOL_VERSION, log_failure, public_error
 from .dom_common import (
     READ,
     WRITE,
@@ -401,7 +401,8 @@ def undo(ctx, p, _t):
         except Exception as exc:  # noqa: BLE001 - after the first step: a receipt, not a raise
             if done == 0:
                 raise
-            error = f"{type(exc).__name__}: {exc}"[:300]
+            error = public_error(exc, f"{action}_failed")
+            log_failure(action, exc)
             break
         done += 1
     return {

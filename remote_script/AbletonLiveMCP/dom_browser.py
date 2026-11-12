@@ -13,6 +13,7 @@ Two load routes:
 
 from itertools import islice
 
+from .core import log_failure, public_error
 from .dom_common import (
     BROWSER_ROOTS,
     LIST_LIMIT,
@@ -404,7 +405,9 @@ def _select(ctx, owner, rack, tkind, ref, last):
             if not _same(owner.view.selected_device, last):
                 raise RuntimeError("last device selection not observed")
     except Exception as exc:  # noqa: BLE001 - selection is view state; nothing loaded yet
-        raise Refused("append_unverified", f"cannot select the load target: {exc}") from exc
+        log_failure("load target selection", exc)
+        why = public_error(exc, "select_failed")
+        raise Refused("append_unverified", f"cannot select the load target ({why})") from exc
 
 
 def _validate_device_load(ctx, p, tkind, container):
@@ -488,7 +491,9 @@ def load_device(ctx, p, t):
     except Exception as exc:  # noqa: BLE001 - outcome is established by observation
         if same_items(tuple(container.devices), before):
             failed.add(snap["operation"])
-            raise Refused("load_failed", f"Live refused the load: {exc}") from exc
+            log_failure("load_item", exc)
+            why = public_error(exc, "load_failed")
+            raise Refused("load_failed", f"Live refused the load ({why})") from exc
     snap.update({"target": tkind, "item": item.name, "root": p["root"]})
     snap["unverified"] = [cap] if state == UNVERIFIED else []
     return snap

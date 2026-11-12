@@ -28,6 +28,8 @@ Every domain module issues through it. Bridge methods here:
 
 import math
 
+from .core import log_failure, public_error, readable
+
 READ, WRITE, CONTROL = "read", "write", "control"
 
 BROWSER_ROOTS = (
@@ -476,7 +478,9 @@ def run_writes(prepared, write):
         try:
             row = write(entry)
         except Exception as exc:  # noqa: BLE001 - after writes began, a receipt, never a raise
-            stopped, error = i, f"{type(exc).__name__}: {exc}"[:300]
+            stopped, error = i, public_error(exc, "write_failed")
+            if not readable(exc):
+                log_failure(f"write {i}", exc)
             items.append({"index": i, "outcome": UNKNOWN_OUTCOME, "error": error})
             continue
         applied.append(row)

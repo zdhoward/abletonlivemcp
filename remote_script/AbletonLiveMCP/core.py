@@ -48,6 +48,50 @@ def module_diagnostic():
     return "AbletonLiveMCP: python modules " + " ".join(found)
 
 
+# ---- sanitized failure diagnostics -----------------------------------------------------------
+# Exception messages from Live (and locals) can hold file paths, object names or other user data,
+# so they are never echoed to a client or written to the log. A client sees ``public_error``: a
+# deliberate refusal's own text, otherwise the exception type and a stable code. Live's log gets
+# ``log_failure``: a label, the exception type and code locations only. One helper for the
+# request loop, batch writes (dom_common.run_writes) and deferred operations.
+
+_failure_sink = None  # Live's log_message, installed by BridgeServer
+
+
+def failure_location(exc, depth=4):
+    """``file:line <- file:line ...`` of the innermost frames: code locations, no values."""
+    frames = traceback.extract_tb(exc.__traceback__)[-depth:]
+    return " <- ".join(f"{os.path.basename(f.filename)}:{f.lineno}" for f in reversed(frames))
+
+
+def log_failure(label, exc, log=None):
+    """Log where ``label`` failed. Never raises: diagnostics must not change any reply."""
+    log = log if log is not None else _failure_sink
+    if log is None:
+        return
+    try:
+        log(f"AbletonLiveMCP: {label} failed: {type(exc).__name__} at {failure_location(exc)}")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def readable(exc):
+    """True for deliberate refusals, whose text this code wrote: a plain ValueError with one
+    string argument (the request loop's rule) or a coded Refused."""
+    if type(exc) is ValueError and len(exc.args) == 1 and isinstance(exc.args[0], str):
+        return True
+    code, message = getattr(exc, "code", None), getattr(exc, "message", None)
+    return isinstance(code, str) and isinstance(message, str)
+
+
+def public_error(exc, code):
+    """What a receipt may say about ``exc``: a deliberate refusal's text, else ``Type: code``."""
+    if readable(exc):
+        text = exc.args[0] if type(exc) is ValueError else f"refused:{exc.code}: {exc.message}"
+        return text[:300]
+    return f"{type(exc).__name__}: {code}"
+
+
 def strict_acl_available():
     """True when the full Windows DACL check can run (ctypes importable, or not Windows)."""
     if os.name != "nt":
@@ -374,6 +418,9 @@ class BridgeServer:
             raise ValueError("bridge requires IPv4 loopback")
         self._dispatch, self._host, self._port = dispatch, host, port
         self._log = log
+        if log is not None:
+            global _failure_sink
+            _failure_sink = log  # handler-level failures (batch writes, tasks) log here too
         self._lock = threading.Lock()
         self._queue = collections.deque()
         self._pending, self._connections, self._workers = set(), set(), set()
@@ -488,16 +535,8 @@ class BridgeServer:
     def _log_failure(self, method, exc):
         """Log where a handler failed: method, exception type and code locations only. The
         message and locals can hold user data or secrets, so they are never written."""
-        if self._log is None:
-            return
-        try:
-            frames = traceback.extract_tb(exc.__traceback__)[-4:]
-            where = " <- ".join(
-                f"{os.path.basename(f.filename)}:{f.lineno}" for f in reversed(frames)
-            )
-            self._log(f"AbletonLiveMCP: {method} failed: {type(exc).__name__} at {where}")
-        except Exception:  # diagnostics must never change the reply
-            pass
+        if self._log is not None:
+            log_failure(method, exc, self._log)
 
     def _accept_loop(self):
         while not self._stop.is_set():

@@ -7,6 +7,7 @@ add with no existing marker refuses. ``move_warp_marker(beat_time, distance)`` a
 warp_mode, loop/markers widen-then-narrow) share the clip validation of ``dom_clips``.
 """
 
+from .core import log_failure, public_error
 from .dom_clips import apply_fields, clip_row, is_audio, validate_fields, warp_rows
 from .dom_common import (
     READ,
@@ -118,7 +119,8 @@ def edit_audio_clip(ctx, p, t):
         if is_audio(clip):
             receipt["clip"]["warp_markers"] = warp_rows(clip)
     except Exception as exc:  # noqa: BLE001 - the receipt stands without the readback
-        receipt["clip"] = {"error": f"{type(exc).__name__}: {exc}"[:200]}
+        receipt["clip"] = {"error": public_error(exc, "readback_failed")}
+        log_failure("edit readback", exc)
     return receipt
 
 

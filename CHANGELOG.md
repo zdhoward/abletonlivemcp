@@ -29,6 +29,11 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
 - Fix: `live_transport` and `live_launch` reported "(not applied)" when the command succeeded
   but the state readback after it failed. They now return the command's reply with
   `settled` / `state` set to null and a `verification` message.
+- Privacy: an unexpected error inside a batch write, undo/redo, clip readback or device load
+  no longer echoes Live's exception text (which can contain paths or names) into the reply.
+  Replies say the exception type and a stable code (for example
+  `RuntimeError: write_failed`); deliberate refusals stay readable. Live's log records where
+  it failed (code locations only) through one shared helper.
 
 ## [0.11.0] - 2026-11-11
 

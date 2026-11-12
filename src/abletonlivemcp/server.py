@@ -58,6 +58,7 @@ SETTLE_SECONDS = 0.3  # Live applies play/stop/launch a tick after the call retu
 LEASE_TTL = 60.0
 _lease: str | None = None  # held only inside live_build_chain; rides on every call meanwhile
 _audit = logging.getLogger("abletonlivemcp.audit")
+_log = logging.getLogger("abletonlivemcp")  # stderr only; never message text or arguments
 
 
 def _preset(read_only: bool, destructive: bool, idempotent: bool) -> ToolAnnotations:
@@ -616,7 +617,10 @@ def run_steps(steps: list[tuple[str, Any]]) -> dict:
             if not done:
                 raise
             known = isinstance(exc, ValueError | BridgeError)
-            stopped, error = i, _explain(exc) if known else f"{type(exc).__name__}: {exc}"
+            # An unexpected exception's text may hold paths or user data: type and code only.
+            stopped, error = i, _explain(exc) if known else f"{type(exc).__name__}: step_failed"
+            if not known:
+                _log.warning("step %s failed: %s", label, type(exc).__name__)
             # A bridge refusal is returned before that call's write; anything else may have
             # changed Live. _explain's "(not applied)" then describes this step only.
             refused = isinstance(exc, Refusal) or (
