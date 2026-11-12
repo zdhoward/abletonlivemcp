@@ -668,7 +668,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Undo or redo 1..10 steps of Live's history (each tool write is one step). Stops early\nwhen history runs out; reports done/requested.",
+  "description": "Undo or redo 1..10 steps of Live's history (most tool writes are one step). Stops early\nwhen history runs out; reports done/requested.",
   "inputSchema": {
    "properties": {
     "action": {

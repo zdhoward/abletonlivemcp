@@ -126,6 +126,6 @@ def live_transport(action: TransportAction, beats: float | None = None) -> dict:
 def live_undo(
     action: Literal["undo", "redo"] = "undo", steps: Annotated[int, Field(ge=1, le=10)] = 1
 ) -> dict:
-    """Undo or redo 1..10 steps of Live's history (each tool write is one step). Stops early
+    """Undo or redo 1..10 steps of Live's history (most tool writes are one step). Stops early
     when history runs out; reports done/requested."""
     return _call("undo", {"action": action, "steps": steps, "generation": _generation()})
