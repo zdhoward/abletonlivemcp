@@ -3,6 +3,7 @@
 Two opt-in tools only. Every write is its own capability and refuses before the native call.
 """
 
+from .core import Invalid
 from .dom_common import READ, UNVERIFIED, WRITE, _index, require
 from .dom_devices import _get, locate_device
 
@@ -57,7 +58,7 @@ def set_device_extras(ctx, p, t):
         caps.append("devx.preset_select")
     if p.get("compare") is not None:
         if p["compare"] not in AB_ACTIONS:
-            raise ValueError(f"compare must be one of {list(AB_ACTIONS)}")
+            raise Invalid(f"compare must be one of {list(AB_ACTIONS)}")
         member = (
             "save_preset_to_compare_ab_slot"
             if p["compare"] == "save"
@@ -65,11 +66,11 @@ def set_device_extras(ctx, p, t):
         )
         require(ctx, "devx.ab_compare", ((dev, member),))
         if not _get(dev, "can_compare_ab", False):
-            raise ValueError("this device cannot compare A/B")
+            raise Invalid("this device cannot compare A/B")
         steps.append(("compare", p["compare"]))
         caps.append("devx.ab_compare")
     if not steps:
-        raise ValueError("set_device_extras sets nothing")
+        raise Invalid("set_device_extras sets nothing")
     out = {}
     for kind, value in steps:  # at most two writes: pass 1 has validated both
         if kind == "preset":

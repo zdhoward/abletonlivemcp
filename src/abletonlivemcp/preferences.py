@@ -14,6 +14,8 @@ import json
 import os
 from pathlib import Path
 
+from .errors import Invalid
+
 
 def preferences_path() -> Path:
     override = os.environ.get("ABLETONLIVEMCP_PREFS")
@@ -28,10 +30,10 @@ def load_preferences(path: Path | None = None) -> dict[str, list[str]]:
     try:
         data = json.loads(path.read_text(encoding="utf8"))
     except (OSError, ValueError) as exc:
-        raise ValueError(f"cannot read preferences file {path}: {exc}") from exc
+        raise Invalid(f"cannot read preferences file {path}: {exc}") from exc
     ok = isinstance(data, dict) and all(
         isinstance(v, list) and all(isinstance(n, str) for n in v) for v in data.values()
     )
     if not ok:
-        raise ValueError(f'{path} must look like {{"compressor": ["Pro-C 2"]}}')
+        raise Invalid(f'{path} must look like {{"compressor": ["Pro-C 2"]}}')
     return {str(k).lower(): v for k, v in data.items()}

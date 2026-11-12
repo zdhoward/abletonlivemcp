@@ -13,6 +13,7 @@ from importlib import resources
 from pathlib import Path
 
 from .config import ConfigError, checked_path, config_path, ensure_config
+from .errors import Invalid
 
 SCRIPT = "AbletonLiveMCP"
 MANIFEST = ".abletonlivemcp-install.json"
@@ -32,7 +33,7 @@ REQUIRED = frozenset(
 OPTIONAL_PROBES = frozenset(f"probe_p{n:02d}.py" for n in PROBES)
 
 
-class InstallError(ValueError):
+class InstallError(Invalid):
     """An installation cannot be safely replaced."""
 
 

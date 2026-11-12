@@ -10,6 +10,8 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
+from .errors import Invalid
+
 MAX_BYTES = 4 * 1024 * 1024
 MAX_TRACKS = 64
 MAX_EVENTS = 200_000
@@ -17,7 +19,7 @@ MAX_NOTES = 2000
 DEFAULT_PPQ = 480
 
 
-class MidiFileError(ValueError):
+class MidiFileError(Invalid):
     pass
 
 

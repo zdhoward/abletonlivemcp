@@ -8,6 +8,7 @@ references issued by ``ref_issue`` and runs two-pass (validate all, then write w
 
 import os
 
+from .core import Invalid
 from .dom_common import (
     BATCH_LIMIT,
     DISABLED,
@@ -136,11 +137,11 @@ def get_clips(ctx, p):
     addrs = p.get("clips")
     if addrs is not None:
         if not isinstance(addrs, list) or not 1 <= len(addrs) <= BATCH_LIMIT:
-            raise ValueError(f"'clips' must be a list of 1..{BATCH_LIMIT} addresses")
+            raise Invalid(f"'clips' must be a list of 1..{BATCH_LIMIT} addresses")
         rows = []
         for addr in addrs:
             if not isinstance(addr, dict):
-                raise ValueError("a clip address must be an object")
+                raise Invalid("a clip address must be an object")
             if addr.get("arrangement") is None:
                 _t, slot = _slot(song, addr)
                 if not slot.has_clip:
@@ -174,26 +175,26 @@ def get_clips(ctx, p):
 
 def _bool(value, name):
     if not isinstance(value, bool):
-        raise ValueError(f"{name!r} must be a bool")
+        raise Invalid(f"{name!r} must be a bool")
     return value
 
 
 def _choice(value, table, name, allowed=None):
     if value not in table:
-        raise ValueError(f"{name!r} must be one of {list(table)}")
+        raise Invalid(f"{name!r} must be one of {list(table)}")
     index = table.index(value)
     if allowed is not None and index not in allowed:
-        raise ValueError(f"{name!r} {value!r} is not available on this clip")
+        raise Invalid(f"{name!r} {value!r} is not available on this clip")
     return index
 
 
 def _range(value, name):
     if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise ValueError(f"{name!r} must be [start, end]")
+        raise Invalid(f"{name!r} must be [start, end]")
     s = _number(value[0], f"{name}[0]", -MAX_BEATS, MAX_BEATS)
     e = _number(value[1], f"{name}[1]", -MAX_BEATS, MAX_BEATS)
     if not s < e:
-        raise ValueError(f"{name!r} must have start < end (got {s}, {e})")
+        raise Invalid(f"{name!r} must have start < end (got {s}, {e})")
     return float(s), float(e)
 
 
@@ -212,7 +213,7 @@ def validate_fields(clip, item, where):
     audio = is_audio(clip)
     for f in AUDIO_FIELDS:
         if item.get(f) is not None and not audio:
-            raise ValueError(f"{where}: {f!r} needs an audio clip")
+            raise Invalid(f"{where}: {f!r} needs an audio clip")
     out = []
 
     def put(attr, value):
@@ -221,12 +222,12 @@ def validate_fields(clip, item, where):
     v = item.get
     if v("name") is not None:
         if not isinstance(v("name"), str) or len(v("name")) > 256:
-            raise ValueError(f"{where}: 'name' must be a string of at most 256 characters")
+            raise Invalid(f"{where}: 'name' must be a string of at most 256 characters")
         put("name", v("name"))
     if v("color_index") is not None:
         c = v("color_index")
         if isinstance(c, bool) or not isinstance(c, int) or not 0 <= c <= 69:
-            raise ValueError(f"{where}: 'color_index' must be an integer 0..69")
+            raise Invalid(f"{where}: 'color_index' must be an integer 0..69")
         put("color_index", c)
     if v("muted") is not None:
         put("muted", _bool(v("muted"), "muted"))
@@ -265,7 +266,7 @@ def validate_fields(clip, item, where):
             or not 1 <= sig[0] <= 99
             or sig[1] not in (1, 2, 4, 8, 16)
         ):
-            raise ValueError(f"{where}: 'signature' must be [1..99, 1|2|4|8|16]")
+            raise Invalid(f"{where}: 'signature' must be [1..99, 1|2|4|8|16]")
         put("signature_numerator", sig[0])
         put("signature_denominator", sig[1])
     if v("gain") is not None:
@@ -273,7 +274,7 @@ def validate_fields(clip, item, where):
     if v("pitch_coarse") is not None:
         pc = v("pitch_coarse")
         if isinstance(pc, bool) or not isinstance(pc, int) or not -48 <= pc <= 48:
-            raise ValueError(f"{where}: 'pitch_coarse' must be an integer -48..48")
+            raise Invalid(f"{where}: 'pitch_coarse' must be an integer -48..48")
         put("pitch_coarse", pc)
     if v("pitch_fine") is not None:
         put("pitch_fine", float(_number(v("pitch_fine"), "pitch_fine", -50, 50)))
@@ -288,7 +289,7 @@ def apply_fields(clip, writes):
 def clip_kind(resolved, where, allowed=CLIP_KINDS):
     kind = resolved.path[-1][0]
     if kind not in allowed:
-        raise ValueError(f"{where}: a {kind} is not a clip this method edits ({list(allowed)})")
+        raise Invalid(f"{where}: a {kind} is not a clip this method edits ({list(allowed)})")
     return kind
 
 
@@ -301,7 +302,7 @@ def set_clips(_ctx, p, t):
         clip = resolved[i].obj
         writes = validate_fields(clip, item, f"targets[{i}]")
         if not writes:
-            raise ValueError(f"targets[{i}]: nothing to set")
+            raise Invalid(f"targets[{i}]: nothing to set")
         return clip, writes
 
     def write(entry):
@@ -322,19 +323,19 @@ def note_specs(notes, where="notes"):
     rows = validated_notes(notes, where)
     spec = _note_specification()
     if spec is None:
-        raise ValueError("Live.Clip.MidiNoteSpecification is unavailable for add_new_notes")
+        raise Invalid("Live.Clip.MidiNoteSpecification is unavailable for add_new_notes")
     return tuple(spec(**row) for row in rows)
 
 
 def audio_file(path, where):
     if not isinstance(path, str) or not path or len(path) > 1024:
-        raise ValueError(f"{where}: 'file' must be an absolute path string")
+        raise Invalid(f"{where}: 'file' must be an absolute path string")
     if not os.path.isabs(path):
-        raise ValueError(f"{where}: 'file' must be an absolute path (Live refuses relative paths)")
+        raise Invalid(f"{where}: 'file' must be an absolute path (Live refuses relative paths)")
     if not path.lower().endswith(AUDIO_EXT):
-        raise ValueError(f"{where}: 'file' must be an audio file {list(AUDIO_EXT)}")
+        raise Invalid(f"{where}: 'file' must be an audio file {list(AUDIO_EXT)}")
     if not os.path.isfile(path):
-        raise ValueError(f"{where}: no such file: {path}")
+        raise Invalid(f"{where}: no such file: {path}")
     return path
 
 
@@ -350,21 +351,21 @@ def create_clips(ctx, p, t):
         where = f"targets[{i}]"
         slot, track = resolved[i].obj, resolved[i].nodes.get("track")
         if track is None:
-            raise ValueError(f"{where}: clips are created on regular tracks only")
+            raise Invalid(f"{where}: clips are created on regular tracks only")
         if any(_same(slot, s) for s in planned):
-            raise ValueError(f"{where}: this slot is already a target of this call")
+            raise Invalid(f"{where}: this slot is already a target of this call")
         planned.append(slot)
         replace = item.get("replace", False)
         if not isinstance(replace, bool):
-            raise ValueError(f"{where}: 'replace' must be a bool")
+            raise Invalid(f"{where}: 'replace' must be a bool")
         if slot.has_clip and not replace:
-            raise ValueError(f"{where}: clip slot is occupied")
+            raise Invalid(f"{where}: clip slot is occupied")
         kind = item.get("kind", "midi")
         prepared = {"slot": slot, "track": track, "kind": kind, "notes": ()}
         prepared["replace"] = slot.has_clip and replace
         if kind == "midi":
             if not track.has_midi_input:
-                raise ValueError(f"{where}: a MIDI clip needs a MIDI track")
+                raise Invalid(f"{where}: a MIDI clip needs a MIDI track")
             prepared["length"] = float(
                 _number(item.get("length", 4.0), "length", 0, MAX_NEW_LENGTH, exclusive=True)
             )
@@ -373,12 +374,12 @@ def create_clips(ctx, p, t):
         elif kind == "audio":
             require(ctx, "clip.create_audio", ((slot, "create_audio_clip"),))
             if track.has_midi_input:
-                raise ValueError(f"{where}: an audio clip needs an audio track (P-08)")
+                raise Invalid(f"{where}: an audio clip needs an audio track (P-08)")
             if item.get("notes"):
-                raise ValueError(f"{where}: 'notes' are for MIDI clips")
+                raise Invalid(f"{where}: 'notes' are for MIDI clips")
             prepared["file"] = audio_file(item.get("file"), where)
         else:
-            raise ValueError(f"{where}: 'kind' must be 'midi' or 'audio'")
+            raise Invalid(f"{where}: 'kind' must be 'midi' or 'audio'")
         prepared["fields"] = [
             w
             for w in (
@@ -474,7 +475,7 @@ def duplicate_clips(ctx, p, t):
             require(ctx, "arrangement.duplicate")
         slot, track = resolved[i].nodes["slot"], resolved[i].nodes.get("track")
         if track is None:
-            raise ValueError(f"{where}: only regular-track clips can be duplicated")
+            raise Invalid(f"{where}: only regular-track clips can be duplicated")
         require(ctx, "clip.duplicate", ((slot, "duplicate_clip_to"),))
         slots = track.clip_slots
         start = position_of(slots, slot) + 1
@@ -483,7 +484,7 @@ def duplicate_clips(ctx, p, t):
             if not dest.has_clip and not any(dest is s for s in taken):
                 taken.append(dest)
                 return slot, track, dest
-        raise ValueError(f"{where}: no empty slot below this clip; add a scene first")
+        raise Invalid(f"{where}: no empty slot below this clip; add a scene first")
 
     def write(e):
         slot, track, dest = e

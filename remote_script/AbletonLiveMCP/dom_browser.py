@@ -13,7 +13,7 @@ Two load routes:
 
 from itertools import islice
 
-from .core import log_failure, public_error
+from .core import Invalid, log_failure, public_error
 from .dom_common import (
     BROWSER_ROOTS,
     LIST_LIMIT,
@@ -106,7 +106,7 @@ def _roots(app):
 def _root(app, params):
     name = params.get("root")
     if name not in ALL_ROOTS or not hasattr(app.browser, name):
-        raise ValueError(f"'root' must be one of {_roots(app)}")
+        raise Invalid(f"'root' must be one of {_roots(app)}")
     node = getattr(app.browser, name)
     if isinstance(node, (list, tuple)) or not hasattr(node, "children"):
         return _Folder(name, tuple(node or ()))
@@ -138,26 +138,26 @@ def _find_child(node, name, unique, budget=WALK_BUDGET):
 
 def _walk_path(item, names):
     if not isinstance(names, list) or len(names) > PATH_LIMIT:
-        raise ValueError(f"'path' must be a list of at most {PATH_LIMIT} names")
+        raise Invalid(f"'path' must be a list of at most {PATH_LIMIT} names")
     for name in names:
         if not isinstance(name, str):
-            raise ValueError("'path' must contain only strings")
+            raise Invalid("'path' must contain only strings")
         match, exhausted = _find_child(item, name, False)
         if not match:
             if exhausted:
                 raise Refused("browser_budget", f"path walk exceeded {WALK_BUDGET} nodes")
-            raise ValueError(f"no child named {name!r}")
+            raise Invalid(f"no child named {name!r}")
         item = match[0]
     return item
 
 
 def _walk_path_unique(root, names):
     if not isinstance(names, list) or not 1 <= len(names) <= PATH_LIMIT:
-        raise ValueError(f"'path' must be a list of 1..{PATH_LIMIT} names")
+        raise Invalid(f"'path' must be a list of 1..{PATH_LIMIT} names")
     item = root
     for name in names:
         if not isinstance(name, str):
-            raise ValueError("'path' must contain only strings")
+            raise Invalid("'path' must contain only strings")
         matches, exhausted = _find_child(item, name, True)
         if exhausted:
             raise Refused("browser_budget", f"path walk exceeded {WALK_BUDGET} nodes")
@@ -171,7 +171,7 @@ def _walk_path_unique(root, names):
 def _count(p, key, default, maximum):
     value = p.get(key, default)
     if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
-        raise ValueError(f"'{key}' must be an integer 1..{maximum}")
+        raise Invalid(f"'{key}' must be an integer 1..{maximum}")
     return value
 
 
@@ -213,7 +213,7 @@ def browser_search(ctx, p):
     if p.get("cursor") is None:
         query = str(p.get("query", "")).strip().lower()
         if not query:
-            raise ValueError("'query' is required")
+            raise Invalid("'query' is required")
         stack = [([], _iter_children(_root(ctx.app, p)))]
     else:
         query, stack = ctx.operations.cursors.take(p["cursor"], "search")
@@ -374,7 +374,7 @@ def _classify(ref):
         return "chain", obj, ref.path[0][1], ref.path[-2][1]
     if kind == "drum_pad":
         return "drum_pad", _PadSlot(obj), ref.path[0][1], ref.path[-2][1]
-    raise ValueError("the load target must be a track, return, master, chain or drum pad")
+    raise Invalid("the load target must be a track, return, master, chain or drum pad")
 
 
 def _prior_layout(ctx, after):
@@ -439,7 +439,7 @@ def load_device(ctx, p, t):
     """Start loading one browser item onto a target (``targets: [{kind, ref}]``) and return a
     task record; ``operation`` reads it. Never retries, never waits."""
     if len(t["targets"]) != 1:
-        raise ValueError("'targets' must hold exactly one load target")
+        raise Invalid("'targets' must hold exactly one load target")
     ref = t["targets"][0]
     tkind, container, owner, rack = _classify(ref)
     cap = "load." + tkind

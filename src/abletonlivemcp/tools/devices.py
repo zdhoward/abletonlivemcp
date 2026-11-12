@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .. import chain
+from ..errors import Invalid
 from ..models import DevicePath, RawValue, ResponseFormat, TrackSel
 from ..models_devices import DeviceEdit, ParamWrite, container_kind
 from ..server import (
@@ -33,7 +34,7 @@ def at_device(path) -> bool:
 def device_ref(track, path, expect_name: str | None = None) -> str:
     """A fresh device reference (name-checked when ``expect_name`` is given)."""
     if not at_device(path):
-        raise ValueError("'path' must end at a device: [device] or [device, chain, device, ...]")
+        raise Invalid("'path' must end at a device: [device] or [device, chain, device, ...]")
     sel = {"kind": "device", **loc(track, path)}
     if expect_name is not None:
         sel["expect_name"] = expect_name
@@ -57,7 +58,7 @@ def live_get_device_parameters(
         info["devices"] = shape(info["devices"], response_format, DEVICES_CONCISE)
         return _untrusted(info)
     if not 1 <= limit <= PAGE or offset < 0:
-        raise ValueError(f"'offset' must be >= 0 and 'limit' 1..{PAGE}")
+        raise Invalid(f"'offset' must be >= 0 and 'limit' 1..{PAGE}")
     rows = _call("device_parameters", {**loc(track, path), "offset": offset, "limit": limit})
     rows = [{k: v for k, v in r.items() if k != "ref"} for r in rows]
     more = len(rows) == limit
@@ -92,26 +93,24 @@ def live_set_device_parameters(
     macro-controlled parameters are refused.
     On/off or rename: live_set_devices; rack macros: live_set_rack (racks toolset)."""
     if not 1 <= len(settings) <= 32:
-        raise ValueError("'settings' must hold 1..32 items")
+        raise Invalid("'settings' must hold 1..32 items")
     where = loc(track, path)
     if not at_device(path):
-        raise ValueError("'path' must end at a device")
+        raise Invalid("'path' must end at a device")
     params = _call("device_parameters", where)
     items, special, kinds = [], [], []
     for s in settings:
         if isinstance(s.parameter, int):
             if s.parameter >= len(params):
-                raise ValueError(f"parameter {s.parameter} does not exist ({len(params)})")
+                raise Invalid(f"parameter {s.parameter} does not exist ({len(params)})")
             q = params[s.parameter]
         else:
             q = chain._resolve(params, s.parameter)
         if not q.get("is_enabled", True):
-            raise ValueError(f"{q['name']!r} is disabled or controlled elsewhere")
+            raise Invalid(f"{q['name']!r} is disabled or controlled elsewhere")
         modes = [s.value is not None, s.reset, s.re_enable_automation]
         if sum(modes) != 1:
-            raise ValueError(
-                f"{q['name']!r}: give exactly one of value, reset, re_enable_automation"
-            )
+            raise Invalid(f"{q['name']!r}: give exactly one of value, reset, re_enable_automation")
         if s.value is not None:
             items.append((q, _target(s.value)))
             continue
@@ -153,13 +152,13 @@ def live_set_devices(targets: list[DeviceEdit]) -> dict:
     per-item outcomes and `unverified` abilities.
     Parameter values: live_set_device_parameters."""
     if not 1 <= len(targets) <= 64:
-        raise ValueError("'targets' must hold 1..64 devices")
+        raise Invalid("'targets' must hold 1..64 devices")
     selectors = []
     for t in targets:
         if not at_device(t.path):
-            raise ValueError("every 'path' must end at a device")
+            raise Invalid("every 'path' must end at a device")
         if t.on is None and t.name is None and t.collapsed is None:
-            raise ValueError("each target sets on, name or collapsed")
+            raise Invalid("each target sets on, name or collapsed")
         sel = {"kind": "device", **loc(t.track, t.path)}
         if t.expect_name is not None:
             sel["expect_name"] = t.expect_name
@@ -190,13 +189,13 @@ def live_move_device(
     (to_path ending at a chain index or "pad:N"); position defaults to the end. Reordering
     within the same container is refused (Live 12.2). Verified at the destination."""
     if not at_device(path):
-        raise ValueError("'path' must end at a device")
+        raise Invalid("'path' must end at a device")
     if to_path and at_device(to_path):
-        raise ValueError("'to_path' must end at a chain index or 'pad:N'")
+        raise Invalid("'to_path' must end at a chain index or 'pad:N'")
     if to_track == track and list(to_path or []) == list(path[:-1]):
         raise unsupported("device reorder", "Live 12.2 refuses moves within one container (P-04)")
     if position is not None and position < 0:
-        raise ValueError("'position' must be >= 0")
+        raise Invalid("'position' must be >= 0")
     dest_kind = container_kind(to_track, to_path)
     sel = {"kind": "device", **loc(track, path)}
     if expect_name is not None:

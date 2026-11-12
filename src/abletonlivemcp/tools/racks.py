@@ -7,6 +7,7 @@ offered on 12.2: `live_get_rack` returns the manual mapping guidance instead.
 from __future__ import annotations
 
 from .. import chain
+from ..errors import Invalid
 from ..models import DevicePath, TrackSel
 from ..models_devices import ChainEdit, MacroSet, Variation
 from ..server import _call, _overwrite, _read, _untrusted
@@ -15,7 +16,7 @@ from .devices import at_device, device_ref, loc
 
 def _rack(path) -> list:
     if not at_device(path):
-        raise ValueError("'path' must end at a rack device")
+        raise Invalid("'path' must end at a rack device")
     return list(path)
 
 
@@ -48,7 +49,7 @@ def live_set_rack(
     if chains:
         rack_edit["chains"] = [c.model_dump(exclude_none=True) for c in chains]
     if not rack_edit and not macros:
-        raise ValueError("live_set_rack sets nothing")
+        raise Invalid("live_set_rack sets nothing")
     if rack_edit:
         out["rack"] = _call("set_rack", {"device": device_ref(track, where["path"]), **rack_edit})
         if out["rack"].get("status") != "complete":

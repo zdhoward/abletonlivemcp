@@ -8,6 +8,7 @@ its own: ``dom_session``'s ``get_session``/``set_session`` read and write these 
   write is refused ``unsupported`` before any native call.
 """
 
+from .core import Invalid
 from .dom_common import Refused, _index, _number, require
 
 CAPABILITIES = {
@@ -62,13 +63,13 @@ def read_extras(song):
 def validate_grooves(ctx, items):
     """Pass 1 for ``grooves: [{index, expect_name?, <amount fields>}]`` -> prepared writes."""
     if not isinstance(items, list) or not 1 <= len(items) <= GROOVE_LIMIT:
-        raise ValueError(f"'grooves' must be a list of 1..{GROOVE_LIMIT} objects")
+        raise Invalid(f"'grooves' must be a list of 1..{GROOVE_LIMIT} objects")
     require(ctx, "song.groove_pool", ((ctx.song, "groove_pool"),))
     grooves = list(ctx.song.groove_pool.grooves)
     out = []
     for n, item in enumerate(items):
         if not isinstance(item, dict):
-            raise ValueError("each groove must be an object")
+            raise Invalid("each groove must be an object")
         groove = grooves[_index(item.get("index"), f"grooves[{n}].index", len(grooves))]
         expected = item.get("expect_name")
         if expected is not None and expected != groove.name:
@@ -79,7 +80,7 @@ def validate_grooves(ctx, items):
             if item.get(f) is not None
         }
         if not values:
-            raise ValueError(f"grooves[{n}]: give at least one amount")
+            raise Invalid(f"grooves[{n}]: give at least one amount")
         for field, value in values.items():
             out.append((f"groove[{item['index']}].{field}", groove, field, float(value)))
     return out
@@ -91,7 +92,7 @@ def validate_link(ctx, p):
         if p.get(key) is None:
             continue
         if not isinstance(p[key], bool):
-            raise ValueError(f"{key!r} must be a bool")
+            raise Invalid(f"{key!r} must be a bool")
         require(ctx, "song.link", ((ctx.song, attribute),))
         out.append((key, ctx.song, attribute, p[key]))
     return out

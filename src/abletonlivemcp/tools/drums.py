@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Literal
 
 from .. import chain, server
+from ..errors import Invalid
 from ..models import DevicePath, TrackSel
 from ..models_devices import ConvertTarget, DrumRole, PadCopy, PadEdit, SliceEdit
 from ..server import _call, _create, _overwrite, _read, _untrusted, issue_refs, unsupported
@@ -20,7 +21,7 @@ UNTRUSTED = "live_object_text_untrusted"
 
 def _rack_path(path) -> list:
     if not at_device(path):
-        raise ValueError("'path' must end at a Drum Rack device")
+        raise Invalid("'path' must end at a Drum Rack device")
     return list(path)
 
 
@@ -43,7 +44,7 @@ def live_set_drum_pads(
     current expect_name); or copy one pad onto an EMPTY pad. Validated before any write."""
     rack = _rack_path(path)
     if bool(pads) == (copy is not None):
-        raise ValueError("give 'pads' (1..64 edits) or 'copy', not both")
+        raise Invalid("give 'pads' (1..64 edits) or 'copy', not both")
     if copy is not None:
         raise unsupported(
             "drum pad copy",
@@ -51,11 +52,11 @@ def live_set_drum_pads(
             "disabled pending real-Live verification",
         )
     if len(pads) > 64:
-        raise ValueError("'pads' must hold at most 64 edits")
+        raise Invalid("'pads' must hold at most 64 edits")
     selectors = []
     for p in pads:
         if p.clear and p.expect_name is None:
-            raise ValueError(f"pad {p.note}: clear needs expect_name (the pad's current name)")
+            raise Invalid(f"pad {p.note}: clear needs expect_name (the pad's current name)")
         sel = {"kind": "drum_pad", **loc(track, rack + [f"pad:{p.note}"])}
         if p.expect_name is not None:
             sel["expect_name"] = p.expect_name
@@ -83,18 +84,18 @@ ConvertAction = Literal[
 def _convert_selector(action: str, t: ConvertTarget) -> dict:
     if action.endswith("audio_clip") or action == "audio_to_midi":
         if (t.scene is None) == (t.arrangement is None):
-            raise ValueError(f"{action} needs the clip: 'scene' or 'arrangement'")
+            raise Invalid(f"{action} needs the clip: 'scene' or 'arrangement'")
         if t.scene is not None:
             return {"kind": "clip", "track": t.track, "scene": t.scene}
         return {"kind": "arr_clip", "track": t.track, "arrangement": t.arrangement}
     if action == "midi_track_from_drum_pad":
         if not t.path or not isinstance(t.path[-1], str):
-            raise ValueError("midi_track_from_drum_pad needs a path ending at 'pad:N'")
+            raise Invalid("midi_track_from_drum_pad needs a path ending at 'pad:N'")
         return {"kind": "drum_pad", **loc(t.track, t.path)}
     if action == "sliced_simpler_to_drum_rack":
         return {"kind": "device", **loc(t.track, _rack_path(t.path))}
     if not isinstance(t.track, int):
-        raise ValueError("devices_to_drum_pad takes a regular track")
+        raise Invalid("devices_to_drum_pad takes a regular track")
     return {"kind": "track", "track": t.track}
 
 

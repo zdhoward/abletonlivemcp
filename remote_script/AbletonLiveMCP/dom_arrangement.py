@@ -9,6 +9,7 @@ observe the playhead, toggle on a later tick, observe the cue at the exact time)
 ``current_song_time`` applies late and ``set_or_delete_cue`` acts at the playhead.
 """
 
+from .core import Invalid
 from .dom_clips import (
     MAX_NEW_LENGTH,
     apply_fields,
@@ -63,11 +64,11 @@ def get_arrangement(ctx, p):
     song = ctx.song
     include = p.get("include") or ["clips", "cues"]
     if not isinstance(include, list) or set(include) - {"clips", "cues", "take_lanes"}:
-        raise ValueError("'include' must list 'clips', 'cues' and/or 'take_lanes'")
+        raise Invalid("'include' must list 'clips', 'cues' and/or 'take_lanes'")
     span = p.get("range")
     if span is not None:
         if not isinstance(span, list) or len(span) != 2:
-            raise ValueError("'range' must be [start, end] in beats")
+            raise Invalid("'range' must be [start, end] in beats")
         span = (float(_number(span[0], "range[0]", 0)), float(_number(span[1], "range[1]", 0)))
     out = {
         "song_length": song.song_length,
@@ -87,9 +88,9 @@ def get_arrangement(ctx, p):
         start_at = 0 if start_at is None else _index(start_at, "next_track", count)
         sels = list(range(start_at, min(count, start_at + SCAN_TRACKS)))
     elif start_at is not None:
-        raise ValueError("'next_track' continues a whole-Set read; do not combine it with 'tracks'")
+        raise Invalid("'next_track' continues a whole-Set read; do not combine it with 'tracks'")
     if not isinstance(sels, list) or (not scan and len(sels) > BATCH_LIMIT):
-        raise ValueError(f"'tracks' must be a list of at most {BATCH_LIMIT} track selectors")
+        raise Invalid(f"'tracks' must be a list of at most {BATCH_LIMIT} track selectors")
     rows, budget, truncated = [], CLIP_ROWS, False
 
     def clips_of(parent):
@@ -145,7 +146,7 @@ def get_arrangement(ctx, p):
 
 def _overlaps(parent, start, end):
     if not has_arrangement_clips(parent):
-        raise ValueError("a group track cannot hold arrangement clips; use a member track")
+        raise Invalid("a group track cannot hold arrangement clips; use a member track")
     return [c for c in parent.arrangement_clips if c.start_time < end and c.end_time > start]
 
 
@@ -158,7 +159,7 @@ def create_arrangement_clips(ctx, p, t):
         where = f"targets[{i}]"
         track = resolved[i].obj
         if resolved[i].path[-1][0] != "track":
-            raise ValueError(f"{where}: arrangement clips go on regular tracks")
+            raise Invalid(f"{where}: arrangement clips go on regular tracks")
         kind = item.get("kind", "midi")
         if kind == "from_session":
             require(ctx, "arrangement.from_session")
@@ -170,7 +171,7 @@ def create_arrangement_clips(ctx, p, t):
         if kind == "midi":
             require(ctx, "arrangement.create_clip", ((track, "create_midi_clip"),))
             if not track.has_midi_input:
-                raise ValueError(f"{where}: a MIDI clip needs a MIDI track")
+                raise Invalid(f"{where}: a MIDI clip needs a MIDI track")
             length = float(
                 _number(item.get("length", 4.0), f"{where}.length", 0, MAX_NEW_LENGTH, True)
             )
@@ -181,7 +182,7 @@ def create_arrangement_clips(ctx, p, t):
         elif kind == "audio":
             require(ctx, "arrangement.create_clip", ((track, "create_audio_clip"),))
             if track.has_midi_input:
-                raise ValueError(f"{where}: an audio clip needs an audio track (P-08)")
+                raise Invalid(f"{where}: an audio clip needs an audio track (P-08)")
             prepared["file"] = audio_file(item.get("file"), where)
             end = float("inf")  # length is known only after creation: place after every clip
         elif kind == "from_session":
@@ -189,28 +190,28 @@ def create_arrangement_clips(ctx, p, t):
             scene = _index(item.get("scene"), f"{where}.scene", len(track.clip_slots))
             slot = track.clip_slots[scene]
             if not slot.has_clip:
-                raise ValueError(f"{where}: source Session slot is empty")
+                raise Invalid(f"{where}: source Session slot is empty")
             source = slot.clip
             length = float(source.length)
             if length <= 0 or start + length > MAX_TIME:
-                raise ValueError(f"{where}: source length is outside the timeline bounds")
+                raise Invalid(f"{where}: source length is outside the timeline bounds")
             prepared["source"] = source
             prepared["length"] = length
             end = start + length
         else:
-            raise ValueError(f"{where}: 'kind' must be 'midi', 'audio' or 'from_session'")
+            raise Invalid(f"{where}: 'kind' must be 'midi', 'audio' or 'from_session'")
         overlaps = _overlaps(track, start, end)
         prepared["replace"] = []
         if item.get("replace"):  # the write gate required the delete permission
             if kind != "from_session":
-                raise ValueError(f"{where}: replace is only supported for from_session")
+                raise Invalid(f"{where}: replace is only supported for from_session")
             require(ctx, "arrangement.delete_clip", ((track, "delete_clip"),))
             if any(c.start_time < start or c.end_time > end for c in overlaps):
-                raise ValueError(f"{where}: replace refuses clips outside the destination")
+                raise Invalid(f"{where}: replace refuses clips outside the destination")
             prepared["replace"] = overlaps
         collision = any(s < end and e > start for s, e in reserved)
         if (overlaps and not item.get("replace")) or collision:
-            raise ValueError(
+            raise Invalid(
                 f"{where}: the range overlaps an existing clip (nothing is overwritten"
                 + ("; audio clips go after the track's last clip)" if kind == "audio" else ")")
             )
@@ -267,7 +268,7 @@ def edit_arrangement_clips(ctx, p, t):
     def validate(i, item):
         where = f"targets[{i}]"
         if resolved[i].path[-1][0] != "arr_clip":
-            raise ValueError(f"{where}: must be an arrangement clip reference")
+            raise Invalid(f"{where}: must be an arrangement clip reference")
         if item.get("move_to") is not None:
             require(ctx, "arrangement.move")
         if item.get("split_at") is not None:
@@ -277,7 +278,7 @@ def edit_arrangement_clips(ctx, p, t):
         clip = resolved[i].obj
         writes = validate_fields(clip, item, where)
         if not writes:
-            raise ValueError(f"{where}: nothing to set")
+            raise Invalid(f"{where}: nothing to set")
         return clip, writes
 
     def write(e):
@@ -412,9 +413,9 @@ def set_cue_points(ctx, p, t):
     items, resolved = p.get("cues") or [], t.get("cues") or []
     adds = p.get("add") or []
     if not isinstance(adds, list) or len(adds) > CUE_ACTIONS:
-        raise ValueError(f"'add' must be a list of at most {CUE_ACTIONS} cue points")
+        raise Invalid(f"'add' must be a list of at most {CUE_ACTIONS} cue points")
     if not items and not adds:
-        raise ValueError("nothing to do: give 'cues' and/or 'add'")
+        raise Invalid("nothing to do: give 'cues' and/or 'add'")
     if adds and p.get("generation") != ctx.safety.generation:
         raise Refused("stale_generation", "expected 'generation' does not match the Set")
     renames, deletes, jump = [], [], None
@@ -424,35 +425,35 @@ def set_cue_points(ctx, p, t):
         if action == "rename":
             name = item.get("name")
             if not isinstance(name, str) or len(name) > 256:
-                raise ValueError(f"{where}: 'name' must be a string of at most 256 characters")
+                raise Invalid(f"{where}: 'name' must be a string of at most 256 characters")
             renames.append((cue, name))
         elif action == "delete":
             deletes.append(("delete", cue, cue.time))
         elif action == "jump":
             if jump is not None:
-                raise ValueError("only one 'jump' per call")
+                raise Invalid("only one 'jump' per call")
             jump = cue
         else:
-            raise ValueError(f"{where}: 'action' must be rename, jump or delete")
+            raise Invalid(f"{where}: 'action' must be rename, jump or delete")
     queue = list(deletes)
     seen = {round(d[2], 6) for d in deletes}
     for i, add in enumerate(adds):
         if not isinstance(add, dict):
-            raise ValueError(f"add[{i}] must be an object")
+            raise Invalid(f"add[{i}] must be an object")
         time_ = float(_number(add.get("time"), f"add[{i}].time", 0, MAX_TIME))
         name = add.get("name")
         if name is not None and (not isinstance(name, str) or len(name) > 256):
-            raise ValueError(f"add[{i}]: 'name' must be a string of at most 256 characters")
+            raise Invalid(f"add[{i}]: 'name' must be a string of at most 256 characters")
         if round(time_, 6) in seen:
-            raise ValueError(f"add[{i}]: time {time_} is already in this call")
+            raise Invalid(f"add[{i}]: time {time_} is already in this call")
         seen.add(round(time_, 6))
         queue.append(("add", time_, name))
     if len(queue) > CUE_ACTIONS:
-        raise ValueError(f"at most {CUE_ACTIONS} adds + deletes per call")
+        raise Invalid(f"at most {CUE_ACTIONS} adds + deletes per call")
     if queue:
         require(ctx, "cue.edit", ((song, "set_or_delete_cue"), (song, "is_cue_point_selected")))
         if jump is not None:
-            raise ValueError(
+            raise Invalid(
                 "'jump' cannot share a call with adds or deletes (both move the playhead)"
             )
         if song.is_playing:

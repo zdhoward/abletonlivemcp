@@ -4,6 +4,7 @@ Every operation is its own capability (``unverified`` until the final proof): a 
 unknown outcome gates only that action. Every refusal comes before the native call.
 """
 
+from .core import Invalid
 from .dom_common import (
     BATCH_LIMIT,
     READ,
@@ -55,7 +56,7 @@ def _drum_rack(ctx, p):
     nodes = locate_device(ctx.song, p)
     dev = nodes[-1][1]
     if not getattr(dev, "can_have_drum_pads", False):
-        raise ValueError("that device is not a Drum Rack")
+        raise Invalid("that device is not a Drum Rack")
     return nodes, dev
 
 
@@ -113,7 +114,7 @@ def _simpler(ctx, p):
     nodes = locate_device(ctx.song, p)
     dev = nodes[-1][1]
     if dev.class_name != "OriginalSimpler":
-        raise ValueError(f"that device is a {dev.class_name}, not Simpler")
+        raise Invalid(f"that device is a {dev.class_name}, not Simpler")
     return dev
 
 
@@ -144,22 +145,22 @@ def set_drum_pads(ctx, p, t):
         for key in ("mute", "solo"):
             if key in item:
                 if not isinstance(item[key], bool):
-                    raise ValueError(f"targets[{i}].{key} must be true or false")
+                    raise Invalid(f"targets[{i}].{key} must be true or false")
                 require(ctx, "drum_pad.mute_solo", ((pad, key),))
                 unverified.add("drum_pad.mute_solo")
                 edit[key] = item[key]
         if "name" in item:
             if not isinstance(item["name"], str) or not 1 <= len(item["name"]) <= 256:
-                raise ValueError(f"targets[{i}].name must be a string of 1..256 characters")
+                raise Invalid(f"targets[{i}].name must be a string of 1..256 characters")
             require(ctx, "drum_pad.rename", ((pad, "name"),))
             unverified.add("drum_pad.rename")
             edit["name"] = item["name"]
         if "choke_group" in item:
             g = item["choke_group"]
             if isinstance(g, bool) or not isinstance(g, int) or not 0 <= g <= 16:
-                raise ValueError(f"targets[{i}].choke_group must be 0..16")
+                raise Invalid(f"targets[{i}].choke_group must be 0..16")
             if not len(pad.chains):
-                raise ValueError(f"targets[{i}]: the pad is empty")
+                raise Invalid(f"targets[{i}]: the pad is empty")
             require(ctx, "drum_pad.choke", ((pad.chains[0], "choke_group"),))
             unverified.add("drum_pad.choke")
             edit["choke_group"] = g
@@ -168,7 +169,7 @@ def set_drum_pads(ctx, p, t):
             unverified.add("drum_pad.clear")
             edit["clear"] = True
         if not edit:
-            raise ValueError(f"targets[{i}] sets nothing")
+            raise Invalid(f"targets[{i}] sets nothing")
         prepared.append((pad, edit))
 
     def write(entry):
@@ -192,15 +193,15 @@ def copy_drum_pad(ctx, p, t):
     empty (nothing is overwritten)."""
     rack = t["device"].obj
     if not getattr(rack, "can_have_drum_pads", False):
-        raise ValueError("'device' must be a Drum Rack")
+        raise Invalid("'device' must be a Drum Rack")
     require(ctx, "drum_pad.copy", ((rack, "copy_pad"),))
     src = _index(p.get("source"), "source", 128)
     dst = _index(p.get("destination"), "destination", 128)
     pads = {x.note: x for x in rack.drum_pads}
     if src == dst or src not in pads or dst not in pads:
-        raise ValueError("'source' and 'destination' must be two different pad notes")
+        raise Invalid("'source' and 'destination' must be two different pad notes")
     if not len(pads[src].chains):
-        raise ValueError("the source pad is empty")
+        raise Invalid("the source pad is empty")
     if len(pads[dst].chains):
         raise Refused("target_occupied", "the destination pad is not empty; clear it first")
     rack.copy_pad(src, dst)
@@ -240,14 +241,14 @@ def convert(ctx, p, t):
     """One Live.Conversions action on one target (``targets: [{kind, ref}]``)."""
     action = p.get("action")
     if action not in CONVERSIONS:
-        raise ValueError(f"'action' must be one of {sorted(CONVERSIONS)}")
+        raise Invalid(f"'action' must be one of {sorted(CONVERSIONS)}")
     if len(t["targets"]) != 1:
-        raise ValueError("'targets' must hold exactly one target")
+        raise Invalid("'targets' must hold exactly one target")
     ref = t["targets"][0]
     fname, kinds = CONVERSIONS[action]
     kind = ref.path[-1][0]
     if kind not in kinds:
-        raise ValueError(f"{action} takes a {' or '.join(kinds)}, not a {kind}")
+        raise Invalid(f"{action} takes a {' or '.join(kinds)}, not a {kind}")
     cap = "convert." + action
     conv = _conversions()
     if conv is None:
@@ -256,7 +257,7 @@ def convert(ctx, p, t):
     song, obj = ctx.song, ref.obj
     args = (song, obj)
     if kind in ("clip", "arr_clip") and not getattr(obj, "is_audio_clip", False):
-        raise ValueError(f"{action} needs an audio clip")
+        raise Invalid(f"{action} needs an audio clip")
     if action == "audio_to_midi":
         mode = p.get("midi_type", "melody")
         enum = getattr(conv, "AudioToMidiType", None)
@@ -265,10 +266,10 @@ def convert(ctx, p, t):
         args = (song, obj, getattr(enum, mode))
     elif action == "sliced_simpler_to_drum_rack":
         if obj.class_name != "OriginalSimpler":
-            raise ValueError("sliced_simpler_to_drum_rack needs a Simpler device")
+            raise Invalid("sliced_simpler_to_drum_rack needs a Simpler device")
     elif action == "devices_to_drum_pad":
         if not len(obj.devices):
-            raise ValueError("the track has no devices to move")
+            raise Invalid("the track has no devices to move")
         args = (song, position_of(song.tracks, obj))
     tracks_before = len(song.tracks)
     try:
@@ -303,7 +304,7 @@ SAMPLE_WRITABLE = (
 
 def _scalar(value, name):
     if not isinstance(value, (bool, int, float)):
-        raise ValueError(f"{name!r} must be a number or boolean")
+        raise Invalid(f"{name!r} must be a number or boolean")
     return value
 
 
@@ -313,21 +314,21 @@ def set_simpler(ctx, p, t):
     the receipt says how far it got."""
     dev = t["device"].obj
     if dev.class_name != "OriginalSimpler":
-        raise ValueError("'device' must be a Simpler")
+        raise Invalid("'device' must be a Simpler")
     steps = []
     for key, value in sorted((p.get("device_fields") or {}).items()):
         if key not in DEVICE_WRITABLE:
-            raise ValueError(f"device field {key!r} is not one of {list(DEVICE_WRITABLE)}")
+            raise Invalid(f"device field {key!r} is not one of {list(DEVICE_WRITABLE)}")
         require(ctx, "simpler.device", ((dev, key),))
         steps.append(("device", key, _scalar(value, key)))
     sample = _get(dev, "sample")
     fields = p.get("sample_fields") or {}
     slices = p.get("slices") or {}
     if (fields or slices) and sample is None:
-        raise ValueError("this Simpler has no sample")
+        raise Invalid("this Simpler has no sample")
     for key, value in sorted(fields.items()):
         if key not in SAMPLE_WRITABLE:
-            raise ValueError(f"sample field {key!r} is not one of {list(SAMPLE_WRITABLE)}")
+            raise Invalid(f"sample field {key!r} is not one of {list(SAMPLE_WRITABLE)}")
         require(ctx, "simpler.sample", ((sample, key),))
         steps.append(("sample", key, _scalar(value, key)))
     for op in ("clear", "reset"):
@@ -338,14 +339,14 @@ def set_simpler(ctx, p, t):
     for op, member in (("insert", "insert_slice"), ("remove", "remove_slice")):
         times = slices.get(op) or []
         if not isinstance(times, list) or len(times) > BATCH_LIMIT:
-            raise ValueError(f"slices.{op} must be a list of at most {BATCH_LIMIT} sample times")
+            raise Invalid(f"slices.{op} must be a list of at most {BATCH_LIMIT} sample times")
         for x in times:
             if isinstance(x, bool) or not isinstance(x, int) or x < 0:
-                raise ValueError(f"slices.{op} times are sample positions (integers >= 0)")
+                raise Invalid(f"slices.{op} times are sample positions (integers >= 0)")
             require(ctx, "simpler.slices", ((sample, member),))
             steps.append(("slices", member, x))
     if not steps:
-        raise ValueError("set_simpler sets nothing")
+        raise Invalid("set_simpler sets nothing")
 
     def write(step):
         where, key, value = step

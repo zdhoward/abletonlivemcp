@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 from .config import ConfigError, checked_path
+from .errors import Invalid
 
 DATA_DIR_ENV = "ABLETONLIVEMCP_DATA_DIR"
 FILE_NAME = "labels.json"
@@ -31,7 +32,7 @@ GLOBAL_KINDS = ("plugin", "device", "sample")
 _thread_lock = threading.Lock()
 
 
-class LabelStoreError(ValueError):
+class LabelStoreError(Invalid):
     """The sidecar cannot be read or written safely (nothing was changed)."""
 
 

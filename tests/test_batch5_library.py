@@ -20,6 +20,7 @@ from abletonlivemcp.als import paths as als_paths  # noqa: E402
 from abletonlivemcp.als import reader as als_reader  # noqa: E402
 from abletonlivemcp.als.paths import PathEscape, confine  # noqa: E402
 from abletonlivemcp.als.usage import build_index, find_sets  # noqa: E402
+from abletonlivemcp.errors import Invalid  # noqa: E402
 from abletonlivemcp.models_library import LabelItem  # noqa: E402
 from AbletonLiveMCP.safety import CLASSIFICATION, TARGETS, WRITE  # noqa: E402
 from abletonlivemcp.tools import organize  # noqa: E402
@@ -401,7 +402,7 @@ def fake(monkeypatch, data_dir):
         for s in selectors:
             name = names.get(s["track"], "Verb")
             if s.get("expect_name") not in (None, name):
-                raise ValueError("name mismatch")
+                raise Invalid("name mismatch")
             rows.append(
                 {
                     "kind": s["kind"],

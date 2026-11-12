@@ -44,7 +44,7 @@ import collections
 import secrets
 import time
 
-from .core import log_failure
+from .core import Invalid, log_failure
 from .safety import Refused, _same, same_items
 
 RING = 16
@@ -255,7 +255,7 @@ class Operations:
         """Up to ``MAX_POLL_IDS`` records in one read (an unknown id reads as ``unknown_operation``
         in its row, not as a refusal of the whole poll)."""
         if not isinstance(op_ids, list) or not 1 <= len(op_ids) <= MAX_POLL_IDS:
-            raise ValueError(f"'operations' must be a list of 1..{MAX_POLL_IDS} ids")
+            raise Invalid(f"'operations' must be a list of 1..{MAX_POLL_IDS} ids")
         rows = []
         for op_id in op_ids:
             op = self.prior(op_id)

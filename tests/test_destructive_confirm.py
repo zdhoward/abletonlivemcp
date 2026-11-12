@@ -11,8 +11,10 @@ import mcp_types as types
 import pytest
 from mcp import Client
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from abletonlivemcp import server
+from abletonlivemcp.errors import Invalid
 from abletonlivemcp.models import BatchTarget, TrackSel
 from abletonlivemcp.models_clips import CueEdit
 
@@ -122,6 +124,25 @@ def test_a_call_that_deletes_asks_even_on_a_non_destructive_tool(mode, monkeypat
     result = _call(surface, mode, callback, {"cues": [{"cue": 1, "action": "delete"}]})
     assert result.is_error and "refused:not_confirmed" in _text(result), _text(result)
     assert "This call deletes" in asked[0].message and applied == [["rename"]]
+
+
+def test_only_deliberate_refusals_are_echoed_by_the_guard(monkeypatch, caplog):
+    """R5: an ``Invalid`` is shown and called not applied; a native ValueError is withheld."""
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
+
+    def live_fake_write(kind: str) -> dict:
+        """Raises (test double)."""
+        if kind == "refusal":
+            raise Invalid("'track' must be an integer")
+        raise ValueError("D:/Music/someone/Secret.als is locked")
+
+    run = server._guard(live_fake_write, server.OVERWRITE, True)
+    with pytest.raises(ToolError, match="must be an integer.*not applied"):
+        run(kind="refusal")
+    with pytest.raises(ToolError) as error:
+        run(kind="native")
+    assert "Secret" not in str(error.value) and "outcome unknown" in str(error.value)
+    assert "Secret" not in caplog.text and "live_fake_write failed: ValueError" in caplog.text
 
 
 def test_confirm_never_appears_in_the_input_schema(monkeypatch):

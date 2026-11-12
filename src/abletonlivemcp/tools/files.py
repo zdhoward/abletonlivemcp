@@ -14,6 +14,7 @@ from typing import Annotated
 from pydantic import Field
 
 from .. import midi_file
+from ..errors import Invalid
 from ..models import ClipRef, Index
 from ..server import _call, _create, clip_selector, issue_refs
 
@@ -23,10 +24,10 @@ NOTE_PAGE = 1000
 def file_roots() -> list[Path]:
     raw = os.environ.get("ABLETONLIVEMCP_FILE_ROOTS")
     if not raw or not raw.strip():
-        raise ValueError("set ABLETONLIVEMCP_FILE_ROOTS to explicit MIDI import/export folders")
+        raise Invalid("set ABLETONLIVEMCP_FILE_ROOTS to explicit MIDI import/export folders")
     roots = [Path(r) for r in raw.split(os.pathsep) if r.strip()]
     if not roots or any(not root.is_absolute() for root in roots):
-        raise ValueError("ABLETONLIVEMCP_FILE_ROOTS must contain absolute folder paths")
+        raise Invalid("ABLETONLIVEMCP_FILE_ROOTS must contain absolute folder paths")
     return [r.resolve() for r in roots]
 
 
@@ -34,12 +35,12 @@ def confined(path: str, suffixes=(".mid", ".midi")) -> Path:
     """An absolute, resolved path inside a file root with a MIDI suffix (ValueError otherwise)."""
     p = Path(path)
     if not p.is_absolute():
-        raise ValueError("'file' must be an absolute path")
+        raise Invalid("'file' must be an absolute path")
     p = p.resolve()
     if p.suffix.lower() not in suffixes:
-        raise ValueError(f"'file' must end with one of {list(suffixes)}")
+        raise Invalid(f"'file' must end with one of {list(suffixes)}")
     if not any(p == r or r in p.parents for r in file_roots()):
-        raise ValueError(
+        raise Invalid(
             f"'file' is outside the allowed roots ({os.pathsep.join(map(str, file_roots()))})"
         )  # noqa: E501
     return p
@@ -67,15 +68,15 @@ def live_import_midi(
     empty Session slot `scene`, or in the arrangement at `start` beats. Length defaults to the
     notes rounded up to a bar."""
     if (scene is None) == (start is None):
-        raise ValueError("give exactly one of 'scene' (Session) or 'start' (arrangement)")
+        raise Invalid("give exactly one of 'scene' (Session) or 'start' (arrangement)")
     path = confined(file)
     if not path.is_file():
-        raise ValueError(f"no such file: {path}")
+        raise Invalid(f"no such file: {path}")
     if path.stat().st_size > midi_file.MAX_BYTES:
-        raise ValueError(f"file larger than {midi_file.MAX_BYTES} bytes")
+        raise Invalid(f"file larger than {midi_file.MAX_BYTES} bytes")
     content = midi_file.parse(path.read_bytes())
     if not content.notes:
-        raise ValueError("the file holds no notes")
+        raise Invalid("the file holds no notes")
     end = max(n.start_time + n.duration for n in content.notes)
     size = length or min(1024.0, max(4.0, math.ceil(end / 4.0) * 4.0))
     item = {"kind": "midi", "length": size, "notes": [_row(n) for n in content.notes]}
@@ -107,9 +108,9 @@ def live_export_midi(clip: ClipRef, file: str) -> dict:
     path = confined(file)
     clip_selector(clip)
     if path.exists():
-        raise ValueError(f"{path} exists; export writes new files only")
+        raise Invalid(f"{path} exists; export writes new files only")
     if not path.parent.is_dir():
-        raise ValueError(f"no such directory: {path.parent}")
+        raise Invalid(f"no such directory: {path.parent}")
     notes, offset = [], 0
     while offset is not None and len(notes) < midi_file.MAX_NOTES:
         page = _call(
@@ -120,7 +121,7 @@ def live_export_midi(clip: ClipRef, file: str) -> dict:
         notes += page["notes"]
         offset = page["next_offset"]
     if offset is not None:
-        raise ValueError(f"the clip holds more than {midi_file.MAX_NOTES} notes")
+        raise Invalid(f"the clip holds more than {midi_file.MAX_NOTES} notes")
     session = _call("session_info")
     sig = session.get("signature")
     audible = [n for n in notes if not n.get("mute")]

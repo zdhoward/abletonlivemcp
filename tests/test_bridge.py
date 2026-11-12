@@ -646,18 +646,28 @@ def test_review_fixes_outcome_text_refusals_auth_deadline_and_busy(private_confi
 
     def dispatch(method, params):
         if method == "refuse":
-            raise ValueError("'scene' must be an integer")
+            raise core.Invalid("'scene' must be an integer")
+        if method == "native":  # a ValueError this code did not write: never trusted
+            raise ValueError("D:/Music/someone/private/song.als is locked")
         raise RuntimeError("secret-token-123")
 
+    logged = []
     with running(dispatch) as server:
+        server._log = logged.append
         with pytest.raises(bridge.BridgeError) as error:
             bridge.BridgeClient(port=server.port).call("refuse")
         assert error.value.kind == "ValueError" and not error.value.may_have_applied
         assert "'scene' must be an integer" in str(error.value)
-        with pytest.raises(bridge.BridgeError) as error:
-            bridge.BridgeClient(port=server.port).call("boom")
-        assert error.value.kind == "HandlerError" and error.value.may_have_applied
-        assert "secret-token-123" not in str(error.value)
+        for method, secret in (("boom", "secret-token-123"), ("native", "private")):
+            with pytest.raises(bridge.BridgeError) as error:
+                bridge.BridgeClient(port=server.port).call(method)
+            assert error.value.kind == "HandlerError" and error.value.may_have_applied
+            assert secret not in str(error.value)
+    assert [line.split(" at ")[0] for line in logged] == [
+        "AbletonLiveMCP: boom failed: RuntimeError",
+        "AbletonLiveMCP: native failed: ValueError",
+    ]
+    assert not any("private" in line or "secret" in line for line in logged)
     monkeypatch.setattr(core, "AUTH_TIMEOUT", 0.3)
     with running(lambda m, p: None, pump=False) as server:
         with dial(server) as conn:

@@ -89,6 +89,23 @@ def module_diagnostic():
 _failure_sink = None  # Live's log_message, installed by BridgeServer
 
 
+class Invalid(ValueError):
+    """A deliberate refusal of a request's arguments, raised by this code before any write.
+    Its single string argument is public text. Any other exception (a native ValueError from
+    Live included) is never echoed: it is logged by type and location and reported as unknown."""
+
+
+class Refused(Exception):
+    """A coded refusal before any write; the gate returns it as a successful refusal reply."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code, self.message = code, message
+
+    def result(self):
+        return {"refused": True, "applied": False, "code": self.code, "message": self.message}
+
+
 def failure_location(exc, depth=4):
     """``file:line <- file:line ...`` of the innermost frames: code locations, no values."""
     frames = traceback.extract_tb(exc.__traceback__)[-depth:]
@@ -107,18 +124,17 @@ def log_failure(label, exc, log=None):
 
 
 def readable(exc):
-    """True for deliberate refusals, whose text this code wrote: a plain ValueError with one
-    string argument (the request loop's rule) or a coded Refused."""
-    if type(exc) is ValueError and len(exc.args) == 1 and isinstance(exc.args[0], str):
-        return True
-    code, message = getattr(exc, "code", None), getattr(exc, "message", None)
-    return isinstance(code, str) and isinstance(message, str)
+    """True only for deliberate refusals, whose text this code wrote: an ``Invalid`` with one
+    string argument or a coded ``Refused``. Every other exception type is sanitized."""
+    if isinstance(exc, Invalid):
+        return len(exc.args) == 1 and isinstance(exc.args[0], str)
+    return isinstance(exc, Refused) and isinstance(exc.code, str) and isinstance(exc.message, str)
 
 
 def public_error(exc, code):
     """What a receipt may say about ``exc``: a deliberate refusal's text, else ``Type: code``."""
     if readable(exc):
-        text = exc.args[0] if type(exc) is ValueError else f"refused:{exc.code}: {exc.message}"
+        text = exc.args[0] if isinstance(exc, Invalid) else f"refused:{exc.code}: {exc.message}"
         return text[:300]
     return f"{type(exc).__name__}: {code}"
 
@@ -557,9 +573,9 @@ class BridgeServer:
                 "result": result,
             }
         except Exception as exc:
-            # Only deliberate argument refusals (plain ValueError, raised before any change)
-            # are readable. Every other exception can hold credentials or user input: not echoed.
-            if type(exc) is ValueError and len(exc.args) == 1 and isinstance(exc.args[0], str):
+            # Only deliberate argument refusals (Invalid, raised before any change) are
+            # readable. Every other exception can hold paths or user input: not echoed, logged.
+            if isinstance(exc, Invalid) and readable(exc):
                 return _err(req["id"], "ValueError", False, exc.args[0])
             self._log_failure(req["method"], exc)
             return _err(req["id"], "HandlerError", True)

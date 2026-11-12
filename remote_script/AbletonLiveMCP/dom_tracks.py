@@ -14,6 +14,7 @@ duplicates worked). P-17 routing is unrun: routing writes are ``unverified`` and
 import math
 import re
 
+from .core import Invalid
 from .dom_common import (
     BATCH_LIMIT,
     LIST_LIMIT,
@@ -86,7 +87,7 @@ def create_track(ctx, p, _t):
     elif kind == "audio":
         song.create_audio_track(index)
     else:
-        raise ValueError("'kind' must be 'midi' or 'audio'")
+        raise Invalid("'kind' must be 'midi' or 'audio'")
     return {"track_count": len(song.tracks)}
 
 
@@ -121,7 +122,7 @@ class _Budget:
 
     def display(self, param, value):
         if self.left <= 0:
-            raise ValueError("too many dB conversions in one call; split the batch")
+            raise Invalid("too many dB conversions in one call; split the batch")
         self.left -= 1
         return param.str_for_value(value)
 
@@ -131,16 +132,16 @@ def db_to_value(param, db, budget, label):
     lo, hi = float(param.min), float(param.max)
     top = parse_db(budget.display(param, hi))
     if top is None:
-        raise ValueError(f"{label}: this parameter has no dB display")
+        raise Invalid(f"{label}: this parameter has no dB display")
     if db > top + DB_TOLERANCE:
-        raise ValueError(f"{label}: {db} dB is above the maximum {top} dB")
+        raise Invalid(f"{label}: {db} dB is above the maximum {top} dB")
     if db >= top:
         return hi
     for _ in range(BISECT_STEPS):
         mid = (lo + hi) / 2
         shown = parse_db(budget.display(param, mid))
         if shown is None:
-            raise ValueError(f"{label}: unexpected display while converting dB")
+            raise Invalid(f"{label}: unexpected display while converting dB")
         if abs(shown - db) <= DB_TOLERANCE / 5:
             return mid
         if shown < db:
@@ -274,12 +275,12 @@ def get_tracks(ctx, p):
     song = ctx.song
     include = p.get("include") or []
     if not isinstance(include, list) or any(s not in INCLUDES for s in include):
-        raise ValueError(f"'include' must be a list of {list(INCLUDES)}")
+        raise Invalid(f"'include' must be a list of {list(INCLUDES)}")
     sels = p.get("tracks")
     if sels is None:
         sels = _all_selectors(song)
     elif not isinstance(sels, list) or not 1 <= len(sels) <= LIST_LIMIT:
-        raise ValueError(f"'tracks' must be a list of 1..{LIST_LIMIT} track selectors")
+        raise Invalid(f"'tracks' must be a list of 1..{LIST_LIMIT} track selectors")
     rows = []
     for sel in sels:
         _kind_name, track, _snap = owner_node(song, sel)
@@ -297,22 +298,22 @@ def get_tracks(ctx, p):
 
 def _name(value, label):
     if not isinstance(value, str) or len(value) > 256:
-        raise ValueError(f"{label}: 'name' must be a string of at most 256 characters")
+        raise Invalid(f"{label}: 'name' must be a string of at most 256 characters")
     return value
 
 
 def _color(value, label):
     if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 69:
-        raise ValueError(f"{label}: 'color_index' must be an integer 0..69")
+        raise Invalid(f"{label}: 'color_index' must be an integer 0..69")
     return value
 
 
 def _items(p, key):
     items = p.get(key)
     if not isinstance(items, list) or not 1 <= len(items) <= BATCH_LIMIT:
-        raise ValueError(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
+        raise Invalid(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
     if not all(isinstance(i, dict) for i in items):
-        raise ValueError(f"every item in {key!r} must be an object")
+        raise Invalid(f"every item in {key!r} must be an object")
     return items
 
 
@@ -324,12 +325,12 @@ def create_tracks(ctx, p, _t):
         label = f"tracks[{n}]"
         kind = item.get("kind")
         if kind not in ("midi", "audio", "return"):
-            raise ValueError(f"{label}: 'kind' must be 'midi', 'audio' or 'return'")
+            raise Invalid(f"{label}: 'kind' must be 'midi', 'audio' or 'return'")
         index = item.get("index", -1)
         if isinstance(index, bool) or not isinstance(index, int) or index < -1:
-            raise ValueError(f"{label}: 'index' must be -1 (end) or a track index")
+            raise Invalid(f"{label}: 'index' must be -1 (end) or a track index")
         if kind == "return" and index != -1:
-            raise ValueError(f"{label}: a return track is always added at the end (index -1)")
+            raise Invalid(f"{label}: a return track is always added at the end (index -1)")
         name = _name(item["name"], label) if item.get("name") is not None else None
         color = _color(item["color_index"], label) if item.get("color_index") is not None else None
         prepared.append((kind, index, name, color))
@@ -368,7 +369,7 @@ def create_tracks(ctx, p, _t):
 
 def _bool_field(item, key, label):
     if not isinstance(item[key], bool):
-        raise ValueError(f"{label}: {key!r} must be a bool")
+        raise Invalid(f"{label}: {key!r} must be a bool")
     return item[key]
 
 
@@ -377,16 +378,16 @@ def _routing_entry(ctx, track, item, side, label):
     channel (optional) is matched after the type is set, against the then-available channels."""
     spec = item[f"{side}_routing"]
     if not isinstance(spec, dict) or not isinstance(spec.get("type"), str):
-        raise ValueError(f"{label}: '{side}_routing' must be {{type, channel?}}")
+        raise Invalid(f"{label}: '{side}_routing' must be {{type, channel?}}")
     attr = f"available_{side}_routing_types"
     require(ctx, "track.routing", ((track, attr), (track, f"{side}_routing_type")))
     types = [t for t in getattr(track, attr) if t.display_name == spec["type"]]
     if len(types) != 1:
         names = [t.display_name for t in list(getattr(track, attr))[:ROUTING_LIMIT]]
-        raise ValueError(f"{label}: {side} routing type must be one of {names}")
+        raise Invalid(f"{label}: {side} routing type must be one of {names}")
     channel = spec.get("channel")
     if channel is not None and not isinstance(channel, str):
-        raise ValueError(f"{label}: routing 'channel' must be a display name string")
+        raise Invalid(f"{label}: routing 'channel' must be a display name string")
 
     def apply():
         setattr(track, f"{side}_routing_type", types[0])
@@ -426,31 +427,31 @@ def _track_fields(ctx, resolved, item, label):
     for key in ("mute", "solo"):
         if item.get(key) is not None:
             if kind == "master":
-                raise ValueError(f"{label}: the master track has no {key!r}")
+                raise Invalid(f"{label}: the master track has no {key!r}")
             fields.append((key, _set_attr(track, key, _bool_field(item, key, label))))
     if item.get("arm") is not None:
         if kind != "track" or not _get(track, "can_be_armed"):
-            raise ValueError(f"{label}: this track cannot be armed")
+            raise Invalid(f"{label}: this track cannot be armed")
         fields.append(("arm", _set_attr(track, "arm", _bool_field(item, "arm", label))))
     if item.get("monitoring") is not None:
         state = MONITORING.get(item["monitoring"])
         if state is None or kind != "track":
-            raise ValueError(f"{label}: 'monitoring' is in|auto|off on a regular track")
+            raise Invalid(f"{label}: 'monitoring' is in|auto|off on a regular track")
         require(ctx, "track.monitoring", ((track, "current_monitoring_state"),))
         fields.append(("monitoring", _set_attr(track, "current_monitoring_state", state)))
     if item.get("fold") is not None:
         require(ctx, "track.fold", ((track, "fold_state"),))
         if not _get(track, "is_foldable"):
-            raise ValueError(f"{label}: only a group track can be folded")
+            raise Invalid(f"{label}: only a group track can be folded")
         fold = int(_bool_field(item, "fold", label))
         fields.append(("fold", _set_attr(track, "fold_state", fold)))
     for side in ("input", "output"):
         if item.get(f"{side}_routing") is not None:
             if kind == "master" and side == "input":
-                raise ValueError(f"{label}: the master track has no input routing")
+                raise Invalid(f"{label}: the master track has no input routing")
             fields.append((f"{side}_routing", _routing_entry(ctx, track, item, side, label)))
     if not fields:
-        raise ValueError(f"{label}: give at least one field to set")
+        raise Invalid(f"{label}: give at least one field to set")
     return fields
 
 
@@ -474,7 +475,7 @@ def _write(entry):
 def _owner_kinds(t, allowed):
     for n, resolved in enumerate(t["targets"]):
         if resolved.path[-1][0] not in allowed:
-            raise ValueError(f"targets[{n}] must be one of {list(allowed)}")
+            raise Invalid(f"targets[{n}] must be one of {list(allowed)}")
 
 
 def set_tracks(ctx, p, t):
@@ -488,7 +489,7 @@ def set_tracks(ctx, p, t):
 def _mixer_value(param, item, key_db, key_value, budget, label, lo=None, hi=None):
     """A ``*_db`` (bisection) or a raw value -> ``(value, requested_db)``."""
     if item.get(key_db) is not None and item.get(key_value) is not None:
-        raise ValueError(f"{label}: give {key_db!r} or {key_value!r}, not both")
+        raise Invalid(f"{label}: give {key_db!r} or {key_value!r}, not both")
     if item.get(key_db) is not None:
         db = _number(item[key_db], key_db, -math.inf)
         return db_to_value(param, float(db), budget, label), float(db)
@@ -523,25 +524,25 @@ def _mixer_fields(budget):
             fields.append(("pan", _write_param(mixer.panning, pan, None), pan))
         for n, send in enumerate(item.get("sends") or []):
             if not isinstance(send, dict):
-                raise ValueError(f"{label}: each send must be an object {{send, db|value}}")
+                raise Invalid(f"{label}: each send must be an object {{send, db|value}}")
             sends = list(mixer.sends)
             i = _index(send.get("send"), f"{label}.sends[{n}].send", len(sends))
             value, db = _mixer_value(sends[i], send, "db", "value", budget, label)
             fields.append((f"send[{i}]", _write_param(sends[i], value, db), db))
         if item.get("activator") is not None:
             if kind == "master":
-                raise ValueError(f"{label}: the master track has no activator")
+                raise Invalid(f"{label}: the master track has no activator")
             on = 1.0 if _bool_field(item, "activator", label) else 0.0
             fields.append(("activator", _write_param(mixer.track_activator, on, None), None))
         if item.get("crossfade") is not None:
             assign = CROSSFADE.get(item["crossfade"])
             if assign is None or kind == "master":
-                raise ValueError(f"{label}: 'crossfade' is A|none|B on a non-master track")
+                raise Invalid(f"{label}: 'crossfade' is A|none|B on a non-master track")
             require(ctx, "mixer.crossfade", ((mixer, "crossfade_assign"),))
             fields.append(("crossfade", _set_attr(mixer, "crossfade_assign", assign), None))
         for key in ("crossfader", "cue_volume_db", "cue_volume"):
             if item.get(key) is not None and kind != "master":
-                raise ValueError(f"{label}: {key!r} is a master-track field")
+                raise Invalid(f"{label}: {key!r} is a master-track field")
         if kind == "master":
             if item.get("crossfader") is not None:
                 require(ctx, "mixer.master", ((mixer, "crossfader"),))
@@ -553,7 +554,7 @@ def _mixer_fields(budget):
                 value, db = _mixer_value(cue, item, "cue_volume_db", "cue_volume", budget, label)
                 fields.append(("cue_volume", _write_param(cue, value, db), db))
         if not fields:
-            raise ValueError(f"{label}: give at least one mixer field")
+            raise Invalid(f"{label}: give at least one mixer field")
         return fields
 
     return build
@@ -580,7 +581,7 @@ def delete_tracks(ctx, p, t):
     require(ctx, "track.delete")
     regular = sum(1 for r in resolved if r.path[-1][0] == "track")
     if regular and regular >= len(song.tracks):
-        raise ValueError("a Set must keep at least one regular track")
+        raise Invalid("a Set must keep at least one regular track")
 
     def write(r):
         kind, name = r.path[-1][0], r.obj.name

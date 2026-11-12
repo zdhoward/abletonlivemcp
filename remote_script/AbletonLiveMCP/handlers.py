@@ -14,6 +14,7 @@ import functools
 from itertools import islice
 from types import SimpleNamespace
 
+from .core import Invalid
 from .dom_common import (  # noqa: F401 - limits re-exported for callers and tests
     APPEND_PLACEMENT_VERIFIED,
     BATCH_LIMIT,
@@ -78,7 +79,7 @@ class _Params(dict):
     """Request params; a missing required key is a readable refusal, not a handler crash."""
 
     def __missing__(self, key):
-        raise ValueError(f"missing required parameter {key!r}")
+        raise Invalid(f"missing required parameter {key!r}")
 
 
 def make_dispatch(song_supplier, app, safety=None):
@@ -101,9 +102,9 @@ def make_dispatch(song_supplier, app, safety=None):
     def dispatch(method, params):
         kind = CLASSIFICATION.get(method)
         if kind is None:
-            raise ValueError(f"unknown or unclassified method: {method}")
+            raise Invalid(f"unknown or unclassified method: {method}")
         if not isinstance(params, dict):
-            raise ValueError("params must be an object")
+            raise Invalid("params must be an object")
         params = _Params(params)
         try:
             if kind == CONTROL:

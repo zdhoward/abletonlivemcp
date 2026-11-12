@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .als.paths import plain_entries
+from .errors import Invalid
 
 TOP = "(top of page)"
 MAX_PAGE_BYTES = 1024 * 1024
@@ -32,7 +33,7 @@ _TOKEN = re.compile(r"[a-z0-9]+(?:[-.][a-z0-9]+)*")
 _UNCONFIRMED = re.compile(r"UNCONFIRMED-NUMBER|UNVERIFIED|SECOND-HAND|LOW CONFIDENCE")
 
 
-class KnowledgeError(ValueError):
+class KnowledgeError(Invalid):
     pass
 
 

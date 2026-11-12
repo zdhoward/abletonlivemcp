@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from ..errors import Invalid
 from ..models import Index
 from ..models_control import LaunchTargets, NewScenes, SceneEdits, owner_kind
 from ..server import (
@@ -54,14 +55,14 @@ def live_set_scenes(targets: SceneEdits) -> dict:
 def _launch_selector(t) -> dict:
     if t.kind == "scene":
         if t.scene is None:
-            raise ValueError("a scene target needs 'scene'")
+            raise Invalid("a scene target needs 'scene'")
         return {"kind": "scene", "scene": t.scene}
     if t.track is None:
-        raise ValueError(f"a {t.kind} target needs 'track'")
+        raise Invalid(f"a {t.kind} target needs 'track'")
     if t.kind == "track":
         return {"kind": owner_kind(t.track), "track": t.track}
     if t.scene is None:
-        raise ValueError(f"a {t.kind} target needs 'scene'")
+        raise Invalid(f"a {t.kind} target needs 'scene'")
     return {"kind": t.kind, "track": t.track, "scene": t.scene}
 
 

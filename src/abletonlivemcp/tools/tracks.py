@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from ..errors import Invalid
 from ..models import DELETE_ROUTES, DUPLICATE_ROUTES, ROUTE_ORDER, TrackSel
 from ..models_control import (
     IncludeTracks,
@@ -91,17 +92,17 @@ def _selector(t: StructTarget) -> dict:
     kind, track = t.kind, t.track
     if kind == "scene":
         if t.scene is None:
-            raise ValueError("a scene target needs 'scene'")
+            raise Invalid("a scene target needs 'scene'")
         return {"kind": "scene", "scene": t.scene}
     if track is None:
-        raise ValueError(f"a {kind} target needs 'track'")
+        raise Invalid(f"a {kind} target needs 'track'")
     if kind == "track":
         if owner_kind(track) != "track":
-            raise ValueError("kind 'track' takes a regular track index (use kind 'return')")
+            raise Invalid("kind 'track' takes a regular track index (use kind 'return')")
         return {"kind": "track", "track": track}
     if kind == "return":
         if owner_kind(track) != "return_track":
-            raise ValueError("kind 'return' takes track 'return:N'")
+            raise Invalid("kind 'return' takes track 'return:N'")
         return {"kind": "return_track", "track": track}
     if kind == "clip":
         addr = {"track": track, "scene": t.scene}
@@ -109,7 +110,7 @@ def _selector(t: StructTarget) -> dict:
             addr = {"track": track, "arrangement": t.arrangement, "take_lane": t.take_lane}
         return clip_selector({k: v for k, v in addr.items() if v is not None})
     if t.path is None:
-        raise ValueError("a device target needs 'path'")
+        raise Invalid("a device target needs 'path'")
     return {"kind": "device", "track": track, "path": t.path}
 
 
@@ -141,7 +142,7 @@ def live_delete(targets: StructTargets) -> dict:
     expect_name; a human confirms. Children are deleted before parents; no rollback."""
     missing = [i for i, t in enumerate(targets) if t.expect_name is None]
     if missing:
-        raise ValueError(f"live_delete needs expect_name on every target (missing: {missing})")
+        raise Invalid(f"live_delete needs expect_name on every target (missing: {missing})")
     return _structural(targets, DELETE_ROUTES, "delete")
 
 

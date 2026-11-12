@@ -28,7 +28,13 @@ Every domain module issues through it. Bridge methods here:
 
 import math
 
-from .core import log_failure, public_error, readable
+from .core import (  # noqa: F401 - Invalid and Refused are re-exported to the domains
+    Invalid,
+    Refused,
+    log_failure,
+    public_error,
+    readable,
+)
 
 READ, WRITE, CONTROL = "read", "write", "control"
 
@@ -72,15 +78,6 @@ MIXER_ROLES = (
 )
 
 
-class Refused(Exception):
-    def __init__(self, code, message):
-        super().__init__(message)
-        self.code, self.message = code, message
-
-    def result(self):
-        return {"refused": True, "applied": False, "code": self.code, "message": self.message}
-
-
 def _same(a, b):
     if a is b:
         return True
@@ -101,21 +98,21 @@ def same_items(a, b):
 def _track(song, params, key="track"):
     idx = params.get(key)
     if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(song.tracks):
-        raise ValueError(f"'{key}' must be an integer track index 0..{len(song.tracks) - 1}")
+        raise Invalid(f"'{key}' must be an integer track index 0..{len(song.tracks) - 1}")
     return song.tracks[idx]
 
 
 def _device(track, params):
     idx = params.get("device")
     if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(track.devices):
-        raise ValueError(f"'device' must be an integer device index 0..{len(track.devices) - 1}")
+        raise Invalid(f"'device' must be an integer device index 0..{len(track.devices) - 1}")
     return track.devices[idx]
 
 
 def _scene(song, params):
     idx = params.get("scene")
     if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(song.scenes):
-        raise ValueError(f"'scene' must be an integer scene index 0..{len(song.scenes) - 1}")
+        raise Invalid(f"'scene' must be an integer scene index 0..{len(song.scenes) - 1}")
     return song.scenes[idx]
 
 
@@ -124,14 +121,14 @@ def _slot(song, params):
     _scene(song, params)
     idx = params["scene"]
     if idx >= len(track.clip_slots):
-        raise ValueError("'scene' has no clip slot on this track")
+        raise Invalid("'scene' has no clip slot on this track")
     return track, track.clip_slots[idx]
 
 
 def _clip(song, params):
     _t, slot = _slot(song, params)
     if not slot.has_clip:
-        raise ValueError("clip slot is empty")
+        raise Invalid("clip slot is empty")
     return slot.clip
 
 
@@ -149,28 +146,28 @@ def _number(value, name, minimum, maximum=None, exclusive=False):
         bound = f"> {minimum}" if exclusive else f">= {minimum}"
         if maximum is not None:
             bound += f" and <= {maximum}"
-        raise ValueError(f"'{name}' must be a finite number {bound}")
+        raise Invalid(f"'{name}' must be a finite number {bound}")
     return value
 
 
 def _validated_notes(notes):
     if not isinstance(notes, list) or len(notes) > NOTE_LIMIT:
-        raise ValueError(f"'notes' must be a list of at most {NOTE_LIMIT} notes")
+        raise Invalid(f"'notes' must be a list of at most {NOTE_LIMIT} notes")
     result = []
     for note in notes:
         if not isinstance(note, dict):
-            raise ValueError("each note must be an object")
+            raise Invalid("each note must be an object")
         pitch = note.get("pitch")
         if isinstance(pitch, bool) or not isinstance(pitch, int) or not 0 <= pitch <= 127:
-            raise ValueError("'pitch' must be an integer 0..127")
+            raise Invalid("'pitch' must be an integer 0..127")
         start = _number(note.get("start_time"), "start_time", 0)
         duration = _number(note.get("duration"), "duration", 0, exclusive=True)
         velocity = note.get("velocity")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
-            raise ValueError("'velocity' must be an integer 1..127")
+            raise Invalid("'velocity' must be an integer 1..127")
         mute = note.get("mute", False)
         if not isinstance(mute, bool):
-            raise ValueError("'mute' must be a bool")
+            raise Invalid("'mute' must be a bool")
         result.append((pitch, start, duration, velocity, mute))
     return result
 
@@ -201,7 +198,7 @@ def _live_version(app):
 
 def _index(value, name, size):
     if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < size:
-        raise ValueError(f"{name!r} must be an integer index 0..{size - 1}")
+        raise Invalid(f"{name!r} must be an integer index 0..{size - 1}")
     return value
 
 
@@ -231,15 +228,15 @@ def owner_node(song, sel):
 def _pad_node(device, step):
     note = _numbered(step, "pad:")
     if note is None or note > 127:
-        raise ValueError(f"chain step {step!r} must be a chain index or 'pad:0'..'pad:127'")
+        raise Invalid(f"chain step {step!r} must be a chain index or 'pad:0'..'pad:127'")
     if not getattr(device, "can_have_drum_pads", False):
-        raise ValueError(f"{step!r}: the device is not a drum rack")
+        raise Invalid(f"{step!r}: the device is not a drum rack")
     pads = device.drum_pads
     for slot in range(len(pads)):
         if pads[slot].note == note:
             pad = pads[slot]
             return ("drum_pad", pad, {"slot": slot, "note": note, "chains": tuple(pad.chains)})
-    raise ValueError(f"{step!r}: no drum pad with that note")
+    raise Invalid(f"{step!r}: no drum pad with that note")
 
 
 def device_nodes(container, path):
@@ -247,7 +244,7 @@ def device_nodes(container, path):
     Even positions are device indices; odd positions a chain index or ``"pad:N"`` (the pad, and
     its first chain when the path continues). Each device node snapshots its sibling layout."""
     if not isinstance(path, list) or not 1 <= len(path) <= 2 * MAX_DEVICE_DEPTH:
-        raise ValueError(f"'path' must be a list of 1..{2 * MAX_DEVICE_DEPTH} steps")
+        raise Invalid(f"'path' must be a list of 1..{2 * MAX_DEVICE_DEPTH} steps")
     nodes = []
     for pos, step in enumerate(path):
         if pos % 2 == 0:
@@ -267,7 +264,7 @@ def device_nodes(container, path):
                 nodes.append(("chain", container, {"index": 0, "count": len(chains)}))
         else:
             if not getattr(container, "can_have_chains", False):
-                raise ValueError(f"path[{pos}]: the device is not a rack")
+                raise Invalid(f"path[{pos}]: the device is not a rack")
             chains = container.chains
             i = _index(step, f"path[{pos}]", len(chains))
             container = chains[i]
@@ -282,13 +279,13 @@ def _mixer_node(mixer, p):
         i = _index(p.get("send"), "send", len(sends))
         return ("mixer_param", sends[i], {"role": "send", "index": i, "count": len(sends)})
     if role not in MIXER_ROLES:
-        raise ValueError(f"'role' must be 'send' or one of {list(MIXER_ROLES)}")
+        raise Invalid(f"'role' must be 'send' or one of {list(MIXER_ROLES)}")
     try:
         param = getattr(mixer, role)  # role is from the fixed MIXER_ROLES list
     except AttributeError:
         param = None
     if param is None:
-        raise ValueError(f"this mixer has no {role!r}")
+        raise Invalid(f"this mixer has no {role!r}")
     return ("mixer_param", param, {"role": role})
 
 
@@ -300,7 +297,7 @@ def has_arrangement_clips(parent):
 def sorted_arrangement_clips(parent):
     """Arrangement clips by start time (their index); a group track refuses readably."""
     if not has_arrangement_clips(parent):
-        raise ValueError("a group track has no arrangement clips; name one of its member tracks")
+        raise Invalid("a group track has no arrangement clips; name one of its member tracks")
     return sorted(parent.arrangement_clips, key=lambda c: c.start_time)
 
 
@@ -324,7 +321,7 @@ def reference_nodes(song, p):
         nodes.append(("slot", slots[i], {"index": i, "scene": song.scenes[i]}))
         if kind == "clip":
             if not slots[i].has_clip:
-                raise ValueError("clip slot is empty")
+                raise Invalid("clip slot is empty")
             nodes.append(("clip", slots[i].clip, {}))
     elif kind in ("device", "chain", "drum_pad", "param"):
         nodes += device_nodes(owner[1], p.get("path"))
@@ -337,7 +334,7 @@ def reference_nodes(song, p):
         if p.get("path") is not None:
             nodes += device_nodes(owner[1], p.get("path"))
             if nodes[-1][0] != "chain":
-                raise ValueError("a mixer 'path' must end at a chain")
+                raise Invalid("a mixer 'path' must end at a chain")
         nodes.append(_mixer_node(nodes[-1][1].mixer_device, p))
     elif kind in ("take_lane", "arr_clip"):
         parent = owner[1]
@@ -351,16 +348,16 @@ def reference_nodes(song, p):
             c = clips[_index(p.get("arrangement"), "arrangement", len(clips))]
             nodes.append(("arr_clip", c, {"start": c.start_time}))
     if nodes[-1][0] != kind:
-        raise ValueError(f"the selectors name a {nodes[-1][0]}, not a {kind!r}")
+        raise Invalid(f"the selectors name a {nodes[-1][0]}, not a {kind!r}")
     return nodes
 
 
 def _items(p, key):
     items = p.get(key)
     if not isinstance(items, list) or not 1 <= len(items) <= BATCH_LIMIT:
-        raise ValueError(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
+        raise Invalid(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
     if not all(isinstance(i, dict) for i in items):
-        raise ValueError(f"every item in {key!r} must be an object")
+        raise Invalid(f"every item in {key!r} must be an object")
     return items
 
 
@@ -526,10 +523,10 @@ def clip_address_nodes(song, addr):
     """A clip address -> reference nodes: ``{track, scene}`` (session clip) or
     ``{track, arrangement[, take_lane]}`` (arrangement clip, sorted by start)."""
     if not isinstance(addr, dict):
-        raise ValueError("a clip address must be an object")
+        raise Invalid("a clip address must be an object")
     if addr.get("arrangement") is not None:
         if addr.get("scene") is not None:
-            raise ValueError("a clip address names a 'scene' or an 'arrangement' index, not both")
+            raise Invalid("a clip address names a 'scene' or an 'arrangement' index, not both")
         return reference_nodes(song, {**addr, "kind": "arr_clip"})
     return reference_nodes(song, {**addr, "kind": "clip"})
 
@@ -638,7 +635,7 @@ def _lab_create_cue(ctx, p):
     cue = _lab_new(before, song.cue_points, "cue point")
     _lab_owned(ctx).append(cue)
     if abs(cue.time - time_) > 1e-6:  # Live clamps the playhead to the song length
-        raise ValueError(f"cue landed at {cue.time}, not {time_}: use a time inside the song")
+        raise Invalid(f"cue landed at {cue.time}, not {time_}: use a time inside the song")
     ordered = sorted(song.cue_points, key=lambda c: c.time)
     return {"time": cue.time, "cue": _position(ordered, cue)}
 
@@ -701,13 +698,13 @@ def _lab_delete(ctx, p):
 def _lab_move_device(ctx, p):
     device = _lab_target(ctx, p)
     if device.path[-1][0] != "device":
-        raise ValueError("'ref' must be a device reference")
+        raise Invalid("'ref' must be a device reference")
     to = _lab_target(ctx, p, "to_kind", "to_ref")
     target = to.obj
     if to.path[-1][0] == "drum_pad":  # into the pad's first chain
         target = target.chains[0]
     elif to.path[-1][0] not in ("track", "chain"):
-        raise ValueError("'to_ref' must be a track, chain or drum pad reference")
+        raise Invalid("'to_ref' must be a track, chain or drum pad reference")
     position = _index(p.get("position"), "position", len(target.devices) + 1)
     ctx.song.move_device(device.obj, target, position)
     return {"moved": True, "position": position}
@@ -744,13 +741,13 @@ def ref_lab(ctx, p, _t):
     action = p.get("action")
     run = LAB_ACTIONS.get(action) if isinstance(action, str) else None
     if run is None:
-        raise ValueError(f"'action' must be one of {sorted(LAB_ACTIONS)}")
+        raise Invalid(f"'action' must be one of {sorted(LAB_ACTIONS)}")
     try:
         out = run(ctx, p)
-    except (Refused, ValueError):
+    except (Refused, Invalid):
         raise
     except Exception as exc:  # dev-only lab (dev_probes + lease): make the failure readable
-        raise ValueError(f"{action} failed: {type(exc).__name__}: {exc}"[:300]) from exc
+        raise Invalid(f"{action} failed: {type(exc).__name__}: {exc}"[:300]) from exc
     out["generation"] = ctx.safety.generation
     return out
 

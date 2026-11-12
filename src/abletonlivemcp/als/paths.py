@@ -18,12 +18,14 @@ import stat
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+from ..errors import Invalid
+
 ROOTS_ENV = "ABLETONLIVEMCP_ALS_ROOTS"
 REPARSE = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT
 _PARTS = re.compile(r"[\\/]+")
 
 
-class PathEscape(ValueError):
+class PathEscape(Invalid):
     """A path that leaves the configured roots or crosses a link."""
 
 

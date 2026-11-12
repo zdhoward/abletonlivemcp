@@ -6,6 +6,7 @@ rack-only state. Native macro mapping is not offered (manual mapping guidance on
 writing. Each operation has its own capability; every refusal comes before the native call.
 """
 
+from .core import Invalid
 from .dom_common import (
     BATCH_LIMIT,
     READ,
@@ -34,7 +35,7 @@ CAPABILITIES = {
 def _rack(ctx, p):
     dev = locate_device(ctx.song, p)[-1][1]
     if not getattr(dev, "can_have_chains", False):
-        raise ValueError("that device is not a rack")
+        raise Invalid("that device is not a rack")
     return dev
 
 
@@ -98,7 +99,7 @@ def _number_in(q, value, name):
         or not isinstance(value, (int, float))
         or not q.min <= value <= q.max
     ):
-        raise ValueError(f"{name} must be a number within {q.min}..{q.max}")
+        raise Invalid(f"{name} must be a number within {q.min}..{q.max}")
     return float(value)
 
 
@@ -108,7 +109,7 @@ def set_rack(ctx, p, t):
     (raw mixer values). Pass 1 validates everything, pass 2 writes in order."""
     dev = t["device"].obj
     if not getattr(dev, "can_have_chains", False):
-        raise ValueError("'device' must be a rack")
+        raise Invalid("'device' must be a rack")
     steps, caps = [], set()
 
     def gate(cap, members=()):
@@ -118,14 +119,14 @@ def set_rack(ctx, p, t):
     if p.get("visible_macros") is not None:
         n = p["visible_macros"]
         if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= MACRO_LIMIT:
-            raise ValueError("visible_macros must be 1..16")
+            raise Invalid("visible_macros must be 1..16")
         gate("rack.visible_macros", ((dev, "visible_macro_count"), (dev, "add_macro")))
         steps.append(("visible_macros", n))
     var = p.get("variation")
     if var is not None:
         action = var.get("action") if isinstance(var, dict) else None
         if action not in VARIATIONS:
-            raise ValueError(f"variation.action must be one of {list(VARIATIONS)}")
+            raise Invalid(f"variation.action must be one of {list(VARIATIONS)}")
         if action == "randomize":
             gate("rack.randomize", ((dev, "randomize_macros"),))
         else:
@@ -143,16 +144,16 @@ def set_rack(ctx, p, t):
         steps.append(("insert_chain", _index(at, "insert_chain.index", len(dev.chains) + 1)))
     chains = p.get("chains") or []
     if not isinstance(chains, list) or len(chains) > BATCH_LIMIT:
-        raise ValueError(f"chains must be a list of at most {BATCH_LIMIT} edits")
+        raise Invalid(f"chains must be a list of at most {BATCH_LIMIT} edits")
     for k, edit in enumerate(chains):
         if not isinstance(edit, dict):
-            raise ValueError(f"chains[{k}] must be an object")
+            raise Invalid(f"chains[{k}] must be an object")
         chain = dev.chains[_index(edit.get("index"), f"chains[{k}].index", len(dev.chains))]
         for key in ("name", "mute", "solo"):
             if key in edit:
                 ok = isinstance(edit[key], str) if key == "name" else isinstance(edit[key], bool)
                 if not ok:
-                    raise ValueError(f"chains[{k}].{key} has the wrong type")
+                    raise Invalid(f"chains[{k}].{key} has the wrong type")
                 gate("rack.chain_state", ((chain, key),))
                 steps.append(("chain_attr", (chain, key, edit[key])))
         for key, role in (("volume", "volume"), ("pan", "panning")):
@@ -161,7 +162,7 @@ def set_rack(ctx, p, t):
                 q = getattr(chain.mixer_device, role)
                 steps.append(("chain_attr", (q, "value", _number_in(q, edit[key], key))))
     if not steps:
-        raise ValueError("set_rack sets nothing")
+        raise Invalid("set_rack sets nothing")
 
     def write(step):
         kind, arg = step

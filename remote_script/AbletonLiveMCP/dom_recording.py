@@ -9,6 +9,7 @@ passes). Turning a switch OFF is a plain write.
 
 import time
 
+from .core import Invalid
 from .dom_common import WRITE, Refused, _number, require
 
 CAPABILITIES = {
@@ -42,7 +43,7 @@ def _bounded(ctx, key, attribute, length):
     song = ctx.song
     seconds = float(length) * 60.0 / float(song.tempo)
     if seconds > MAX_SECONDS:
-        raise ValueError(
+        raise Invalid(
             f"'length' {length} beats is {seconds:.1f} s at this tempo; at most {MAX_SECONDS} s"
         )
     before = {"was_playing": song.is_playing, attribute: getattr(song, attribute)}
@@ -80,7 +81,7 @@ def record(ctx, p, _t):
     if action in SWITCHES:
         capability, attribute = SWITCHES[action]
         if not isinstance(value, bool):
-            raise ValueError(f"'{action}' needs 'value': true or false")
+            raise Invalid(f"'{action}' needs 'value': true or false")
         state = require(ctx, capability, ((song, attribute),))
         if value:
             length = _number(p.get("length"), "length", 0.0, exclusive=True)
@@ -100,7 +101,7 @@ def record(ctx, p, _t):
         state = require(ctx, "record.capture_midi", ((song, "capture_midi"),))
         destination = p.get("destination", 0)
         if destination not in (0, 1, 2) or isinstance(destination, bool):
-            raise ValueError("'destination' must be 0 (auto), 1 (session) or 2 (arrangement)")
+            raise Invalid("'destination' must be 0 (auto), 1 (session) or 2 (arrangement)")
         if not getattr(song, "can_capture_midi", False):
             raise Refused("nothing_to_capture", "Live has no recent MIDI input to capture")
         song.capture_midi(destination)
@@ -112,7 +113,7 @@ def record(ctx, p, _t):
         out = {"scenes_added": len(song.scenes) - before}
     else:
         actions = [*SWITCHES, "trigger_session_record", "capture_midi", "capture_and_insert_scene"]
-        raise ValueError(f"'action' must be one of {actions}")
+        raise Invalid(f"'action' must be one of {actions}")
     return {
         "action": action,
         "unverified": [action] if state == "unverified" else [],

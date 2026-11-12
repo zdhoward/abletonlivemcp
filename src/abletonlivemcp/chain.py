@@ -19,6 +19,7 @@ import time
 
 from .adapters import adapters_for, known_roles
 from .bridge import BridgeError
+from .errors import Invalid
 from .models import ParamResult, PlanStage, StageReceipt
 from .models_devices import (
     REF_KIND,
@@ -68,7 +69,7 @@ def _on_off(value):
     return "on" if value is True else "off" if value is False else value
 
 
-class ChainError(ValueError):
+class ChainError(Invalid):
     pass
 
 

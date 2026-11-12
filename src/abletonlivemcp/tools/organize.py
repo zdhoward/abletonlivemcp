@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from .. import labelstore
+from ..errors import Invalid
 from ..models_library import (
     SET_KINDS,
     TRACK_KINDS,
@@ -87,7 +88,7 @@ def live_set_labels(
     for n, item in enumerate(items):
         ident = (item.kind, item.key)
         if ident in seen:
-            raise ValueError(f"items[{n}] repeats {item.kind} {item.key!r}")
+            raise Invalid(f"items[{n}] repeats {item.kind} {item.key!r}")
         seen.add(ident)
     tracks = [i for i in items if i.kind in TRACK_KINDS]
     song = [i for i in items if i.kind == "song"]

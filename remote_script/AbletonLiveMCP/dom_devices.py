@@ -6,6 +6,7 @@ Location: ``track`` is a TrackSel (index, ``"return:N"`` or ``"master"``) and ``
 ``{track, device}`` shape still works (``path = [device]``).
 """
 
+from .core import Invalid
 from .dom_common import (
     BATCH_LIMIT,
     READ,
@@ -69,7 +70,7 @@ def locate(song, p):
 def locate_device(song, p):
     nodes = locate(song, p)
     if nodes[-1][0] != "device":
-        raise ValueError("'path' must end at a device (an even number of steps)")
+        raise Invalid("'path' must end at a device (an even number of steps)")
     return nodes
 
 
@@ -82,7 +83,7 @@ def container_nodes(song, p):
         return [owner]
     nodes = [owner] + device_nodes(owner[1], path)
     if nodes[-1][0] not in ("chain", "drum_pad"):
-        raise ValueError("a container 'path' must end at a chain or a drum pad")
+        raise Invalid("a container 'path' must end at a chain or a drum pad")
     return nodes
 
 
@@ -141,17 +142,17 @@ def device_list(ctx, p):
 
 def _param(dev, idx):
     if not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx < len(dev.parameters):
-        raise ValueError("'parameter' must be a valid parameter index")
+        raise Invalid("'parameter' must be a valid parameter index")
     return dev.parameters[idx]
 
 
 def _checked_write(q, value):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"value for {q.name!r} must be a number")
+        raise Invalid(f"value for {q.name!r} must be a number")
     if not q.min <= value <= q.max:
-        raise ValueError(f"value {value} outside {q.min}..{q.max} for {q.name!r}")
+        raise Invalid(f"value {value} outside {q.min}..{q.max} for {q.name!r}")
     if not getattr(q, "is_enabled", True):
-        raise ValueError(f"parameter {q.name!r} is not enabled (macro-controlled?)")
+        raise Invalid(f"parameter {q.name!r} is not enabled (macro-controlled?)")
     return float(value)
 
 
@@ -162,11 +163,11 @@ def _write(q, value):
 
 def _sampled(q, values):
     if not isinstance(values, list) or not 1 <= len(values) <= SAMPLE_LIMIT:
-        raise ValueError(f"'values' must be a list of 1..{SAMPLE_LIMIT} numbers")
+        raise Invalid(f"'values' must be a list of 1..{SAMPLE_LIMIT} numbers")
     out = []
     for v in values:
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not q.min <= v <= q.max:
-            raise ValueError(f"every value must be a number within {q.min}..{q.max}")
+            raise Invalid(f"every value must be a number within {q.min}..{q.max}")
         out.append(q.str_for_value(float(v)))
     return {"name": q.name, "displays": out}
 
@@ -174,9 +175,9 @@ def _sampled(q, values):
 def _batch(p, key):
     items = p.get(key)
     if not isinstance(items, list) or not 1 <= len(items) <= BATCH_LIMIT:
-        raise ValueError(f"{key!r} must be a list of 1..{BATCH_LIMIT} items")
+        raise Invalid(f"{key!r} must be a list of 1..{BATCH_LIMIT} items")
     if not all(isinstance(i, dict) for i in items):
-        raise ValueError(f"every item in {key!r} must be an object")
+        raise Invalid(f"every item in {key!r} must be an object")
     return items
 
 
@@ -214,11 +215,11 @@ def device_parameters(ctx, p):
     offset = p.get("offset", 0)
     limit = p.get("limit", count if p.get("offset") is None else PARAM_PAGE)
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
-        raise ValueError("'offset' must be an integer >= 0")
+        raise Invalid("'offset' must be an integer >= 0")
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
-        raise ValueError("'limit' must be an integer >= 0")
+        raise Invalid("'limit' must be an integer >= 0")
     if p.get("limit") is not None and limit > PARAM_PAGE:
-        raise ValueError(f"'limit' must be at most {PARAM_PAGE}")
+        raise Invalid(f"'limit' must be at most {PARAM_PAGE}")
     end = min(count, offset + limit)
     return [_param_row(ctx, nodes, i, params[i], count) for i in range(offset, end)]
 
@@ -246,7 +247,7 @@ def set_device_parameters(ctx, p, t):
             continue
         if w.get("reset") is True:
             if q.is_quantized:
-                raise ValueError(f"{q.name!r} is quantized: give a value instead of reset")
+                raise Invalid(f"{q.name!r} is quantized: give a value instead of reset")
             require(ctx, "param.reset", ((q, "default_value"),))
             plan.append((q, _checked_write(q, q.default_value)))
             continue
@@ -276,7 +277,7 @@ def sample_parameters(ctx, p):
     requests = _batch(p, "requests")
     total = sum(len(r["values"]) for r in requests if isinstance(r.get("values"), list))
     if total > SAMPLE_LIMIT:  # one cap for the whole request, not per entry
-        raise ValueError(f"at most {SAMPLE_LIMIT} display values in total per request")
+        raise Invalid(f"at most {SAMPLE_LIMIT} display values in total per request")
     return {
         "results": [_sampled(_param(dev, r.get("parameter")), r.get("values")) for r in requests]
     }
@@ -302,28 +303,28 @@ def set_devices(ctx, p, t):
         edit = {}
         if "on" in item:
             if not isinstance(item["on"], bool):
-                raise ValueError(f"targets[{i}].on must be true or false")
+                raise Invalid(f"targets[{i}].on must be true or false")
             require(ctx, "device.on")
             q = _device_on_param(dev)
             if not getattr(q, "is_enabled", True):
-                raise ValueError(f"targets[{i}]: 'Device On' is controlled elsewhere")
+                raise Invalid(f"targets[{i}]: 'Device On' is controlled elsewhere")
             edit["on"] = (q, 1.0 if item["on"] else 0.0)
         if "name" in item:
             name = item["name"]
             if not isinstance(name, str) or not 1 <= len(name) <= 256:
-                raise ValueError(f"targets[{i}].name must be a string of 1..256 characters")
+                raise Invalid(f"targets[{i}].name must be a string of 1..256 characters")
             if require(ctx, "device.rename", ((dev, "name"),)) == UNVERIFIED:
                 unverified.add("device.rename")
             edit["name"] = name
         if "collapsed" in item:
             if not isinstance(item["collapsed"], bool):
-                raise ValueError(f"targets[{i}].collapsed must be true or false")
+                raise Invalid(f"targets[{i}].collapsed must be true or false")
             view = _get(dev, "view")
             if require(ctx, "device.collapse", ((view, "is_collapsed"),)) == UNVERIFIED:
                 unverified.add("device.collapse")
             edit["collapsed"] = (view, item["collapsed"])
         if not edit:
-            raise ValueError(f"targets[{i}] sets nothing (give on, name or collapsed)")
+            raise Invalid(f"targets[{i}] sets nothing (give on, name or collapsed)")
         prepared.append((dev, edit))
 
     def write(entry):
@@ -362,23 +363,23 @@ def _destination(dest):
                 "device.move_into_chain", "that drum pad has no chain; nothing was moved"
             )
         return chains[0], "chain"
-    raise ValueError("the destination must be a track, return, master, chain or drum pad")
+    raise Invalid("the destination must be a track, return, master, chain or drum pad")
 
 
 def move_device(ctx, p, t):
     """``targets: [device, destination]``; ``position`` (default: the end). Every refusal comes
     before the native call: a same-container reorder is unsupported on 12.2 (P-04)."""
     if len(t["targets"]) != 2:
-        raise ValueError("'targets' must be [device, destination]")
+        raise Invalid("'targets' must be [device, destination]")
     dev, dest = t["targets"]
     if dev.path[-1][0] != "device":
-        raise ValueError("targets[0] must be a device")
+        raise Invalid("targets[0] must be a device")
     container, ckind = _destination(dest)
     source = dev.path[-2][1]
     if _same(source, container):
         require(ctx, "device.move_reorder")  # declared unsupported: always refuses here
     if any(_same(node[1], dev.obj) for node in dest.path):
-        raise ValueError("a device cannot move into its own chains")
+        raise Invalid("a device cannot move into its own chains")
     if ckind == "chain":
         cap = "device.move_into_chain"
     elif dev.path[-2][0] == "chain":
@@ -447,7 +448,7 @@ def device_capabilities(ctx, p):
     ``unsupported``."""
     names = p.get("names")
     if not isinstance(names, list) or not 1 <= len(names) <= BATCH_LIMIT:
-        raise ValueError(f"'names' must be a list of 1..{BATCH_LIMIT} capability names")
+        raise Invalid(f"'names' must be a list of 1..{BATCH_LIMIT} capability names")
     report = capability_report(ctx)
     out = {}
     for n in names:

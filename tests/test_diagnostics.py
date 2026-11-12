@@ -15,7 +15,9 @@ def test_unexpected_write_errors_are_sanitized_and_logged_once(monkeypatch):
     def write(entry):
         if entry == "native":
             raise RuntimeError("D:/Music/someone/Secret Project.als is locked")
-        raise ValueError("targets[1]: 'length' must be positive")
+        if entry == "native_value":  # a ValueError this code did not write is not a refusal
+            raise ValueError("D:/Music/someone/Secret Project.als: bad value")
+        raise core.Invalid("targets[1]: 'length' must be positive")
 
     out = run_writes(["native"], write)
     assert out["error"] == "RuntimeError: write_failed" and out["status"] == "partial"
@@ -23,3 +25,6 @@ def test_unexpected_write_errors_are_sanitized_and_logged_once(monkeypatch):
     assert "RuntimeError at test_diagnostics.py:" in line and "Secret" not in line
     refused = run_writes(["refusal"], write)  # a deliberate refusal stays readable, unlogged
     assert refused["error"] == "targets[1]: 'length' must be positive" and len(logged) == 1
+    native = run_writes(["native_value"], write)
+    assert native["error"] == "ValueError: write_failed" and len(logged) == 2
+    assert "Secret" not in logged[1]

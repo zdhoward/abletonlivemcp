@@ -39,12 +39,13 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.mcpserver.resolve import Elicit, Resolve
 from mcp.types import ToolAnnotations
 from mcp_types.version import is_version_at_least
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from . import chain
 from .bridge import BridgeClient, BridgeError
 from .chain import ChainError, Refusal
 from .config import ConfigError, load_config
+from .errors import Invalid
 from .models import ResponseFormat
 from .output_models import TOOL_OUTPUTS
 from .permissions import DELETING, allowed_permissions, deletes, required_permissions
@@ -100,7 +101,7 @@ TOOLSETS_ENV = "ABLETONLIVEMCP_TOOLSETS"
 DEFAULT_TOOLSETS = frozenset({"core", "automation", "arrangement"})
 
 
-class ToolsetError(ValueError):
+class ToolsetError(Invalid):
     """An unknown toolset name; the server refuses to start rather than guess."""
 
 
@@ -169,6 +170,12 @@ def _explain(exc: Exception) -> str:
     if isinstance(exc, ChainError):
         return f"invalid_plan: {exc} (not applied)"
     return f"invalid_request: {exc} (not applied)"
+
+
+def _withheld(exc: Exception, code: str) -> str:
+    """An unexpected exception: its type and a stable code only. It may have come after a write,
+    so the outcome is unknown."""
+    return f"{type(exc).__name__}: {code} (outcome unknown; read the state back before retrying)"
 
 
 def _writable(tool: str | None = None, args: dict | None = None) -> None:
@@ -462,8 +469,12 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
                 _mutation_lock.release()
         except ToolError:
             raise
-        except (ValueError, BridgeError) as exc:  # ChainError and Refusal are ValueErrors
+        # ChainError and Refusal are Invalid; a ValidationError checks the tool's own arguments
+        except (Invalid, ValidationError, BridgeError) as exc:
             raise ToolFailure(_explain(exc)) from exc
+        except ValueError as exc:  # not a deliberate refusal: its text may hold private data
+            _log.warning("tool %s failed: %s", fn.__name__, type(exc).__name__)
+            raise ToolFailure(_withheld(exc, "tool_failed")) from exc
 
     # Publish the resolved signature (annotations evaluated in the tool's own module) so the MCP
     # library derives the input schema and, from the return annotation, the outputSchema.
@@ -518,7 +529,7 @@ def shape(rows: list[dict], response_format: ResponseFormat, concise: tuple[str,
     if response_format == "detailed":
         return rows
     if response_format != "concise":
-        raise ValueError("response_format must be 'concise' or 'detailed'")
+        raise Invalid("response_format must be 'concise' or 'detailed'")
     return [{k: r[k] for k in concise if k in r} for r in rows]
 
 
@@ -534,7 +545,7 @@ def _generation() -> int:
 def _row(method: str, index: int, what: str) -> dict:
     rows = _call(method)
     if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(rows):
-        raise ValueError(f"{what} must be an index 0..{len(rows) - 1}")
+        raise Invalid(f"{what} must be an index 0..{len(rows) - 1}")
     return rows[index]
 
 
@@ -545,7 +556,7 @@ def _slot(track: int, scene: int) -> dict:
 def _clip_ref(track: int, scene: int) -> str:
     slot = _slot(track, scene)
     if not slot["has_clip"]:
-        raise ValueError("that clip slot is empty")
+        raise Invalid("that clip slot is empty")
     return slot["clip"]
 
 
@@ -560,8 +571,11 @@ def _read_back(method: str, params: dict | None = None) -> tuple[Any, str | None
         why = f"refused:{exc.code}: {exc.message}"
     except BridgeError as exc:
         why = f"{exc.kind}: {exc.message}"
-    except ValueError as exc:
+    except Invalid as exc:
         why = f"invalid_reply: {exc}"
+    except Exception as exc:  # noqa: BLE001 - never turn an applied command into a failure
+        _log.warning("readback %s failed: %s", method, type(exc).__name__)
+        why = f"{type(exc).__name__}: readback_failed"
     return None, f"the command was applied; reading the state back failed ({why})"
 
 
@@ -592,7 +606,7 @@ def issue_refs(selectors: list[dict]) -> list[dict]:
     from .models import MAX_TARGETS
 
     if not selectors:
-        raise ValueError("give at least one target")
+        raise Invalid("give at least one target")
     rows: list[dict] = []
     for start in range(0, len(selectors), MAX_TARGETS):
         chunk = selectors[start : start + MAX_TARGETS]
@@ -627,7 +641,7 @@ def run_steps(steps: list[tuple[str, Any]]) -> dict:
         except Exception as exc:
             if not done:
                 raise
-            known = isinstance(exc, ValueError | BridgeError)
+            known = isinstance(exc, Invalid | BridgeError)
             # An unexpected exception's text may hold paths or user data: type and code only.
             stopped, error = i, _explain(exc) if known else f"{type(exc).__name__}: step_failed"
             if not known:

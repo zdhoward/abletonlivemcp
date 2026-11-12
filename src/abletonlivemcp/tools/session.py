@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from .. import server
+from ..errors import Invalid
 from ..install import packaged_identity
 from ..models_control import (
     Bpm,
@@ -100,7 +101,7 @@ def live_set_session(
         params.update(link_enabled=link.enabled, link_start_stop_sync=link.start_stop_sync)
     params = {k: v for k, v in params.items() if v is not None}
     if not params:
-        raise ValueError("give at least one field to set")
+        raise Invalid("give at least one field to set")
     return _untrusted(_call("set_session", {**params, "generation": _generation()}))
 
 
@@ -110,7 +111,7 @@ def live_transport(action: TransportAction, beats: float | None = None) -> dict:
     tap_tempo, nudge, back_to_arranger. Returns the state read after Live settles.
     Clips and scenes: live_launch."""
     if action in ("jump_to", "jump_by") and beats is None:
-        raise ValueError(f"{action} needs 'beats'")
+        raise Invalid(f"{action} needs 'beats'")
     params = {"action": action, "generation": _generation()}
     if beats is not None:
         params["beats"] = beats

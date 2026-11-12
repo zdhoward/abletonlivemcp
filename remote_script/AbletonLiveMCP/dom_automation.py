@@ -7,6 +7,7 @@ automation refuses with ``unsupported`` before any call. Legacy ramps use steps;
 points retain linear interpolation by deleting interior step boundaries.
 """
 
+from .core import Invalid
 from .dom_common import (
     DISABLED,
     READ,
@@ -60,7 +61,7 @@ def get_automation(ctx, p):
     clip = nodes[-1][1]
     sel = p.get("parameter")
     if not isinstance(sel, dict) or sel.get("kind") not in PARAM_KINDS:
-        raise ValueError("'parameter' must be {kind: param|mixer_param, ...selectors}")
+        raise Invalid("'parameter' must be {kind: param|mixer_param, ...selectors}")
     param = reference_nodes(song, {**sel, "track": p.get("track")})[-1][1]
     env = clip.automation_envelope(param)
     out = {
@@ -79,7 +80,7 @@ def get_automation(ctx, p):
         n = SAMPLE_POINTS
         times = [end * k / (n - 1) if k < n - 1 else end * 0.999 for k in range(n)]
     if not isinstance(times, list) or len(times) > 64:
-        raise ValueError("'sample_times' must be a list of at most 64 beat times")
+        raise Invalid("'sample_times' must be a list of at most 64 beat times")
     out["samples"] = [
         {"time": t, "value": env.value_at_time(float(_number(t, "sample_times[]", 0, end)))}
         for t in times
@@ -95,29 +96,29 @@ def _steps(item, param, length, where):
     for i, s in enumerate(item.get("steps") or []):
         w = f"{where}.steps[{i}]"
         if not isinstance(s, dict):
-            raise ValueError(f"{w} must be an object")
+            raise Invalid(f"{w} must be an object")
         t = float(_number(s.get("time"), f"{w}.time", 0, length))
         if t >= length:
-            raise ValueError(f"{w}.time must be before the clip end")
+            raise Invalid(f"{w}.time must be before the clip end")
         d = float(_number(s.get("length"), f"{w}.length", 0, length, True))
         out.append((t, min(d, length - t), float(_number(s.get("value"), f"{w}.value", lo, hi))))
     for i, r in enumerate(item.get("ramps") or []):
         w = f"{where}.ramps[{i}]"
         if not isinstance(r, dict):
-            raise ValueError(f"{w} must be an object")
+            raise Invalid(f"{w} must be an object")
         a = float(_number(r.get("start"), f"{w}.start", 0, length))
         b = float(_number(r.get("end"), f"{w}.end", 0, length))
         if not a < b:
-            raise ValueError(f"{w}: 'start' must be before 'end'")
+            raise Invalid(f"{w}: 'start' must be before 'end'")
         v0 = float(_number(r.get("from"), f"{w}.from", lo, hi))
         v1 = float(_number(r.get("to"), f"{w}.to", lo, hi))
         n = r.get("steps", 32)
         if isinstance(n, bool) or not isinstance(n, int) or not 2 <= n <= 256:
-            raise ValueError(f"{w}.steps must be an integer 2..256")
+            raise Invalid(f"{w}.steps must be an integer 2..256")
         width = (b - a) / n
         out += [(a + k * width, width, v0 + (v1 - v0) * k / (n - 1)) for k in range(n)]
     if len(out) > STEP_LIMIT:
-        raise ValueError(f"{where}: at most {STEP_LIMIT} steps per clip (ramps included)")
+        raise Invalid(f"{where}: at most {STEP_LIMIT} steps per clip (ramps included)")
     return out
 
 
@@ -126,24 +127,24 @@ def _points(item, param, length, where):
     if points is None:
         return []
     if item.get("steps") or item.get("ramps"):
-        raise ValueError(f"{where}: points cannot be combined with steps or ramps")
+        raise Invalid(f"{where}: points cannot be combined with steps or ramps")
     if item.get("clear") is not True:
-        raise ValueError(f"{where}.points replaces the envelope; set clear=true")
+        raise Invalid(f"{where}.points replaces the envelope; set clear=true")
     if not isinstance(points, list) or not 2 <= len(points) <= 3:
-        raise ValueError(f"{where}.points: give 2 or 3 breakpoints")
+        raise Invalid(f"{where}.points: give 2 or 3 breakpoints")
     if param.is_quantized:
-        raise ValueError(f"{where}.points: interpolation needs a continuous parameter")
+        raise Invalid(f"{where}.points: interpolation needs a continuous parameter")
     out = []
     for p in points:
         if not isinstance(p, dict):
-            raise ValueError(f"{where}.points entries must be objects")
+            raise Invalid(f"{where}.points entries must be objects")
         time = float(_number(p.get("time"), f"{where}.points.time", 0, length))
         value = float(_number(p.get("value"), f"{where}.points.value", param.min, param.max))
         if out and time - out[-1][0] < 0.001:
-            raise ValueError(f"{where}.points must increase by at least 0.001 beats")
+            raise Invalid(f"{where}.points must increase by at least 0.001 beats")
         out.append((time, value))
     if out[0][0] != 0 or out[-1][0] != length:
-        raise ValueError(f"{where}.points must span beat 0 through clip.length ({length})")
+        raise Invalid(f"{where}.points must span beat 0 through clip.length ({length})")
     return out
 
 
@@ -156,33 +157,33 @@ def set_automation(ctx, p, t):
         where = f"targets[{i}]"
         kind = resolved[i].path[-1][0]
         if kind not in ("clip", "arr_clip"):
-            raise ValueError(f"{where}: must be a clip reference")
+            raise Invalid(f"{where}: must be a clip reference")
         _clip_check(ctx, kind)
         clip = resolved[i].obj
         pk = item.get("param_kind", "param")
         if pk not in PARAM_KINDS:
-            raise ValueError(f"{where}.param_kind must be one of {list(PARAM_KINDS)}")
+            raise Invalid(f"{where}.param_kind must be one of {list(PARAM_KINDS)}")
         param_r = ctx.safety.resolve(pk, item.get("param"), ctx.song)
         clip_track = resolved[i].path[0][1]
         if not _same(param_r.path[0][1], clip_track):
-            raise ValueError(f"{where}: the parameter must be on the clip's own track")
+            raise Invalid(f"{where}: the parameter must be on the clip's own track")
         param = param_r.obj
         length = float(clip.length)
         steps = _steps(item, param, length, where)
         points = _points(item, param, length, where)
         clear = item.get("clear", False)
         if not isinstance(clear, bool):
-            raise ValueError(f"{where}.clear must be a bool")
+            raise Invalid(f"{where}.clear must be a bool")
         span = item.get("delete_range")
         if span is not None:
             if not isinstance(span, list) or len(span) != 2:
-                raise ValueError(f"{where}.delete_range must be [start, end]")
+                raise Invalid(f"{where}.delete_range must be [start, end]")
             span = (
                 float(_number(span[0], f"{where}.delete_range[0]", 0, length)),
                 float(_number(span[1], f"{where}.delete_range[1]", 0, length)),
             )
         if not (clear or span or steps or points):
-            raise ValueError(f"{where}: nothing to do (steps, ramps, delete_range or clear)")
+            raise Invalid(f"{where}: nothing to do (steps, ramps, delete_range or clear)")
         return clip, param, clear, span, steps, points
 
     def write(e):

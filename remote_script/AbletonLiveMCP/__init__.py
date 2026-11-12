@@ -1,13 +1,11 @@
 """AbletonLiveMCP Remote Script entry point (Live loads this folder as a Control Surface)."""
 
-import traceback
-
 try:  # present only inside Live; absent when tests import this package
     from _Framework.ControlSurface import ControlSurface
 except ImportError:  # pragma: no cover
     ControlSurface = object
 
-from .core import BridgeServer, module_diagnostic, strict_acl_available
+from .core import BridgeServer, log_failure, module_diagnostic, strict_acl_available
 from .handlers import make_dispatch
 
 PORT = 9877
@@ -33,8 +31,9 @@ class AbletonLiveMCP(ControlSurface):
             self._server = BridgeServer(dispatch, port=PORT, log=self.log_message)
             self._server.start()
             self.log_message(f"AbletonLiveMCP: listening on 127.0.0.1:{self._server.port}")
-        except Exception:  # noqa: BLE001 - never let a failure here break Live's startup
-            self.log_message("AbletonLiveMCP: failed to start\n" + traceback.format_exc())
+        except Exception as exc:  # noqa: BLE001 - never let a failure here break Live's startup
+            # type and code locations only: a message can hold paths or other private data
+            log_failure("start", exc, self.log_message)
 
     def update_display(self):  # called by Live ~every 100 ms on the main thread
         super().update_display()
@@ -43,10 +42,8 @@ class AbletonLiveMCP(ControlSurface):
         if self._dispatch is not None:
             try:  # advance pending loads even when no request arrived; never break Live's tick
                 self._dispatch.operations.tick()
-            except Exception:  # noqa: BLE001
-                self.log_message(
-                    "AbletonLiveMCP: operations tick failed\n" + traceback.format_exc()
-                )
+            except Exception as exc:  # noqa: BLE001
+                log_failure("operations tick", exc, self.log_message)
 
     def disconnect(self):
         if self._dispatch is not None:

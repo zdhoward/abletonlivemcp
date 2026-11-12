@@ -7,7 +7,7 @@ add with no existing marker refuses. ``move_warp_marker(beat_time, distance)`` a
 warp_mode, loop/markers widen-then-narrow) share the clip validation of ``dom_clips``.
 """
 
-from .core import log_failure, public_error
+from .core import Invalid, log_failure, public_error
 from .dom_clips import apply_fields, clip_row, is_audio, validate_fields, warp_rows
 from .dom_common import (
     READ,
@@ -46,26 +46,26 @@ def _find(beats, beat):
 def plan_markers(clip, ops, where="warp_markers"):
     """Checked marker ops ``[(label, fn)]``; nothing is written."""
     if not isinstance(ops, list) or len(ops) > MARKER_OPS:
-        raise ValueError(f"{where!r} must be a list of at most {MARKER_OPS} operations")
+        raise Invalid(f"{where!r} must be a list of at most {MARKER_OPS} operations")
     if not is_audio(clip):
-        raise ValueError(f"{where}: warp markers need an audio clip")
+        raise Invalid(f"{where}: warp markers need an audio clip")
     planned = []
     existing = list(clip.warp_markers)
     beats = [m.beat_time for m in existing]  # marker positions as the ops will leave them
     for i, op in enumerate(ops):
         w = f"{where}[{i}]"
         if not isinstance(op, dict):
-            raise ValueError(f"{w} must be an object")
+            raise Invalid(f"{w} must be an object")
         action = op.get("action")
         beat = float(_number(op.get("beat_time"), f"{w}.beat_time", -16384, 16384))
         if action == "add":
             if not existing:
-                raise ValueError(f"{w}: the clip has no warp marker to build a new one from")
+                raise Invalid(f"{w}: the clip has no warp marker to build a new one from")
             if op.get("sample_time") is None:
-                raise ValueError(f"{w}: 'sample_time' (seconds) is required")
+                raise Invalid(f"{w}: 'sample_time' (seconds) is required")
             sample = float(_number(op.get("sample_time"), f"{w}.sample_time", 0, 86400))
             if _find(beats, beat) is not None:
-                raise ValueError(f"{w}: a warp marker already sits at beat {beat}")
+                raise Invalid(f"{w}: a warp marker already sits at beat {beat}")
             beats.append(beat)
             cls = type(existing[0])
             planned.append(
@@ -75,18 +75,18 @@ def plan_markers(clip, ops, where="warp_markers"):
         elif action == "move":
             k = _find(beats, beat)
             if k is None:
-                raise ValueError(f"{w}: no warp marker at beat {beat}")
+                raise Invalid(f"{w}: no warp marker at beat {beat}")
             dist = float(_number(op.get("distance"), f"{w}.distance", -16384, 16384))
             beats[k] = beat + dist
             planned.append((f"move@{beat}", lambda b=beat, d=dist: clip.move_warp_marker(b, d)))
         elif action == "remove":
             k = _find(beats, beat)
             if k is None:
-                raise ValueError(f"{w}: no warp marker at beat {beat}")
+                raise Invalid(f"{w}: no warp marker at beat {beat}")
             beats.pop(k)
             planned.append((f"remove@{beat}", lambda b=beat: clip.remove_warp_marker(b)))
         else:
-            raise ValueError(f"{w}.action must be add, move or remove")
+            raise Invalid(f"{w}.action must be add, move or remove")
     return planned
 
 
@@ -94,7 +94,7 @@ def edit_audio_clip(ctx, p, t):
     """Fields, then warp-marker ops in order, then ``crop``, then ``duplicate_loop``."""
     resolved = t["targets"]
     if len(resolved) != 1 or resolved[0].path[-1][0] not in ("clip", "arr_clip"):
-        raise ValueError("'targets' must name exactly one clip")
+        raise Invalid("'targets' must name exactly one clip")
     clip = resolved[0].obj
     ops = []
     writes = validate_fields(clip, p, "edit")
@@ -108,11 +108,11 @@ def edit_audio_clip(ctx, p, t):
         if value is None or value is False:
             continue
         if value is not True:
-            raise ValueError(f"{flag!r} must be a bool")
+            raise Invalid(f"{flag!r} must be a bool")
         require(ctx, "clip.crop", ((clip, flag),))
         ops.append((flag, getattr(clip, flag)))
     if not ops:
-        raise ValueError("nothing to edit")
+        raise Invalid("nothing to edit")
     receipt = run_writes(ops, lambda op: {"op": op[0], "returned": _plain(op[1]())})
     try:
         receipt["clip"] = clip_row(clip, detail=True)

@@ -8,7 +8,7 @@ step (``handlers.OWN_UNDO_STEPS``).
 """
 
 from . import dom_song
-from .core import PROTOCOL_VERSION, SCRIPT_IDENTITY, log_failure, public_error
+from .core import PROTOCOL_VERSION, SCRIPT_IDENTITY, Invalid, log_failure, public_error
 from .dom_common import (
     READ,
     WRITE,
@@ -211,7 +211,7 @@ def session_state(ctx, include=SECTIONS):
 def get_session(ctx, p):
     include = p.get("include") or list(SECTIONS)
     if not isinstance(include, list) or any(s not in SECTIONS for s in include):
-        raise ValueError(f"'include' must be a list of {list(SECTIONS)}")
+        raise Invalid(f"'include' must be a list of {list(SECTIONS)}")
     return session_state(ctx, include)
 
 
@@ -220,13 +220,13 @@ def get_session(ctx, p):
 
 def _bool(p, key):
     if not isinstance(p[key], bool):
-        raise ValueError(f"{key!r} must be a bool")
+        raise Invalid(f"{key!r} must be a bool")
     return p[key]
 
 
 def _int(value, name, lo, hi):
     if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-        raise ValueError(f"{name!r} must be an integer {lo}..{hi}")
+        raise Invalid(f"{name!r} must be an integer {lo}..{hi}")
     return value
 
 
@@ -237,10 +237,10 @@ def _validate_session(ctx, p):
     sig = p.get("signature")
     if sig is not None:
         if not isinstance(sig, list) or len(sig) != 2:
-            raise ValueError("'signature' must be [numerator, denominator]")
+            raise Invalid("'signature' must be [numerator, denominator]")
         num = _int(sig[0], "signature numerator", 1, 99)
         if sig[1] not in DENOMINATORS or isinstance(sig[1], bool):
-            raise ValueError(f"signature denominator must be one of {list(DENOMINATORS)}")
+            raise Invalid(f"signature denominator must be one of {list(DENOMINATORS)}")
         out += [("signature", song, "signature_numerator", num)]
         out += [("signature", song, "signature_denominator", sig[1])]
     if p.get("tempo") is not None:
@@ -250,7 +250,7 @@ def _validate_session(ctx, p):
     loop = p.get("loop")
     if loop is not None:
         if not isinstance(loop, dict) or not loop:
-            raise ValueError("'loop' must be an object {on?, start?, length?}")
+            raise Invalid("'loop' must be an object {on?, start?, length?}")
         if loop.get("start") is not None:
             out.append(
                 ("loop.start", song, "loop_start", float(_number(loop["start"], "start", 0)))
@@ -263,14 +263,14 @@ def _validate_session(ctx, p):
     punch = p.get("punch")
     if punch is not None:
         if not isinstance(punch, dict) or not punch:
-            raise ValueError("'punch' must be an object {in?, out?}")
+            raise Invalid("'punch' must be an object {in?, out?}")
         for key in ("in", "out"):
             if punch.get(key) is not None:
                 out.append((f"punch.{key}", song, f"punch_{key}", _bool(punch, key)))
     scale = p.get("scale")
     if scale is not None:
         if not isinstance(scale, dict) or not scale:
-            raise ValueError("'scale' must be an object {root_note?, scale_name?, scale_mode?}")
+            raise Invalid("'scale' must be an object {root_note?, scale_name?, scale_mode?}")
         require(ctx, "session.scale", ((song, "root_note"),))
         if scale.get("root_note") is not None:
             root = _int(scale["root_note"], "root_note", 0, 11)
@@ -278,7 +278,7 @@ def _validate_session(ctx, p):
         if scale.get("scale_name") is not None:
             name = scale["scale_name"]
             if not isinstance(name, str) or not 0 < len(name) <= 64:
-                raise ValueError("'scale_name' must be a string of 1..64 characters")
+                raise Invalid("'scale_name' must be a string of 1..64 characters")
             out.append(("scale.scale_name", song, "scale_name", name))
         if scale.get("scale_mode") is not None:
             out.append(("scale.scale_mode", song, "scale_mode", _bool(scale, "scale_mode")))
@@ -293,7 +293,7 @@ def _validate_session(ctx, p):
     if p.get("grooves") is not None:
         out += dom_song.validate_grooves(ctx, p["grooves"])
     if not out:
-        raise ValueError("give at least one field to set")
+        raise Invalid("give at least one field to set")
     return out
 
 
@@ -365,7 +365,7 @@ def transport(ctx, p, _t):
     action = p.get("action")
     entry = TRANSPORT.get(action) if isinstance(action, str) else None
     if entry is None:
-        raise ValueError(f"'action' must be one of {sorted(TRANSPORT)}")
+        raise Invalid(f"'action' must be one of {sorted(TRANSPORT)}")
     capability, members, run = entry
     song = ctx.song
     state = require(ctx, capability, tuple((song, m) for m in members))
@@ -387,10 +387,10 @@ def transport(ctx, p, _t):
 def undo(ctx, p, _t):
     action = p.get("action", "undo")
     if action not in ("undo", "redo"):
-        raise ValueError("'action' must be 'undo' or 'redo'")
+        raise Invalid("'action' must be 'undo' or 'redo'")
     steps = _index(p.get("steps", 1), "steps", UNDO_LIMIT + 1)
     if steps < 1:
-        raise ValueError(f"'steps' must be 1..{UNDO_LIMIT}")
+        raise Invalid(f"'steps' must be 1..{UNDO_LIMIT}")
     song = ctx.song
     can = "can_undo" if action == "undo" else "can_redo"
     if not getattr(song, can):

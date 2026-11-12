@@ -98,7 +98,7 @@ from . import (
     dom_tracks,
     dom_view,
 )
-from .core import _HEX, _decode, _windows_private
+from .core import _HEX, Invalid, _decode, _windows_private
 from .dom_common import (  # noqa: F401 - re-exported
     CAPABILITY_STATES,
     CONTROL,
@@ -587,12 +587,12 @@ class Safety:
                     or len(items) > 64
                     or not all(isinstance(i, dict) for i in items)
                 ):
-                    raise ValueError(f"{spec[0]!r} must be a list of objects")
+                    raise Invalid(f"{spec[0]!r} must be a list of objects")
                 out = []
                 for n, item in enumerate(items):
                     kind = item.get("kind") if spec[2] == ANY_KIND else spec[2]
                     if kind not in REFERENCE_KINDS:
-                        raise ValueError(f"{spec[0]}[{n}].kind must be one of {REFERENCE_KINDS}")
+                        raise Invalid(f"{spec[0]}[{n}].kind must be one of {REFERENCE_KINDS}")
                     resolved = self.resolve(kind, item.get(spec[1]), song)
                     _expect_name(resolved, item.get("expect_name"), f"{spec[0]}[{n}]")
                     out.append(resolved)
@@ -605,7 +605,7 @@ def _expect_name(resolved, expected, where):
     if expected is None:
         return
     if not isinstance(expected, str):
-        raise ValueError(f"{where}.expect_name must be a string")
+        raise Invalid(f"{where}.expect_name must be a string")
     try:
         actual = resolved.obj.name
     except Exception:  # noqa: BLE001

@@ -16,10 +16,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .errors import Invalid
 from .permissions import DEFAULT_PERMISSIONS
 
 
-class ConfigError(ValueError):
+class ConfigError(Invalid):
     """Configuration is missing, invalid, or not private to its owner."""
 
 

@@ -7,6 +7,7 @@ from typing import Annotated
 from pydantic import Field
 
 from .. import chain
+from ..errors import Invalid
 from ..models import DevicePath, TrackSel
 from ..models_devices import container_kind
 from ..server import _call, _create, _read, _untrusted, issue_refs
@@ -54,7 +55,7 @@ def live_get_operation(
     """Read a load/task operation (pending, ready, failed, unknown), or up to 16 at once with
     `operations`. Use after a lost response; never start a second load for the same target."""
     if (operation is None) == (operations is None):
-        raise ValueError("give 'operation' or 'operations'")
+        raise Invalid("give 'operation' or 'operations'")
     if operations is not None:
         return {"operations": _call("operation", {"operations": operations})}
     return _call("operation", {"operation": operation})
@@ -75,7 +76,7 @@ def live_load_item(
     effects need an empty one, append=true, or after=<the previous ready load>. Placement is
     checked by identity; unknown quarantines the target. Poll live_get_operation, never reload."""
     if target_path and at_device(target_path):
-        raise ValueError("'target_path' must end at a chain index or 'pad:N'")
+        raise Invalid("'target_path' must end at a chain index or 'pad:N'")
     kind, _name, _devices, _rows = chain.read_target(_call, track, tuple(target_path or ()))
     ref_kind = container_kind(track, target_path)
     ref = issue_refs([{"kind": ref_kind, **loc(track, target_path)}])[0]["ref"]

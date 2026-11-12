@@ -6,6 +6,7 @@ objects in place and pass that same object back. Notes past the clip end are kep
 outside a clip-length read window, so every read here uses a wide window and note IDs.
 """
 
+from .core import Invalid
 from .dom_common import (
     NOTE_LIMIT,
     READ,
@@ -40,7 +41,7 @@ def note_row(n):
 
 def _int(value, name, lo, hi):
     if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
-        raise ValueError(f"{name!r} must be an integer {lo}..{hi}")
+        raise Invalid(f"{name!r} must be an integer {lo}..{hi}")
     return value
 
 
@@ -57,7 +58,7 @@ def checked_field(name, value, where):
         return float(_number(value, label, 1, 127))
     if name == "mute":
         if not isinstance(value, bool):
-            raise ValueError(f"{label!r} must be a bool")
+            raise Invalid(f"{label!r} must be a bool")
         return value
     if name == "probability":
         return float(_number(value, label, 0, 1))
@@ -65,24 +66,24 @@ def checked_field(name, value, where):
         return float(_number(value, label, -127, 127))
     if name == "release_velocity":
         return float(_number(value, label, 0, 127))
-    raise ValueError(f"{where}: unknown note field {name!r}")
+    raise Invalid(f"{where}: unknown note field {name!r}")
 
 
 def validated_notes(notes, where="notes"):
     """New notes -> MidiNoteSpecification keyword dicts (defaults filled)."""
     if not isinstance(notes, list) or len(notes) > NOTE_LIMIT:
-        raise ValueError(f"{where!r} must be a list of at most {NOTE_LIMIT} notes")
+        raise Invalid(f"{where!r} must be a list of at most {NOTE_LIMIT} notes")
     rows = []
     for i, note in enumerate(notes):
         here = f"{where}[{i}]"
         if not isinstance(note, dict):
-            raise ValueError(f"{here}: each note must be an object")
+            raise Invalid(f"{here}: each note must be an object")
         unknown = set(note) - set(EDITABLE)
         if unknown:
-            raise ValueError(f"{here}: unknown note field(s) {sorted(unknown)}")
+            raise Invalid(f"{here}: unknown note field(s) {sorted(unknown)}")
         for required in ("pitch", "start_time", "duration"):
             if note.get(required) is None:
-                raise ValueError(f"{here}: {required!r} is required")
+                raise Invalid(f"{here}: {required!r} is required")
         row = dict(DEFAULTS)
         row.update({k: checked_field(k, v, here) for k, v in note.items() if v is not None})
         rows.append(row)
@@ -97,10 +98,10 @@ def midi_clip(song, p, members=("get_notes_extended",)):
 
 def checked_midi(clip, members=("get_notes_extended",)):
     if not getattr(clip, "is_midi_clip", False):
-        raise ValueError("notes need a MIDI clip")
+        raise Invalid("notes need a MIDI clip")
     for m in members:
         if not hasattr(clip, m):
-            raise ValueError(f"this clip has no {m!r}")
+            raise Invalid(f"this clip has no {m!r}")
     return clip
 
 
@@ -144,7 +145,7 @@ def get_notes(ctx, p):
 
 def _ids(value, name):
     if not isinstance(value, list) or len(value) > NOTE_LIMIT:
-        raise ValueError(f"{name!r} must be a list of at most {NOTE_LIMIT} note ids")
+        raise Invalid(f"{name!r} must be a list of at most {NOTE_LIMIT} note ids")
     for i in value:
         _int(i, f"{name}[]", 0, 2**31)
     return set(value)
@@ -152,7 +153,7 @@ def _ids(value, name):
 
 def _region(value, name, keys):
     if not isinstance(value, dict) or set(value) - set(keys):
-        raise ValueError(f"{name!r} must be an object with keys {list(keys)}")
+        raise Invalid(f"{name!r} must be an object with keys {list(keys)}")
     return value
 
 
@@ -167,9 +168,9 @@ def plan_edits(clip, p):
         removed = _ids(p.get("remove_ids"), "remove_ids")
         missing = sorted(removed - set(current))
         if missing:
-            raise ValueError(f"remove_ids: unknown note ids {missing[:20]}")
+            raise Invalid(f"remove_ids: unknown note ids {missing[:20]}")
         if not hasattr(clip, "remove_notes_by_id"):
-            raise ValueError("this clip has no 'remove_notes_by_id'")
+            raise Invalid("this clip has no 'remove_notes_by_id'")
         ids = tuple(sorted(removed))
         ops.append(("remove_ids", lambda: _removed(clip.remove_notes_by_id(ids), len(ids))))
     if p.get("remove_range") is not None:
@@ -205,7 +206,7 @@ def plan_edits(clip, p):
             if i not in removed and start <= n.start_time < start + length
         ]  # noqa: E501
         if not 1 <= len(src) <= NOTE_LIMIT:
-            raise ValueError(
+            raise Invalid(
                 f"duplicate_region: the region holds {len(src)} notes (1..{NOTE_LIMIT})"
             )
         for n in src:
@@ -220,7 +221,7 @@ def plan_edits(clip, p):
         past = [i for i, row in enumerate(rows) if row["start_time"] >= end]
         ops.append(("add", lambda: _added(clip.add_new_notes(new), len(new), past)))
     if not ops:
-        raise ValueError(
+        raise Invalid(
             "nothing to edit: give add, modify, remove_ids, remove_range, "
             "transpose, quantize or duplicate_region"
         )
@@ -232,7 +233,7 @@ def _spec():
 
     spec = _note_specification()
     if spec is None:
-        raise ValueError("Live.Clip.MidiNoteSpecification is unavailable for add_new_notes")
+        raise Invalid("Live.Clip.MidiNoteSpecification is unavailable for add_new_notes")
     return spec
 
 
@@ -242,21 +243,21 @@ def _planned_changes(current, removed, p):
     if p.get("modify") is not None:
         mods = p.get("modify")
         if not isinstance(mods, list) or len(mods) > NOTE_LIMIT:
-            raise ValueError(f"'modify' must be a list of at most {NOTE_LIMIT} objects")
+            raise Invalid(f"'modify' must be a list of at most {NOTE_LIMIT} objects")
         for k, m in enumerate(mods):
             where = f"modify[{k}]"
             if not isinstance(m, dict):
-                raise ValueError(f"{where}: must be an object")
+                raise Invalid(f"{where}: must be an object")
             nid = m.get("note_id")
             if nid not in current or nid in removed:
-                raise ValueError(f"{where}: unknown or removed note_id {nid!r}")
+                raise Invalid(f"{where}: unknown or removed note_id {nid!r}")
             fields = {
                 f: checked_field(f, v, where)
                 for f, v in m.items()
                 if f != "note_id" and v is not None
             }  # noqa: E501
             if not fields:
-                raise ValueError(f"{where}: no field to change")
+                raise Invalid(f"{where}: no field to change")
             changes.setdefault(nid, {}).update(fields)
     live = [i for i in current if i not in removed]
 
@@ -267,7 +268,7 @@ def _planned_changes(current, removed, p):
         picked = _ids(ids, f"{name}.ids")
         bad = sorted(picked - set(live))
         if bad:
-            raise ValueError(f"{name}.ids: unknown or removed note ids {bad[:20]}")
+            raise Invalid(f"{name}.ids: unknown or removed note ids {bad[:20]}")
         return sorted(picked)
 
     def value(nid, field):
@@ -279,7 +280,7 @@ def _planned_changes(current, removed, p):
         for nid in chosen(t, "transpose"):
             pitch = value(nid, "pitch") + semis
             if not 0 <= pitch <= 127:
-                raise ValueError(f"transpose: note {nid} would leave 0..127 ({pitch})")
+                raise Invalid(f"transpose: note {nid} would leave 0..127 ({pitch})")
             changes.setdefault(nid, {})["pitch"] = pitch
     if p.get("quantize") is not None:
         q = _region(p.get("quantize"), "quantize", ("grid", "amount", "ids"))
@@ -347,9 +348,9 @@ def edit_notes(ctx, p, t):
     modify/transpose/quantize (one apply), duplicate_region, add. Receipt per op."""
     resolved = t["targets"]
     if len(resolved) != 1:
-        raise ValueError("'targets' must name exactly one clip")
+        raise Invalid("'targets' must name exactly one clip")
     if resolved[0].path[-1][0] not in ("clip", "arr_clip"):
-        raise ValueError("'targets' must name a clip")
+        raise Invalid("'targets' must name a clip")
     require(ctx, "notes.extended")
     clip = checked_midi(resolved[0].obj, ("get_notes_extended", "apply_note_modifications"))
     ops = plan_edits(clip, p)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from .. import chain
+from ..errors import Invalid
 from ..models import ClipRef, ResponseFormat
 from ..models_clips import AutomationEdit, AutoParam, Span
 from ..server import _call, _overwrite, _read, clip_selector, issue_refs, unsupported
@@ -13,12 +14,12 @@ ARRANGEMENT = "automation_envelope returns None on arrangement clips in Live 12.
 
 def param_selector(track, p: AutoParam) -> dict:
     if (p.mixer is None) == (p.device is None or p.parameter is None):
-        raise ValueError("parameter: give either {device, parameter} or {mixer[, send]}")
+        raise Invalid("parameter: give either {device, parameter} or {mixer[, send]}")
     if p.mixer is not None:
         sel = {"kind": "mixer_param", "track": track, "role": p.mixer}
         if p.mixer == "send":
             if p.send is None:
-                raise ValueError("parameter.send is required for mixer 'send'")
+                raise Invalid("parameter.send is required for mixer 'send'")
             sel["send"] = p.send
         return sel
     index = p.parameter

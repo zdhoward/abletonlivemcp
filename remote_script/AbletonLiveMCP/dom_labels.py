@@ -10,6 +10,7 @@ Global labels (plugins, devices, samples) are not here: they live in the host's 
 
 import json
 
+from .core import Invalid
 from .dom_common import READ, WRITE, require, two_pass
 
 KEY = "almcp_labels"
@@ -30,10 +31,10 @@ CAPABILITIES = {
 
 def _clean(text, what, limit):
     if not isinstance(text, str):
-        raise ValueError(f"{what} must be text")
+        raise Invalid(f"{what} must be text")
     text = text.strip()
     if any(ord(c) < 32 or ord(c) == 127 for c in text) or len(text) > limit:
-        raise ValueError(f"{what} must be at most {limit} characters without control characters")
+        raise Invalid(f"{what} must be at most {limit} characters without control characters")
     return text
 
 
@@ -45,7 +46,7 @@ def _stored(obj):
     try:
         value = json.loads(raw)
         if not isinstance(value, dict) or not isinstance(value.get("labels"), list):
-            raise ValueError("shape")
+            raise Invalid("shape")
     except (TypeError, ValueError):
         return None, True
     entry = {"labels": [str(x) for x in value["labels"]]}
@@ -67,7 +68,7 @@ def _merge(existing, labels, category, mode):
         new = [x for x in old if x not in set(labels)]
         new_category = None if category == "" else old_category
     else:
-        raise ValueError("'mode' must be 'replace', 'add' or 'remove'")
+        raise Invalid("'mode' must be 'replace', 'add' or 'remove'")
     if not new and not new_category:
         return None
     entry = {"labels": new}
@@ -79,23 +80,23 @@ def _merge(existing, labels, category, mode):
 def _prepare(obj, item, mode):
     """Pass 1 for one object: validate the item and compute the text to store."""
     if not isinstance(item, dict):
-        raise ValueError("every item must be an object")
+        raise Invalid("every item must be an object")
     labels = item.get("labels", [])
     if not isinstance(labels, list) or len(labels) > MAX_LABELS:
-        raise ValueError(f"'labels' must be a list of at most {MAX_LABELS} texts")
+        raise Invalid(f"'labels' must be a list of at most {MAX_LABELS} texts")
     labels = [_clean(x, "a label", MAX_LABEL_CHARS) for x in labels]
     if "" in labels:
-        raise ValueError("a label must not be empty")
+        raise Invalid("a label must not be empty")
     category = item.get("category")
     if category is not None:
         category = _clean(category, "'category'", MAX_LABEL_CHARS)
     existing, corrupt = _stored(obj)
     if corrupt and mode != "replace":
-        raise ValueError("the stored labels are unreadable; use mode 'replace' to rewrite them")
+        raise Invalid("the stored labels are unreadable; use mode 'replace' to rewrite them")
     entry = _merge(existing, labels, category, mode)
     text = "" if entry is None else json.dumps({"v": 1, **entry}, ensure_ascii=False)
     if len(text) > MAX_JSON_CHARS:
-        raise ValueError(f"the labels would exceed {MAX_JSON_CHARS} characters")
+        raise Invalid(f"the labels would exceed {MAX_JSON_CHARS} characters")
     return obj, entry, text
 
 
@@ -111,7 +112,7 @@ def _write(prepared):
 def _mode(p):
     mode = p.get("mode", "replace")
     if mode not in ("replace", "add", "remove"):
-        raise ValueError("'mode' must be 'replace', 'add' or 'remove'")
+        raise Invalid("'mode' must be 'replace', 'add' or 'remove'")
     return mode
 
 
@@ -162,7 +163,7 @@ def set_track_labels(ctx, p, t):
     def validate(_i, pair):
         resolved, item = pair
         if item.get("kind") not in TRACK_KINDS:
-            raise ValueError("track labels need kind 'track' or 'return_track'")
+            raise Invalid("track labels need kind 'track' or 'return_track'")
         require(ctx, CAPABILITY, ((resolved.obj, "get_data"), (resolved.obj, "set_data")))
         return _prepare(resolved.obj, item, mode)
 

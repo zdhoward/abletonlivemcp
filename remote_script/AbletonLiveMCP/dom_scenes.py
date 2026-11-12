@@ -8,6 +8,7 @@ methods (older tests and ``scripts/live_refs_test.py`` use them).
 Evidence: P-05 (``delete_scene`` and ``duplicate_scene`` worked; the copy lands at index + 1).
 """
 
+from .core import Invalid
 from .dom_common import (
     BATCH_LIMIT,
     LIST_LIMIT,
@@ -56,7 +57,7 @@ def create_scene(ctx, p, _t):
     song = ctx.song
     index = p.get("index", -1)
     if isinstance(index, bool) or not isinstance(index, int) or not -1 <= index <= len(song.scenes):
-        raise ValueError(f"'index' must be an integer -1..{len(song.scenes)} (-1 = end)")
+        raise Invalid(f"'index' must be an integer -1..{len(song.scenes)} (-1 = end)")
     song.create_scene(index)
     actual = len(song.scenes) - 1 if index == -1 else index
     return {
@@ -70,7 +71,7 @@ def set_scene_name(_ctx, p, t):
     scene = t["scene"].obj
     name = p.get("name")
     if not isinstance(name, str):
-        raise ValueError("'name' must be a string")
+        raise Invalid("'name' must be a string")
     scene.name = name
     return {"name": scene.name}
 
@@ -119,11 +120,11 @@ def get_scenes(ctx, p):
     if picked is None:
         picked = list(range(min(len(all_scenes), LIST_LIMIT)))
     elif not isinstance(picked, list) or not 1 <= len(picked) <= LIST_LIMIT:
-        raise ValueError(f"'scenes' must be a list of 1..{LIST_LIMIT} scene indices")
+        raise Invalid(f"'scenes' must be a list of 1..{LIST_LIMIT} scene indices")
     rows = []
     for i in picked:
         if isinstance(i, bool) or not isinstance(i, int) or not 0 <= i < len(all_scenes):
-            raise ValueError(f"scene index {i!r} must be 0..{len(all_scenes) - 1}")
+            raise Invalid(f"scene index {i!r} must be 0..{len(all_scenes) - 1}")
         rows.append(scene_row(song, i, all_scenes[i], include_slots))
     return {"generation": ctx.safety.generation, "scene_count": len(all_scenes), "scenes": rows}
 
@@ -134,9 +135,9 @@ def get_scenes(ctx, p):
 def _items(p, key):
     items = p.get(key)
     if not isinstance(items, list) or not 1 <= len(items) <= BATCH_LIMIT:
-        raise ValueError(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
+        raise Invalid(f"{key!r} must be a list of 1..{BATCH_LIMIT} objects")
     if not all(isinstance(i, dict) for i in items):
-        raise ValueError(f"every item in {key!r} must be an object")
+        raise Invalid(f"every item in {key!r} must be an object")
     return items
 
 
@@ -147,12 +148,12 @@ def _scene_fields(ctx, scene, item, label):
     name = item.get("name")
     if name is not None:
         if not isinstance(name, str) or len(name) > 256:
-            raise ValueError(f"{label}: 'name' must be a string of at most 256 characters")
+            raise Invalid(f"{label}: 'name' must be a string of at most 256 characters")
         fields.append(("name", lambda s: _assign(s, "name", name)))
     color = item.get("color_index")
     if color is not None:
         if isinstance(color, bool) or not isinstance(color, int) or not 0 <= color <= 69:
-            raise ValueError(f"{label}: 'color_index' must be an integer 0..69")
+            raise Invalid(f"{label}: 'color_index' must be an integer 0..69")
         fields.append(("color_index", lambda s: _assign(s, "color_index", color)))
     tempo = item.get("tempo")
     if tempo is not None:
@@ -175,7 +176,7 @@ def _scene_fields(ctx, scene, item, label):
                 or not 1 <= sig[0] <= 99
                 or sig[1] not in DENOMINATORS
             ):
-                raise ValueError(f"{label}: 'signature' must be [1..99, 1|2|4|8|16] or 'off'")
+                raise Invalid(f"{label}: 'signature' must be [1..99, 1|2|4|8|16] or 'off'")
             fields.append(("signature", lambda s: _signature(s, sig)))
     return fields
 
@@ -203,7 +204,7 @@ def create_scenes(ctx, p, _t):
     for n, item in enumerate(_items(p, "scenes")):
         index = item.get("index", -1)
         if isinstance(index, bool) or not isinstance(index, int) or index < -1:
-            raise ValueError(f"scenes[{n}]: 'index' must be -1 (end) or a scene index")
+            raise Invalid(f"scenes[{n}]: 'index' must be -1 (end) or a scene index")
         prepared.append((index, _scene_fields(ctx, None, item, f"scenes[{n}]")))
 
     def write(entry):
@@ -225,7 +226,7 @@ def set_scenes(ctx, p, t):
     for n, (item, resolved) in enumerate(zip(p["targets"], t["targets"], strict=True)):
         fields = _scene_fields(ctx, resolved.obj, item, f"targets[{n}]")
         if not fields:
-            raise ValueError(f"targets[{n}]: give at least one field to set")
+            raise Invalid(f"targets[{n}]: give at least one field to set")
         prepared += [(n, resolved.obj, field, apply) for field, apply in fields]
 
     def write(entry):
@@ -243,14 +244,14 @@ LAUNCH_KINDS = ("clip", "slot", "scene", "track", "return_track")
 def _launch_entry(action, resolved, label):
     kind, obj = resolved.path[-1][0], resolved.obj
     if kind not in LAUNCH_KINDS:
-        raise ValueError(f"{label}: launch takes a clip, slot, scene or track")
+        raise Invalid(f"{label}: launch takes a clip, slot, scene or track")
     if kind == "scene":
         if action == "stop":
-            raise ValueError(f"{label}: a scene is stopped by stopping its clips or tracks")
+            raise Invalid(f"{label}: a scene is stopped by stopping its clips or tracks")
         return kind, obj.fire
     if kind in ("track", "return_track"):
         if action == "fire":
-            raise ValueError(f"{label}: a track can only 'stop' (stop all its clips)")
+            raise Invalid(f"{label}: a track can only 'stop' (stop all its clips)")
         return kind, obj.stop_all_clips
     return kind, obj.fire if action == "fire" else obj.stop
 
@@ -258,7 +259,7 @@ def _launch_entry(action, resolved, label):
 def launch(ctx, p, t):
     action = p.get("action")
     if action not in ("fire", "stop"):
-        raise ValueError("'action' must be 'fire' or 'stop'")
+        raise Invalid("'action' must be 'fire' or 'stop'")
     prepared = [_launch_entry(action, r, f"targets[{n}]") for n, r in enumerate(t["targets"])]
 
     def write(entry):
@@ -306,7 +307,7 @@ def delete_scenes(ctx, p, t):
     require(ctx, "scene.delete", ((song, "delete_scene"),))
     resolved = t["targets"]
     if len(resolved) >= len(song.scenes):
-        raise ValueError("a Set must keep at least one scene")
+        raise Invalid("a Set must keep at least one scene")
 
     def write(r):
         name = r.obj.name

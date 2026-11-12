@@ -19,6 +19,7 @@ from pydantic import Field
 
 from ..als import Collection, PathEscape, collect, configured_roots, confine
 from ..als.usage import MAX_SETS, RECENT_DAYS, build_index
+from ..errors import Invalid
 from ..server import _read, _untrusted
 
 SCAN_BUDGET_S = 90.0
@@ -38,7 +39,7 @@ def _scan_roots(requested: list[str] | None) -> tuple[list[Path], list[Path]]:
     """(roots to scan, the allowlist). Requested roots must lie inside the allowlist."""
     allowed = configured_roots()
     if not allowed:
-        raise ValueError(
+        raise Invalid(
             "no project roots are configured: set ABLETONLIVEMCP_ALS_ROOTS (folders separated by "
             "the path separator) or als_roots in the bridge config"
         )
@@ -49,9 +50,9 @@ def _scan_roots(requested: list[str] | None) -> tuple[list[Path], list[Path]]:
         try:
             path = confine(text, allowed)
         except PathEscape as exc:
-            raise ValueError(f"root {text!r}: {exc}") from exc
+            raise Invalid(f"root {text!r}: {exc}") from exc
         if not path.is_dir():
-            raise ValueError(f"root {text!r} is not a folder")
+            raise Invalid(f"root {text!r} is not a folder")
         chosen.append(path)
     return chosen, allowed
 
@@ -119,11 +120,11 @@ def live_usage_report(
     with _lock:
         if scan_id is None:
             if not _scans:
-                raise ValueError("no scan yet: run live_scan_projects first")
+                raise Invalid("no scan yet: run live_scan_projects first")
             scan_id = next(reversed(_scans))
         got = _scans.get(scan_id)
     if got is None:
-        raise ValueError(f"unknown scan_id {scan_id!r}: run live_scan_projects again")
+        raise Invalid(f"unknown scan_id {scan_id!r}: run live_scan_projects again")
     index = build_index(got.summaries, got.errors, mtimes=got.mtimes, recent_days=recent_days)
     rows = getattr(index, kind)
     if sort == "recent":
