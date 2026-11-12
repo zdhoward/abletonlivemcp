@@ -44,6 +44,7 @@ CAPABILITIES = {
 }
 
 CLIP_ROWS = 256
+SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with next_track)
 CUE_ACTIONS = 8  # adds + deletes per call (one bounded operation)
 EPS = 1e-6
 MAX_TIME = 16384.0
@@ -76,10 +77,18 @@ def get_arrangement(ctx, p):
     if "cues" in include:
         cues = sorted(song.cue_points, key=lambda c: c.time)
         out["cues"] = [{"cue": i, "time": c.time, "name": c.name} for i, c in enumerate(cues)]
-    sels = p.get("tracks")
-    if sels is None:
-        sels = list(range(len(song.tracks)))
-    if not isinstance(sels, list) or len(sels) > BATCH_LIMIT:
+    # Explicit `tracks`: at most BATCH_LIMIT selectors. Omitted: a whole-Set scan from
+    # `next_track` (default 0), bounded by the clip-row budget and SCAN_TRACKS track rows; it
+    # returns `next_track` (the first track not fully read) when there is more to read.
+    sels, start_at = p.get("tracks"), p.get("next_track")
+    scan = sels is None
+    if scan:
+        count = len(song.tracks)
+        start_at = 0 if start_at is None else _index(start_at, "next_track", count)
+        sels = list(range(start_at, min(count, start_at + SCAN_TRACKS)))
+    elif start_at is not None:
+        raise ValueError("'next_track' continues a whole-Set read; do not combine it with 'tracks'")
+    if not isinstance(sels, list) or (not scan and len(sels) > BATCH_LIMIT):
         raise ValueError(f"'tracks' must be a list of at most {BATCH_LIMIT} track selectors")
     rows, budget, truncated = [], CLIP_ROWS, False
 
@@ -97,10 +106,14 @@ def get_arrangement(ctx, p):
         return found
 
     if "clips" in include or "take_lanes" in include:
+        next_track = sels[-1] + 1 if scan and sels and sels[-1] + 1 < len(song.tracks) else None
         for sel in sels:
             kind, track, _snap = owner_node(song, sel)
             if kind != "track":
                 continue  # return/master tracks have no arrangement clips
+            if scan and budget <= 0:
+                next_track = sel  # this track was not read at all
+                break
             row = {"track": sel, "name": track.name}
             if not has_arrangement_clips(track):
                 row["group"] = True  # clips live on its member tracks
@@ -115,8 +128,15 @@ def get_arrangement(ctx, p):
                     for k, lane in enumerate(lanes)
                 ]
             rows.append(row)
+            if scan and truncated:
+                # cut inside this track: read it again next time, unless it alone overflows
+                nxt = sel if sel != sels[0] else sel + 1
+                next_track = nxt if nxt < len(song.tracks) else None
+                break
         out["tracks"] = rows
         out["truncated"] = truncated
+        if next_track is not None:
+            out["next_track"] = next_track
     return out
 
 

@@ -511,7 +511,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows max (truncated). Group tracks hold no\nclips: their rows say group: true.",
+  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows max (truncated). Without `tracks` it\nreads the whole Set; when a reply has next_track, call again with it to continue. Group\ntracks hold no clips: their rows say group: true.",
   "inputSchema": {
    "properties": {
     "include": {
@@ -524,6 +524,10 @@
       "type": "string"
      },
      "type": "array"
+    },
+    "next_track": {
+     "minimum": 0,
+     "type": "integer"
     },
     "range": {
      "items": {
@@ -580,6 +584,9 @@
         "type": "number"
        },
        "type": "array"
+      },
+      "next_track": {
+       "type": "integer"
       },
       "song_length": {
        "type": "number"

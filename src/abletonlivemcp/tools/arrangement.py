@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from ..models import ResponseFormat, TrackSel
+from ..models import Index, ResponseFormat, TrackSel
 from ..models_clips import ArrangementEdit, CueAdd, CueEdit, NewArrangementClip, Span
 from ..server import (
     _call,
@@ -29,13 +29,17 @@ def live_get_arrangement(
     range: Span | None = None,  # noqa: A002 - the planned parameter name
     include: list[Part] | None = None,
     response_format: ResponseFormat = "concise",
+    next_track: Index | None = None,
 ) -> dict:
     """Arrangement clips per track (index = order by start), take lanes, cue points (index =
-    order by time), song length and loop. 256 clip rows max (truncated). Group tracks hold no
-    clips: their rows say group: true."""
+    order by time), song length and loop. 256 clip rows max (truncated). Without `tracks` it
+    reads the whole Set; when a reply has next_track, call again with it to continue. Group
+    tracks hold no clips: their rows say group: true."""
     params = {"include": include or ["clips", "cues"]}
     if tracks is not None:
         params["tracks"] = tracks
+    if next_track is not None:
+        params["next_track"] = next_track
     if range is not None:
         params["range"] = range
     out = _call("get_arrangement", params)

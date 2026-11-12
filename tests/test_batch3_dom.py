@@ -468,6 +468,39 @@ def test_disabled_arrangement_branches_refuse_unsupported(env):
     assert len(song.tracks[0].arrangement_clips) == 1
 
 
+class GroupTrack(Track):
+    is_foldable = True
+
+    @property
+    def arrangement_clips(self):
+        raise RuntimeError("group tracks have no arrangement clips")  # Live 12.2
+
+    @arrangement_clips.setter
+    def arrangement_clips(self, _value):
+        pass
+
+
+def test_group_track_is_marked_in_a_whole_set_read_and_refused_as_a_reference(env):
+    song, dispatch = env
+    song.tracks.append(GroupTrack("Bus"))
+    out = dispatch("get_arrangement", {})
+    assert out["tracks"][2] == {"track": 2, "name": "Bus", "group": True}, out
+    sel = {"kind": "arr_clip", "track": 2, "arrangement": 0}
+    bad(dispatch, "ref_issue", {"targets": [sel]}, "a group track has no arrangement clips")
+
+
+def test_whole_set_read_pages_past_64_tracks(env):
+    song, dispatch = env
+    song.tracks = [Track(f"T{i}") for i in range(70)]
+    for t in song.tracks:  # 4 clips per track: the 256-row budget ends inside track 64
+        t.arrangement_clips = [Clip(1.0, start=float(k)) for k in range(4)]
+    first = dispatch("get_arrangement", {"include": ["clips"]})
+    assert len(first["tracks"]) == 64 and first["truncated"] is False, first.get("next_track")
+    assert first["next_track"] == 64
+    rest = dispatch("get_arrangement", {"include": ["clips"], "next_track": 64})
+    assert [r["track"] for r in rest["tracks"]] == list(range(64, 70)) and "next_track" not in rest
+
+
 def test_cue_add_is_asynchronous_and_exact(env):
     song, dispatch = env
     gen = dispatch.safety.generation
