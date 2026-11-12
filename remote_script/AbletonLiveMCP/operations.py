@@ -136,6 +136,7 @@ class Operations:
         self._ring = collections.OrderedDict()
         self._closed = False
         self.cursors = Cursors(clock)
+        self.tasks_started = 0  # a call that starts a task writes later, outside its undo step
 
     # ---- preconditions and start ------------------------------------------------------
     def check_can_load(self, track):
@@ -207,6 +208,7 @@ class Operations:
             secrets.token_hex(8), kind, step, self._safety.generation, self._clock(), timeout
         )
         self._ring[task.id] = task
+        self.tasks_started += 1
         return task.snapshot()
 
     def pending_task(self, prefix):

@@ -302,6 +302,19 @@ def test_transport_jump_and_unverified_flag(live):
     assert out["code"] == "unsupported"  # the fake Song has no jump_to_next_cue
 
 
+def test_a_failed_transport_readback_keeps_the_receipt(live, monkeypatch):
+    """R6: the jump happened, so a readback that raises (even a ValueError) is a field."""
+    song, _a, d, g = live
+
+    def broken(_self):
+        raise ValueError("C:/private/path")
+
+    monkeypatch.setattr(type(song), "tempo", property(broken), raising=False)
+    out = d("transport", {"generation": g, "action": "jump_by", "beats": 4})
+    assert song.current_song_time == 4 and out["action"] == "jump_by"
+    assert out["readback_error"] == "ValueError: readback_failed" and "tempo" not in out
+
+
 def test_undo_and_redo_steps(live):
     song, _a, d, g = live
     song.history = [1, 2]

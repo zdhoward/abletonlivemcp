@@ -17,6 +17,7 @@ from .dom_common import (
     _live_version,
     _number,
     capability_report,
+    read_after,
     require,
     run_writes,
 )
@@ -372,12 +373,18 @@ def transport(ctx, p, _t):
     if action in ("jump_to", "jump_by"):
         _beats(p)  # validate before the write
     run(song, p)
+    state_now = read_after(
+        lambda: {
+            "is_playing": song.is_playing,
+            "current_song_time": song.current_song_time,
+            "tempo": song.tempo,
+        },
+        "transport readback",
+    )
     return {
         "action": action,
         "unverified": [capability] if state == "unverified" else [],
-        "is_playing": song.is_playing,
-        "current_song_time": song.current_song_time,
-        "tempo": song.tempo,
+        **state_now,
     }
 
 

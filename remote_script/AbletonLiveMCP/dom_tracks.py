@@ -81,7 +81,9 @@ def tracks(ctx, _p):
 def create_track(ctx, p, _t):
     song = ctx.song
     kind = p.get("kind")
-    index = int(p.get("index", -1))
+    index = p.get("index", -1)
+    if index != -1 or isinstance(index, bool):  # -1 appends
+        index = _index(index, "index", len(song.tracks) + 1)
     if kind == "midi":
         song.create_midi_track(index)
     elif kind == "audio":
@@ -93,13 +95,13 @@ def create_track(ctx, p, _t):
 
 def set_track_name(_ctx, p, t):
     track = t["track"].obj
-    track.name = str(p["name"])
+    track.name = _name(p["name"], "set_track_name")
     return {"name": track.name}
 
 
 def set_track_color(_ctx, p, t):
     track = t["track"].obj
-    track.color_index = int(p["color_index"])
+    track.color_index = _color(p["color_index"], "set_track_color")
     return {"color_index": track.color_index}
 
 

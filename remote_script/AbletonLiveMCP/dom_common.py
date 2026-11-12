@@ -410,6 +410,17 @@ SUPPORTED, UNVERIFIED, DISABLED, UNSUPPORTED = "supported", "unverified", "disab
 CAPABILITY_STATES = (SUPPORTED, UNVERIFIED, DISABLED, UNSUPPORTED)
 
 
+def read_after(read, label):
+    """Read Live state back after this call already wrote: any failure becomes a
+    ``readback_error`` field (logged by type and location), never a raise, because a raise
+    here would report an applied write as not applied."""
+    try:
+        return read()
+    except Exception as exc:  # noqa: BLE001 - the write happened; keep its receipt
+        log_failure(label, exc)
+        return {"readback_error": public_error(exc, "readback_failed")}
+
+
 def flag(item, key, where):
     """A request boolean, read the same way by the write gate and by every handler: absent is
     False, anything but a JSON true/false is refused (never truthiness: "true" or 1 is not a

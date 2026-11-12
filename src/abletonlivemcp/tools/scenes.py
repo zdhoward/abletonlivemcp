@@ -77,6 +77,8 @@ def live_launch(action: Literal["fire", "stop"], targets: LaunchTargets) -> dict
     items = [{"kind": r["kind"], "ref": r["ref"]} for r in rows]
     receipt = _call("launch", {"action": action, "targets": items})
     state, verification = _read_back("launch_state", {"targets": selectors})
-    if verification is not None:
+    if verification is None and not isinstance((state or {}).get("targets"), list):
+        verification = "the command was applied; the state readback had no targets"
+    if verification is not None:  # the launch happened: keep its receipt, never "not applied"
         return _untrusted({**receipt, "state": None, "verification": verification})
     return _untrusted({**receipt, "state": state["targets"]})

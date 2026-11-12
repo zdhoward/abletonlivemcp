@@ -68,6 +68,23 @@ def test_refusals_and_failures_close_the_step_and_claim_nothing():
     assert song.log == ["begin", "end"]
 
 
+def test_a_failing_end_undo_step_keeps_the_receipt_of_applied_writes():
+    """R6: the write happened, so its receipt survives; only the undo claim is dropped."""
+
+    class BrokenEnd(Song):
+        def end_undo_step(self):
+            raise RuntimeError("C:/private/path")
+
+    song = BrokenEnd()
+    d = dispatcher(song)
+    ref = d("tracks", {})[0]["ref"]
+    out = d("set_track_name", {"track": ref, "name": "Z"})
+    assert out["name"] == "Z" and song.tracks[0].name == "Z" and "undo_steps" not in out
+    assert out["undo_step_error"] == "RuntimeError: end_undo_step_failed"
+    with pytest.raises(ValueError, match="color_index"):  # the refusal is still readable
+        d("set_track_color", {"track": ref, "color_index": "not a number"})
+
+
 def test_song_without_undo_api_runs_ungrouped():
     song = BareSong()
     d = dispatcher(song)

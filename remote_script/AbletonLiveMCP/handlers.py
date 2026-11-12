@@ -14,7 +14,7 @@ import functools
 from itertools import islice
 from types import SimpleNamespace
 
-from .core import Invalid
+from .core import Invalid, log_failure, public_error
 from .dom_common import (  # noqa: F401 - limits re-exported for callers and tests
     APPEND_PLACEMENT_VERIFIED,
     BATCH_LIMIT,
@@ -53,11 +53,14 @@ def _handlers(song, app, safety, operations=None):
 OWN_UNDO_STEPS = frozenset({"probe_run", "undo", "redo"})
 
 
-def _one_undo_step(song, work):
+def _one_undo_step(song, work, operations=None):
     """Run one write as a single Live undo step (P-03: go), so one Song.undo reverts the whole
-    call and never a user's earlier edit. ``end_undo_step`` runs in a ``finally``, so a failing
-    write never leaves the step open. A Song without the API (or a ``begin`` that fails) runs
-    the write ungrouped, and the reply then makes no ``undo_steps`` claim."""
+    call and never a user's earlier edit. ``end_undo_step`` always runs, so a failing write
+    never leaves the step open. A Song without the API (or a ``begin`` that fails) runs the
+    write ungrouped, and the reply then makes no ``undo_steps`` claim. Neither does a call that
+    started a step task (its later writes land outside this step), nor one whose
+    ``end_undo_step`` failed: its writes happened, so the receipt is kept, never replaced by an
+    error that would read as "not applied"."""
     begin = getattr(song, "begin_undo_step", None)
     end = getattr(song, "end_undo_step", None)
     if not (callable(begin) and callable(end)):
@@ -66,11 +69,24 @@ def _one_undo_step(song, work):
         begin()
     except Exception:
         return work()
+    tasks = operations.tasks_started if operations is not None else 0
     try:
         result = work()
-    finally:
+    except BaseException:
+        try:
+            end()
+        except Exception as exc:  # noqa: BLE001 - the write's own error is the one to report
+            log_failure("end_undo_step", exc)
+        raise
+    try:
         end()
-    if isinstance(result, dict) and not result.get("refused"):
+    except Exception as exc:  # noqa: BLE001 - after the writes: a receipt, not a raise
+        log_failure("end_undo_step", exc)
+        if isinstance(result, dict):
+            result = {**result, "undo_step_error": public_error(exc, "end_undo_step_failed")}
+        return result
+    deferred = operations is not None and operations.tasks_started != tasks
+    if isinstance(result, dict) and not result.get("refused") and not deferred:
         result = {**result, "undo_steps": 1}
     return result
 
@@ -120,7 +136,7 @@ def make_dispatch(song_supplier, app, safety=None):
             handler = table()[method]
             if method in OWN_UNDO_STEPS:
                 return handler(params, targets)
-            return _one_undo_step(bound["song"], lambda: handler(params, targets))
+            return _one_undo_step(bound["song"], lambda: handler(params, targets), operations)
         except Refused as refusal:
             return refusal.result()
 
