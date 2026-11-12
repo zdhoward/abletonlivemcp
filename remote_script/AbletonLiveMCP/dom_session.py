@@ -8,7 +8,7 @@ step (``handlers.OWN_UNDO_STEPS``).
 """
 
 from . import dom_song
-from .core import PROTOCOL_VERSION, log_failure, public_error
+from .core import PROTOCOL_VERSION, SCRIPT_IDENTITY, log_failure, public_error
 from .dom_common import (
     READ,
     WRITE,
@@ -71,6 +71,7 @@ def hello(ctx, _p):
     app = ctx.app
     return {
         "protocol": PROTOCOL_VERSION,
+        "script": {"version": SCRIPT_IDENTITY[0], "build": SCRIPT_IDENTITY[1]},
         "live_version": _live_version(app),
         "variant": _app_call(app, "get_variant"),
         "build_id": _app_call(app, "get_build_id"),

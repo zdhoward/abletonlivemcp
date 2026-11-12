@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from .. import server
+from ..install import packaged_identity
 from ..models_control import (
     Bpm,
     Groove,
@@ -26,8 +27,32 @@ def live_hello() -> dict:
     """Handshake: protocol, Live version, build id, variant, generation, read_only and
     dev_probes (bridge config, re-read per call), dialogs and CPU,
     capability_report (supported/unverified/disabled/unsupported per ability) and toolsets.
+    script: the Remote Script's version and build vs this host's; warning when they differ.
     Call first; current tempo/transport state is in live_get_session."""
-    return {**_call("hello"), "toolsets": server.toolsets()}
+    out = {**_call("hello"), "toolsets": server.toolsets()}
+    out["script"] = script = compare_script(out.get("script"))
+    if not script["match"]:
+        out["warning"] = (
+            "The Remote Script running in Live is not the one this host ships "
+            f"(script {script['version']} {script['build']}, host {script['host_version']} "
+            f"{script['host_build']}). Run abletonlivemcp-install, then restart Live."
+        )
+    return out
+
+
+def compare_script(reported) -> dict:
+    """The Remote Script's reported identity next to the packaged copy's. An older script that
+    does not report one counts as a mismatch."""
+    reported = reported if isinstance(reported, dict) else {}
+    version, build = packaged_identity()
+    script = {
+        "version": str(reported.get("version", "unknown")),
+        "build": str(reported.get("build", "unknown")),
+        "host_version": version,
+        "host_build": build,
+    }
+    script["match"] = (script["version"], script["build"]) == (version, build)
+    return script
 
 
 @_read

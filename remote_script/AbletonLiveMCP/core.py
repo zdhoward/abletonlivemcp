@@ -33,6 +33,37 @@ _HEX = re.compile(r"[0-9a-f]{64}\Z")
 _METHOD = re.compile(r"[A-Za-z][A-Za-z0-9_.]{0,127}\Z")
 
 
+_BUILD_FILE = re.compile(r"(?!probe_p\d\d\.py\Z)\w+\.py\Z")  # dev probes are optional
+
+
+def build_id(files):
+    """Content hash of a Remote Script: ``files`` maps file name -> bytes. Dev probes are left
+    out (release archives omit them). The host computes the same over its packaged copy."""
+    digest = hashlib.sha256()
+    for name in sorted(n for n in files if _BUILD_FILE.match(n)):
+        digest.update(name.encode() + b"\0" + files[name] + b"\0")
+    return "sha256:" + digest.hexdigest()[:16]
+
+
+def script_identity(directory=None):
+    """(version, build) of the Remote Script in ``directory`` (default: this one): VERSION from
+    version.py, the single source shared with the host package, and build_id of its files."""
+    directory = directory or os.path.dirname(os.path.abspath(__file__))
+    try:
+        files = {}
+        for name in os.listdir(directory):
+            if _BUILD_FILE.match(name):
+                with open(os.path.join(directory, name), "rb") as handle:
+                    files[name] = handle.read()
+        found = re.search(rb'^VERSION = "([^"]+)"', files.get("version.py", b""), re.M)
+        return (found.group(1).decode() if found else "unknown"), build_id(files)
+    except (OSError, UnicodeError):
+        return "unknown", "unknown"
+
+
+SCRIPT_IDENTITY = script_identity()  # at load: the code Live runs, not a later copy on disk
+
+
 _MODULES = ("ctypes", "msvcrt", "subprocess", "hmac", "hashlib", "secrets")
 
 
@@ -442,10 +473,11 @@ class BridgeServer:
             raise ValueError(
                 "private bridge config unavailable; reinstall or repair config"
             ) from None
+        version, build = SCRIPT_IDENTITY
         self._status = {
             "protocol": 2,
-            "component_version": "0.9.0",
-            "build": "source-protocol-2",
+            "component_version": version,
+            "build": build,
             "session": secrets.token_hex(32),
             "methods": [
                 m for m in getattr(self._dispatch, "methods", ()) if _METHOD.fullmatch(m)

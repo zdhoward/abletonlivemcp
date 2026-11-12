@@ -146,7 +146,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Handshake: protocol, Live version, build id, variant, generation, read_only and\ndev_probes (bridge config, re-read per call), dialogs and CPU,\ncapability_report (supported/unverified/disabled/unsupported per ability) and toolsets.\nCall first; current tempo/transport state is in live_get_session.",
+  "description": "Handshake: protocol, Live version, build id, variant, generation, read_only and\ndev_probes (bridge config, re-read per call), dialogs and CPU,\ncapability_report (supported/unverified/disabled/unsupported per ability) and toolsets.\nscript: the Remote Script's version and build vs this host's; warning when they differ.\nCall first; current tempo/transport state is in live_get_session.",
   "inputSchema": {
    "properties": {},
    "type": "object"
@@ -154,6 +154,34 @@
   "name": "live_hello",
   "outputSchema": {
    "$defs": {
+    "ScriptIdentity": {
+     "additionalProperties": true,
+     "properties": {
+      "build": {
+       "type": "string"
+      },
+      "host_build": {
+       "type": "string"
+      },
+      "host_version": {
+       "type": "string"
+      },
+      "match": {
+       "type": "boolean"
+      },
+      "version": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "version",
+      "build",
+      "host_version",
+      "host_build",
+      "match"
+     ],
+     "type": "object"
+    },
     "Toolsets": {
      "additionalProperties": true,
      "properties": {
@@ -223,6 +251,9 @@
     "protocol": {
      "type": "integer"
     },
+    "script": {
+     "$ref": "#/$defs/ScriptIdentity"
+    },
     "toolsets": {
      "$ref": "#/$defs/Toolsets"
     },
@@ -235,10 +266,14 @@
        "type": "null"
       }
      ]
+    },
+    "warning": {
+     "type": "string"
     }
    },
    "required": [
     "protocol",
+    "script",
     "live_version",
     "variant",
     "build_id",

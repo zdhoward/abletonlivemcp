@@ -26,6 +26,11 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   server and the Remote Script), `live_create_clips(if_exists="replace")` and
   `live_create_arrangement_clips` with `replace: true` (previously permission only, no
   confirmation). Calls of those tools that delete nothing are unchanged.
+- `live_hello` reports `script` (the running Remote Script's version and content build id
+  next to this host's) and a `warning` when they differ, so a stale installed script shows up
+  even at the same version. The version now has one source
+  (`remote_script/AbletonLiveMCP/version.py`), read by the package build and the bridge, which
+  used to report a fixed "0.9.0".
 - Fix: `live_get_arrangement` without `tracks` no longer refuses on a Set with more than 64
   tracks. A whole-Set read stops at the 256-row clip budget and returns `next_track`; call
   again with `next_track` to continue.

@@ -26,7 +26,7 @@ DOMAINS = (
 # omit every probe, a source checkout has every probe, and a partial set is refused.
 PROBES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 27, 29)
 REQUIRED = frozenset(
-    {"__init__.py", "core.py", "handlers.py", "operations.py", "safety.py"}
+    {"__init__.py", "core.py", "handlers.py", "operations.py", "safety.py", "version.py"}
     | {f"dom_{name}.py" for name in DOMAINS}
 )
 OPTIONAL_PROBES = frozenset(f"probe_p{n:02d}.py" for n in PROBES)
@@ -45,6 +45,20 @@ def source_files() -> dict:
     if not root.is_dir():
         raise InstallError("Remote Script resources are missing; reinstall the host package")
     return {entry.name: entry for entry in root.glob("*.py")}
+
+
+_BUILD_FILE = re.compile(r"(?!probe_p\d\d\.py\Z)\w+\.py\Z")
+
+
+def packaged_identity() -> tuple[str, str]:
+    """(version, build) of the Remote Script this host ships; the same values a freshly
+    installed script reports (core.script_identity / core.build_id, kept in step by a test)."""
+    files = {n: e.read_bytes() for n, e in source_files().items() if _BUILD_FILE.match(n)}
+    digest = hashlib.sha256()
+    for name in sorted(files):
+        digest.update(name.encode() + b"\0" + files[name] + b"\0")
+    found = re.search(rb'^VERSION = "([^"]+)"', files.get("version.py", b""), re.M)
+    return (found[1].decode() if found else "unknown"), "sha256:" + digest.hexdigest()[:16]
 
 
 def _digest(data: bytes) -> str:

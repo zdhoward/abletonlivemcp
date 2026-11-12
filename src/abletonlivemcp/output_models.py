@@ -67,8 +67,19 @@ class Toolsets(TypedDict):
 
 
 @open_output
+class ScriptIdentity(TypedDict):
+    version: str
+    build: str
+    host_version: str
+    host_build: str
+    match: bool
+
+
+@open_output
 class Hello(TypedDict):
     protocol: int
+    script: ScriptIdentity
+    warning: NotRequired[str]  # the running Remote Script is not this host's copy
     live_version: list[int] | None
     variant: str | None
     build_id: str | None

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "abletonlivemcp"
-version = "0.11.0"
+dynamic = ["version"]
 description = "MCP server that lets LLMs assist in Ableton Live: racks, macros, organization, and chain building."
 readme = "README.md"
 license = { text = "MIT" }
@@ -25,6 +25,10 @@ abletonlivemcp-install = "abletonlivemcp.install:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
+
+# One version source, shared with the Remote Script (live_hello compares the two).
+[tool.hatch.version]
+path = "remote_script/AbletonLiveMCP/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/abletonlivemcp"]

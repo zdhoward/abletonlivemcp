@@ -6,6 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
+import abletonlivemcp  # noqa: E402
 from abletonlivemcp import install  # noqa: E402
 from abletonlivemcp.bridge import BridgeClient, BridgeError  # noqa: E402
 
@@ -43,3 +44,22 @@ def test_install_copies_script_and_rejects_non_library(tmp_path, monkeypatch):
     assert (dest / "__init__.py").is_file() and (dest / "core.py").is_file()
     assert not list(dest.rglob("__pycache__"))
     install.install(tmp_path)  # reinstall over an existing copy works
+    # the installed script reports exactly the identity the host ships; an edit changes it
+    from AbletonLiveMCP import core
+
+    shipped = install.packaged_identity()
+    assert core.script_identity(str(dest)) == shipped
+    assert shipped[0] == abletonlivemcp.__version__
+    (dest / "dom_view.py").write_bytes((dest / "dom_view.py").read_bytes() + b"\n# stale")
+    assert core.script_identity(str(dest)) == (shipped[0], core.script_identity(str(dest))[1])
+    assert core.script_identity(str(dest))[1] != shipped[1]
+
+
+def test_hello_warns_when_the_running_script_is_not_the_hosts():
+    from abletonlivemcp.tools import session
+
+    version, build = install.packaged_identity()
+    assert session.compare_script({"version": version, "build": build})["match"] is True
+    stale = session.compare_script({"version": version, "build": "sha256:0000000000000000"})
+    assert stale["match"] is False and stale["host_build"] == build
+    assert session.compare_script(None)["version"] == "unknown"  # an old script reports none
