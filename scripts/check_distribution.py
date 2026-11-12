@@ -1,7 +1,9 @@
 """Check runtime-only archives and optionally a clean stdio install (no Live connection).
 
 Usage: python scripts/check_distribution.py dist [--smoke]
-Build first with `python -m build`. --smoke installs dependencies from the configured pip index.
+Build first with `python -m build --sdist --wheel` (both from the tree: a plain `python -m build`
+makes the wheel from the sdist and would hide a wheel-only leak). --smoke installs dependencies
+from the configured pip index.
 """
 
 from __future__ import annotations
@@ -59,6 +61,19 @@ def is_dev_probe(name: str) -> bool:
     return leaf.startswith("probe_p") and leaf[7:9].isdigit() and leaf[9:] == ".py"
 
 
+# Directories that never ship: tests, planning notes, the shared knowledge base, caches.
+DEV_DIRS = {"tests", "tasks", "knowledge", "__pycache__", ".venv", "docs", "scripts"}
+
+
+def check_shipped(name: str, archive: str) -> None:
+    """Refuse a developer payload in ``archive`` (a probe module or a development directory)."""
+    path = PurePosixPath(name)
+    if is_dev_probe(name):
+        raise ValueError(f"Developer probe in {archive}: {name}")
+    if DEV_DIRS & set(path.parts[:-1]) or path.suffix in {".pyc", ".pyo"}:
+        raise ValueError(f"Development payload in {archive}: {name}")
+
+
 def check_archives(directory: Path) -> Path:
     wheels = list(directory.glob("*.whl"))
     sources = list(directory.glob("*.tar.gz"))
@@ -69,8 +84,7 @@ def check_archives(directory: Path) -> Path:
         wheel_files = {n for n in archive.namelist() if not n.endswith("/")}
         for name in wheel_files:
             path = check_name(name)
-            if is_dev_probe(name):
-                raise ValueError(f"Developer probe in wheel: {name}")
+            check_shipped(name, "wheel")
             if not (
                 (path.parts[0] == "abletonlivemcp" and
                  (path.suffix == ".py" or name == "abletonlivemcp/NOTICE"))
@@ -90,8 +104,7 @@ def check_archives(directory: Path) -> Path:
                 raise ValueError(f"Unexpected source archive member: {member.name}")
             relative = PurePosixPath(*path.parts[1:])
             name = str(relative)
-            if is_dev_probe(name):
-                raise ValueError(f"Developer probe in source archive: {name}")
+            check_shipped(name, "source archive")
             # Hatch always includes VCS ignore metadata in sdists, even when excluded.
             allowed = name in {
                 ".gitignore", "pyproject.toml", "README.md", "LICENSE", "NOTICE", "PKG-INFO"

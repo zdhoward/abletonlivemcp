@@ -31,12 +31,17 @@ dev = ["pytest>=8", "ruff>=0.6"]
 path = "remote_script/AbletonLiveMCP/version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/abletonlivemcp"]
-# Developer probes (remote_script/AbletonLiveMCP/probe_pNN.py) stay in the source tree only.
+# The Remote Script ships inside the package through a path mapping, not force-include: hatch
+# applies `exclude` to mapped sources but never to force-included ones. Developer probes
+# (remote_script/AbletonLiveMCP/probe_pNN.py) stay in the source tree only.
+only-include = ["src/abletonlivemcp", "remote_script/AbletonLiveMCP"]
 exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo", "**/probe_p[0-9][0-9].py"]
 
-[tool.hatch.build.targets.wheel.force-include]
+[tool.hatch.build.targets.wheel.sources]
+"src/abletonlivemcp" = "abletonlivemcp"
 "remote_script/AbletonLiveMCP" = "abletonlivemcp/_remote_script/AbletonLiveMCP"
+
+[tool.hatch.build.targets.wheel.force-include]
 "NOTICE" = "abletonlivemcp/NOTICE"
 
 [tool.hatch.build.targets.sdist]

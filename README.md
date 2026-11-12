@@ -192,7 +192,7 @@ To build and verify a clean installation without touching Live:
 
 ```sh
 python -m pip install build
-python -m build
+python -m build --sdist --wheel
 python scripts/check_distribution.py dist --smoke
 ```
 
