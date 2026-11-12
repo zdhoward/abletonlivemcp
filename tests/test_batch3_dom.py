@@ -856,6 +856,28 @@ def test_cue_delete_returns_a_playhead_parked_past_the_content(stretch):
         assert "cannot return to 64.0" in result["cleanup_issue"]
 
 
+def test_a_cue_live_places_on_its_grid_is_reported_applied_at_its_real_time(env):
+    """Round 6: in Live 12.2 a cue added at beat 290 appeared at 292; the task raised
+    'unexpected cue change', so an applied add came back unknown and was never renamed."""
+    song, dispatch = env
+
+    def toggle_on_the_grid():
+        song.cue_points.append(Cue(-(-song._time // 4) * 4))  # up to the next bar
+
+    song.set_or_delete_cue = toggle_on_the_grid
+    add = [{"time": 10.0, "name": "Drop"}]
+    p = {"cues": [], "add": add, "generation": dispatch.safety.generation}
+    op = ok(dispatch("set_cue_points", p))["applied"][0]["operation"]
+    for _ in range(8):
+        dispatch.operations.tick()
+        song.settle()
+    snap = dispatch.operations.get(op)
+    assert snap["state"] == "ready" and snap["result"]["status"] == "complete", snap
+    assert snap["result"]["results"] == [{"action": "add", "time": 12.0, "cue": 1,
+                                          "requested": 10.0}]  # fmt: skip
+    assert [(c.time, c.name) for c in song.cue_points] == [(8.0, "Verse"), (12.0, "Drop")]
+
+
 def test_cue_add_refuses_while_playing(env):
     song, dispatch = env
     song.is_playing = True

@@ -584,9 +584,11 @@ def _cue_task(ctx, queue, previous, params):
             new = [c for c in now if not any(_same(c, o) for o in st["before"])]
             if not new:
                 return None
-            if len(new) != 1 or abs(new[0].time - time_) > EPS:
+            if len(new) != 1:
                 raise RuntimeError(f"unexpected cue change: {[c.time for c in new]}")
             row = {"action": "add", "time": new[0].time, "cue": _cue_index(song, new[0])}
+            if abs(new[0].time - time_) > EPS:  # 12.2 puts it on the nearest bar (289 -> 288)
+                row["requested"] = time_
             if b:
                 error = refusal()  # the rename is a write of its own
                 if error is not None:
