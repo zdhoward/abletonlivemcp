@@ -593,10 +593,32 @@ def test_a_track_denser_than_one_page_continues_inside_it(env):
     song.tracks[0].arrangement_clips.pop(0)
     out = dispatch("get_arrangement", {"include": ["clips"], "cursor": first["cursor"]})
     assert out["code"] == "stale_cursor"
+    first = dispatch("get_arrangement", {"include": ["clips"]})
     song.tracks.append(Track("New"))  # so does a changed track count
     out = dispatch("get_arrangement", {"include": ["clips"], "cursor": first["cursor"]})
     assert out["code"] == "stale_cursor"
-    bad(dispatch, "get_arrangement", {"cursor": "nope"}, "'cursor' must be")
+    out = dispatch("get_arrangement", {"cursor": "nope"})
+    assert out["code"] == "unknown_cursor"
+
+
+def test_the_whole_set_cursor_is_server_held_and_bound_to_tracks_and_args(env):
+    """Sol R4: the cursor was a client-editable string and only checked the track count, so a
+    reorder repeated or skipped tracks and an edited cursor jumped anywhere."""
+    song, dispatch = env
+    song.tracks = [Track(f"T{k}") for k in range(260)]  # more than one 256-track page
+    p = {"include": ["clips"]}
+    first = dispatch("get_arrangement", p)
+    assert first["cursor"] and "." not in first["cursor"]  # an opaque token, no state in it
+    song.tracks[0], song.tracks[1] = song.tracks[1], song.tracks[0]  # same count, new order
+    assert dispatch("get_arrangement", {**p, "cursor": first["cursor"]})["code"] == "stale_cursor"
+    first = dispatch("get_arrangement", p)  # another read's arguments: refused
+    out = dispatch("get_arrangement", {"include": ["clips", "cues"], "cursor": first["cursor"]})
+    assert out["code"] == "cursor_mismatch"
+    forged = first["cursor"][:-1] + ("0" if first["cursor"][-1] != "0" else "1")
+    assert dispatch("get_arrangement", {**p, "cursor": forged})["code"] == "unknown_cursor"
+    first = dispatch("get_arrangement", p)
+    rest = dispatch("get_arrangement", {**p, "cursor": first["cursor"]})
+    assert [r["track"] for r in first["tracks"] + rest["tracks"]] == list(range(260))
 
 
 def test_the_cursor_continues_through_take_lanes(env):

@@ -62,15 +62,17 @@ WATCH_TTL = 120.0
 TICK_BUDGET = 0.010
 MAX_CURSORS = 4
 CURSOR_TTL = 30.0
+PAGE_CURSOR_TTL = 600.0  # a client may think between pages of a whole-Set read
 
 PENDING, READY, FAILED, UNKNOWN = "pending", "ready", "failed", "unknown"
 
 
 class Cursors:
-    """At most ``MAX_CURSORS`` single-use continuations that expire after ``CURSOR_TTL`` s."""
+    """At most ``MAX_CURSORS`` single-use continuations that expire after ``ttl`` s. The
+    client only ever holds a random token; the state stays here, so it cannot be forged."""
 
-    def __init__(self, clock=time.monotonic):
-        self._clock = clock
+    def __init__(self, clock=time.monotonic, ttl=CURSOR_TTL):
+        self._clock, self._ttl = clock, ttl
         self._items = collections.OrderedDict()
 
     def expire(self):
@@ -81,7 +83,7 @@ class Cursors:
     def put(self, kind, state):
         self.expire()
         token = secrets.token_hex(8)
-        self._items[token] = (kind, state, self._clock() + CURSOR_TTL)
+        self._items[token] = (kind, state, self._clock() + self._ttl)
         while len(self._items) > MAX_CURSORS:
             self._items.popitem(last=False)  # oldest continuation is dropped
         return token
@@ -146,6 +148,7 @@ class Operations:
         self._ring = collections.OrderedDict()
         self._closed = False
         self.cursors = Cursors(clock)
+        self.page_cursors = Cursors(clock, PAGE_CURSOR_TTL)  # whole-Set arrangement reads
         self.tasks_started = 0  # a call that starts a task writes later, outside its undo step
 
     # ---- preconditions and start ------------------------------------------------------
@@ -314,6 +317,7 @@ class Operations:
         if self._closed:
             return 0
         self.cursors.expire()
+        self.page_cursors.expire()
         active = [o for o in self._ring.values() if o.state == PENDING or o.watch_until]
         if not active:
             return 0
@@ -346,6 +350,7 @@ class Operations:
             elif op.state in (PENDING, UNKNOWN):
                 self._finish(op, UNKNOWN, "session_ended")
         self.cursors.clear()
+        self.page_cursors.clear()
         self._closed = True
 
     # ---- internals --------------------------------------------------------------------

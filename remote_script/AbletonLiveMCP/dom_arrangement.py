@@ -9,8 +9,6 @@ observe the playhead, toggle on a later tick, observe the cue at the exact time)
 ``current_song_time`` applies late and ``set_or_delete_cue`` acts at the playhead.
 """
 
-import re
-
 from .core import Invalid
 from .dom_clips import (
     MAX_NEW_LENGTH,
@@ -38,6 +36,7 @@ from .dom_common import (
     position_of,
     require,
     run_writes,
+    same_items,
     two_pass,
 )
 
@@ -50,8 +49,6 @@ CAPABILITIES = {
 
 CLIP_ROWS = 256
 SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with cursor)
-# generation . track count . track . rows of that track already read . fingerprint of its rows
-_CURSOR = re.compile(r"(\d{1,12})\.(\d{1,5})\.(\d{1,5})\.(\d{1,7})\.([0-9a-f]{12}|-)")
 CUE_ACTIONS = 8  # adds + deletes per call (one bounded operation)
 EPS = 1e-6
 MAX_TIME = 16384.0
@@ -79,29 +76,42 @@ def _track_rows(track, include, span):
     return rows, lanes
 
 
-def _fingerprint(rows):
-    """Identifies a track's rows between pages: a continuation refuses when it changed."""
-    # hash() of numbers is not salted, and a cursor only lives as long as this Live process
-    key = tuple((k, round(c.start_time, 6), round(c.end_time, 6)) for k, _i, c in rows)
-    return format(hash((len(key), key)) & 0xFFFFFFFFFFFF, "012x")
+def _row_ids(rows):
+    """A track's rows by lane and clip identity: what a continuation inside it must still see."""
+    return tuple((k, c) for k, _i, c in rows)
 
 
-def _cursor(ctx, count, track, skip, rows):
-    fp = _fingerprint(rows) if skip else "-"
-    return f"{ctx.safety.generation}.{count}.{track}.{skip}.{fp}"
+def _cursor(ctx, tracks, args, track, skip, rows):
+    """Keep the continuation here, bound to the Set, its tracks in order (by identity), the
+    read's own arguments and, inside a track, that track's rows; the client gets a token."""
+    state = {
+        "generation": ctx.safety.generation,
+        "tracks": tuple(tracks),
+        "args": args,
+        "track": track,
+        "skip": skip,
+        "rows": _row_ids(rows) if skip else (),
+    }
+    return ctx.operations.page_cursors.put("arrangement", state)
 
 
-def _read_cursor(ctx, value, count):
-    """``(track, skip, fingerprint)`` from a cursor this reader issued for the current Set."""
+def _read_cursor(ctx, value, tracks, args):
+    """``(track, skip, rows)`` of a cursor this reader issued, refused unless the Set, its
+    tracks (same objects, same order) and the arguments are unchanged. Single use."""
     if not isinstance(value, str) or len(value) > 64:
         raise Invalid("'cursor' must be the cursor string of a previous reply")
-    match = _CURSOR.fullmatch(value)
-    if match is None:
-        raise Invalid("'cursor' must be the cursor string of a previous reply")
-    gen, was, track, skip, fp = match.groups()
-    if int(gen) != ctx.safety.generation or int(was) != count or int(track) >= count:
-        raise Refused("stale_cursor", "the Set changed since that page; read again from the start")
-    return int(track), int(skip), fp
+    state = ctx.operations.page_cursors.take(value, "arrangement")  # unknown_cursor otherwise
+    if state["generation"] != ctx.safety.generation or not same_items(tracks, state["tracks"]):
+        raise Refused(
+            "stale_cursor",
+            "the Set or its track list changed since that page; read again from the start",
+        )
+    if state["args"] != args:
+        raise Refused(
+            "cursor_mismatch",
+            "that cursor continues a read with other 'include'/'range'; read again from the start",
+        )
+    return state["track"], state["skip"], state["rows"]
 
 
 def _emit(sel, track, picked, include, lanes):
@@ -142,14 +152,17 @@ def get_arrangement(ctx, p):
     # Omitted: a whole-Set read in pages of CLIP_ROWS rows and SCAN_TRACKS track rows; a page
     # that stops early returns `cursor`, and calling again with it continues exactly there, even
     # inside one track (that row then says ``partial``). Never a row lost or repeated: a cursor
-    # is refused when the Set, its track count or the cut track's clips changed in between.
+    # is refused when the Set, its tracks (identity and order), the arguments or the cut track's
+    # clips changed in between. The cursor is a token; its state never leaves the script.
     sels, cursor = p.get("tracks"), p.get("cursor")
     scan = sels is None
-    count = len(song.tracks)
-    start_at, skip, fp = 0, 0, "-"
+    tracks = list(song.tracks)
+    count = len(tracks)
+    args = (tuple(sorted(set(include))), span)
+    start_at, skip, seen = 0, 0, ()
     if scan:
         if cursor is not None:
-            start_at, skip, fp = _read_cursor(ctx, cursor, count)
+            start_at, skip, seen = _read_cursor(ctx, cursor, tracks, args)
         sels = list(range(start_at, min(count, start_at + SCAN_TRACKS)))
     elif cursor is not None:
         raise Invalid("'cursor' continues a whole-Set read; do not combine it with 'tracks'")
@@ -167,14 +180,18 @@ def get_arrangement(ctx, p):
             continue
         items, lanes = _track_rows(track, include, span)
         done = skip if scan and n == 0 else 0
-        if done and _fingerprint(items) != fp:
+        now = _row_ids(items)
+        if done and not (
+            len(now) == len(seen)
+            and all(k == kk and _same(c, cc) for (k, c), (kk, cc) in zip(now, seen, strict=False))
+        ):
             raise Refused(
                 "stale_cursor",
                 f"track {sel} changed since that page; read again from the start",
             )
         left = items[done:]
         if scan and budget <= 0 and left:
-            nxt = _cursor(ctx, count, sel, done, items)  # this track's rest: next page
+            nxt = _cursor(ctx, tracks, args, sel, done, items)  # this track's rest: next page
             break
         picked = left[:budget]
         budget -= len(picked)
@@ -184,12 +201,12 @@ def get_arrangement(ctx, p):
             if scan:
                 row["partial"] = True
                 rows.append(row)
-                nxt = _cursor(ctx, count, sel, done + len(picked), items)
+                nxt = _cursor(ctx, tracks, args, sel, done + len(picked), items)
                 break
         rows.append(row)
     else:
         if scan and sels and sels[-1] + 1 < count:
-            nxt = _cursor(ctx, count, sels[-1] + 1, 0, ())
+            nxt = _cursor(ctx, tracks, args, sels[-1] + 1, 0, ())
     out["tracks"] = rows
     out["truncated"] = truncated
     if nxt is not None:
