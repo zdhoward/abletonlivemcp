@@ -5,9 +5,11 @@ start)`` work (P-08). Session-to-Arrangement copying was measured on Basic in 12
 2026-11-11: no crash, PAD's track automation survived deleting the copied clip. This does not
 qualify Arrangement-to-Arrangement duplication, split, move or take-lane writes; those stay
 disabled. Cue adds and deletes run as a bounded operation (seek,
-observe the playhead, toggle on a later tick, observe the cue at the exact time) because
+observe the playhead, toggle on a later tick, observe the cue where Live puts it) because
 ``current_song_time`` applies late and ``set_or_delete_cue`` acts at the playhead.
 """
+
+import math
 
 from .core import Invalid
 from .dom_clips import (
@@ -408,6 +410,53 @@ def _cue_index(song, cue):
     return position_of(sorted(song.cue_points, key=lambda c: c.time), cue)
 
 
+def _bar(song):
+    """Beats per bar at the Set's time signature (4/4 when unreadable)."""
+    try:
+        bar = 4.0 * song.signature_numerator / song.signature_denominator
+    except (AttributeError, TypeError, ZeroDivisionError):
+        return 4.0
+    return bar if bar > 0 else 4.0
+
+
+def _landings(song, time_):
+    """Where a cue added at ``time_`` may appear: the time itself, or the bar line Live 12.2 puts
+    it on. Measured on Basic 2026-11-12: the nearest bar of the Set's signature, an exact tie
+    going to the later bar (4/4: 33 -> 32, 42 -> 44, 61.5 -> 60; 3/4: 127 -> 126, 137.5 ->
+    138). Returns ``(nearest, accepted)``; at a tie both adjacent bars are accepted."""
+    bar = _bar(song)
+    q = time_ / bar
+    nearest = math.floor(q + 0.5) * bar
+    accepted = [time_, nearest]
+    if abs(q - math.floor(q) - 0.5) <= EPS:
+        accepted += [math.floor(q) * bar, math.ceil(q) * bar]
+    return nearest, accepted
+
+
+def _add_plan(song, time_):
+    """Before an add's toggle: ``("reuse", cue)``, ``("refuse", text)`` or ``("toggle", None)``.
+
+    Live 12.2 (measured 2026-11-12): ``set_or_delete_cue`` deletes a cue lying within half a
+    bar of the playhead (33 deleted the cue at 32; in 3/4, 113 deleted 112 and 45.4 deleted
+    44, while 101.6 left 100 and added 102), and only adds when none does. A cue at the time,
+    or alone on the bar the add would land on, is reused (the documented reuse); any other cue
+    that close would be deleted by the toggle, so the add refuses before it."""
+    here = _cue_at(song, time_)
+    if here is not None:
+        return "reuse", here
+    nearest, _accepted = _landings(song, time_)
+    near = [c for c in song.cue_points if abs(c.time - time_) <= _bar(song) / 2 + EPS]
+    if not near:
+        return "toggle", None
+    if len(near) == 1 and abs(near[0].time - nearest) <= EPS:
+        return "reuse", near[0]
+    times = sorted(c.time for c in near)
+    return "refuse", (
+        f"a cue at {times} lies within half a bar of {time_}; Live's toggle there would delete "
+        "it, so nothing toggled"
+    )
+
+
 RESTORE_TICKS = 40  # ticks a playhead return may take (late applies, steps past the content)
 
 
@@ -437,7 +486,10 @@ def _cue_task(ctx, queue, previous, params):
     ``playhead`` says where it ended. A playhead that cannot return is a ``cleanup_issue``
     beside the cue results, never a task failure: the cue changes made stay reported.
     ``status`` (the cue changes only): ``complete``; ``partial`` (stopped after a cue change);
-    ``not_applied`` (stopped with nothing changed)."""
+    ``not_applied`` (stopped with nothing changed); ``ambiguous`` (a toggle's change is not the
+    expected one: another cue appeared or went, or the new cue is neither at the requested time
+    nor on its bar; nothing is renamed, ``ambiguous`` lists what changed, the operation ends
+    ``unknown``)."""
     st = {"i": 0, "phase": "seek", "before": None, "waits": 0, "done": [], "moved": False}
 
     def refusal():
@@ -450,6 +502,8 @@ def _cue_task(ctx, queue, previous, params):
     def end(error=None):
         """Begin the ending; ``settle`` sends a moved playhead back and observes it."""
         st["end"] = {"status": "complete", "results": st["done"]}
+        if "ambiguous" in st:
+            st["end"]["ambiguous"] = st["ambiguous"]
         if error is not None:
             st["end"].update(stopped_at=st["i"], error=error)
         st["phase"], st["waits"] = "restore", 0
@@ -487,7 +541,27 @@ def _cue_task(ctx, queue, previous, params):
                 )
         if "error" in out:
             out["status"] = "partial" if st["done"] else "not_applied"
+        if "ambiguous" in out:
+            out["status"] = "ambiguous"
         return out
+
+    def unclear(action, time_, new, gone):
+        """The toggle's change is not the expected one: stop, rename nothing, say what changed."""
+        st["ambiguous"] = {
+            "action": action,
+            "requested": time_,
+            "appeared": sorted(c.time for c in new),
+            "removed": sorted(c.time for c in gone),
+        }
+        return end(f"the {action} at {time_} changed other cues than expected; nothing renamed")
+
+    def reuse(cue, time_, name):
+        if name:
+            cue.name = name
+        row = {"action": "add", "time": cue.time, "reused": True}
+        if abs(cue.time - time_) > EPS:
+            row["requested"] = time_
+        return advance(row)
 
     def moved_cue(song, cue, time_):
         """The confirmed cue no longer sits alone at its confirmed time: the toggle there would
@@ -533,11 +607,12 @@ def _cue_task(ctx, queue, previous, params):
             if error is not None:
                 return end(error)
         if st["phase"] == "seek":
-            if action == "add" and _cue_at(song, time_) is not None:
-                cue = _cue_at(song, time_)
-                if b:
-                    cue.name = b
-                return advance({"action": "add", "time": cue.time, "reused": True})
+            if action == "add":
+                plan, arg = _add_plan(song, time_)
+                if plan == "reuse":
+                    return reuse(arg, time_, b)
+                if plan == "refuse":
+                    return end(arg)
             if action == "delete" and not any(_same(c, a) for c in song.cue_points):
                 return advance({"action": "delete", "time": time_, "already_gone": True})
             changed = moved_cue(song, a, time_) if action == "delete" else None
@@ -561,13 +636,14 @@ def _cue_task(ctx, queue, previous, params):
                 if error is not None:
                     return end(f"{error}; nothing toggled")
                 return None
-            selected = cue_selected(song)
-            if action == "add" and selected:  # a cue sits here: reuse it, never toggle it away
-                cue = _cue_at(song, time_)
-                if cue is not None and b:
-                    cue.name = b
-                return advance({"action": "add", "time": time_, "reused": True})
+            if action == "add":  # just before the toggle: what it would do here now
+                plan, arg = _add_plan(song, time_)
+                if plan == "reuse":  # a cue sits here: reuse it, never toggle it away
+                    return reuse(arg, time_, b)
+                if plan == "refuse":
+                    return end(arg)
             if action == "delete":  # just before the toggle: still the confirmed cue, here?
+                selected = cue_selected(song)
                 if not any(_same(c, a) for c in song.cue_points):
                     return advance({"action": "delete", "time": time_, "already_gone": True})
                 changed = moved_cue(song, a, time_)
@@ -580,14 +656,16 @@ def _cue_task(ctx, queue, previous, params):
             st["phase"], st["waits"] = "observe_toggle", 0
             return None
         now = list(song.cue_points)  # observe_toggle: the toggle is made; observe it to its end
+        new = [c for c in now if not any(_same(c, o) for o in st["before"])]
+        gone = [o for o in st["before"] if not any(_same(c, o) for c in now)]
+        if not new and not gone:
+            return None
         if action == "add":
-            new = [c for c in now if not any(_same(c, o) for o in st["before"])]
-            if not new:
-                return None
-            if len(new) != 1:
-                raise RuntimeError(f"unexpected cue change: {[c.time for c in new]}")
+            _nearest, accepted = _landings(song, time_)
+            if gone or len(new) != 1 or not any(abs(new[0].time - t) <= EPS for t in accepted):
+                return unclear(action, time_, new, gone)
             row = {"action": "add", "time": new[0].time, "cue": _cue_index(song, new[0])}
-            if abs(new[0].time - time_) > EPS:  # 12.2 puts it on the nearest bar (289 -> 288)
+            if abs(new[0].time - time_) > EPS:  # on its bar (289 -> 288, 290 -> 292)
                 row["requested"] = time_
             if b:
                 error = refusal()  # the rename is a write of its own
@@ -596,8 +674,8 @@ def _cue_task(ctx, queue, previous, params):
                     return end(error)
                 new[0].name = b
             return advance(row)
-        if any(_same(c, a) for c in now):
-            return None
+        if new or len(gone) != 1 or not _same(gone[0], a):
+            return unclear(action, time_, new, gone)
         return advance({"action": "delete", "time": time_})
 
     return step, finalize

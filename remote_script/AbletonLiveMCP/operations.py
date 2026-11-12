@@ -30,11 +30,13 @@ a bounded multi-tick operation that is not a device load (cue seek/observe/toggl
 instance). ``step()`` runs once per tick: it returns None (still pending) or a result dict
 (``ready``); a raise or the timeout makes it ``unknown`` (reason ``error:<Type>`` or
 ``timeout``) with ``may_have_applied``. A result with ``status: "not_applied"`` makes it
-``failed`` (reason ``not_applied``). A step that changes the Set rereads the write policy first
-(``Safety.check_policy``, the direct-call gate) and stops when it now refuses (cue tasks); the
-record task's restore and a load's observation are not gated (they only return to or read
-the prior state). A task never blocks loads, never retries, and reads back through the same
-``operation`` bridge method as a load (``kind`` tells them apart).
+``failed`` (reason ``not_applied``); ``status: "ambiguous"`` (a change the task cannot attribute
+to its own write) makes it ``unknown`` (reason ``ambiguous_change``). A step that changes the
+Set rereads the write policy first (``Safety.check_policy``, the direct-call gate) and stops
+when it now refuses (cue tasks); the record task's restore and a load's observation are not
+gated (they only return to or read the prior state). A task never blocks loads, never
+retries, and reads back through the same ``operation`` bridge method as a load (``kind`` tells
+them apart).
 
 Finalizers: ``start_task(..., finalize=fn)`` registers a cleanup that runs exactly once when the
 task ends without its own ending: on ``timeout`` (checked before the step, so the step's own
@@ -298,6 +300,8 @@ class Operations:
                 return self._finish(task, FAILED, "not_applied")
             if task.result.get("status") == "cleanup_failed":  # never ready: state not restored
                 return self._finish(task, UNKNOWN, "cleanup_failed")
+            if task.result.get("status") == "ambiguous":  # a change it cannot attribute
+                return self._finish(task, UNKNOWN, "ambiguous_change")
             task.hold = None
             self._finish(task, READY, None)
         return None

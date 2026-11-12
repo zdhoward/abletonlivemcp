@@ -856,26 +856,69 @@ def test_cue_delete_returns_a_playhead_parked_past_the_content(stretch):
         assert "cannot return to 64.0" in result["cleanup_issue"]
 
 
-def test_a_cue_live_places_on_its_grid_is_reported_applied_at_its_real_time(env):
-    """Round 6: in Live 12.2 a cue added at beat 290 appeared at 292; the task raised
-    'unexpected cue change', so an applied add came back unknown and was never renamed."""
+def live_toggle(song):
+    """``set_or_delete_cue`` as measured in Live 12.2 (4/4): it deletes a cue within half a bar
+    of the playhead, else adds one on the nearest bar (a tie goes to the later bar)."""
+    calls = []
+
+    def toggle():
+        calls.append(song._time)
+        near = [c for c in song.cue_points if abs(c.time - song._time) <= 2.0]
+        if near:
+            song.cue_points.remove(near[0])
+        else:
+            song.cue_points.append(Cue((song._time + 2.0) // 4 * 4))
+
+    song.set_or_delete_cue = toggle
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("case", "time", "state", "cues"),
+    [
+        ("snap", 13.0, "ready", [(8.0, "Verse"), (12.0, "Requested")]),  # 13 -> 12
+        ("tie", 18.0, "ready", [(8.0, "Verse"), (20.0, "Requested")]),  # 18 -> 20
+        ("arrival", 30.0, "unknown", [(8.0, "Verse"), (200.0, "Human")]),  # not ours: no rename
+        ("collision", 33.0, "ready", [(8.0, "Verse"), (32.0, "Requested")]),  # 32 reused
+        ("deletes", 10.0, "failed", [(8.0, "Verse")]),  # the toggle would delete 8: refused
+    ],
+)
+def test_a_cue_add_accepts_only_its_own_bar_and_never_toggles_another_cue(
+    env, case, time, state, cues
+):
+    """R1 (round 7): any single new cue was taken as the requested one, so a human cue at 200
+    was renamed and reported as the add at 10. Only the requested time or its bar line (where
+    Live 12.2 puts a new cue) is accepted; a cue the toggle would delete refuses before it."""
     song, dispatch = env
-
-    def toggle_on_the_grid():
-        song.cue_points.append(Cue(-(-song._time // 4) * 4))  # up to the next bar
-
-    song.set_or_delete_cue = toggle_on_the_grid
-    add = [{"time": 10.0, "name": "Drop"}]
-    p = {"cues": [], "add": add, "generation": dispatch.safety.generation}
+    calls = live_toggle(song)
+    if case == "arrival":  # Live has not placed ours yet; a human adds a cue meanwhile
+        song.set_or_delete_cue = lambda: song.cue_points.append(Cue(200.0, "Human"))
+    if case == "collision":
+        song.cue_points.append(Cue(32.0, "Bridge"))  # on the bar 33 would land on
+    p = {"cues": [], "add": [{"time": time, "name": "Requested"}],
+         "generation": dispatch.safety.generation}  # fmt: skip
     op = ok(dispatch("set_cue_points", p))["applied"][0]["operation"]
     for _ in range(8):
         dispatch.operations.tick()
         song.settle()
     snap = dispatch.operations.get(op)
-    assert snap["state"] == "ready" and snap["result"]["status"] == "complete", snap
-    assert snap["result"]["results"] == [{"action": "add", "time": 12.0, "cue": 1,
-                                          "requested": 10.0}]  # fmt: skip
-    assert [(c.time, c.name) for c in song.cue_points] == [(8.0, "Verse"), (12.0, "Drop")]
+    result = snap["result"]
+    assert snap["state"] == state, snap
+    assert sorted((c.time, c.name) for c in song.cue_points) == cues
+    assert song.current_song_time == 0.0  # the playhead went back in every case
+    if case in ("snap", "tie"):
+        assert result["results"] == [{"action": "add", "time": cues[1][0], "cue": 1,
+                                       "requested": time}]  # fmt: skip
+    elif case == "arrival":
+        assert snap["reason"] == "ambiguous_change" and result["status"] == "ambiguous"
+        assert result["ambiguous"]["appeared"] == [200.0] and result["results"] == []
+    elif case == "collision":
+        assert result["results"] == [{"action": "add", "time": 32.0, "reused": True,
+                                       "requested": 33.0}]  # fmt: skip
+        assert calls == []  # never toggled: the toggle at 33 deletes the cue at 32
+    else:
+        assert result["status"] == "not_applied" and "nothing toggled" in result["error"]
+        assert calls == []
 
 
 def test_cue_add_refuses_while_playing(env):
