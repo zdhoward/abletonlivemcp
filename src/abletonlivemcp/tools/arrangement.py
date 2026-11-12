@@ -147,10 +147,13 @@ def _plan_cues(args: dict) -> Plan:
 
 @_overwrite
 def live_set_cue_points(cues: list[CueEdit] | None = None, add: list[CueAdd] | None = None) -> dict:
-    """Rename/jump/delete cues (index from live_get_arrangement) and add cues at exact times
-    (transport stopped; an existing cue there is reused). Deleting needs the local delete
-    permission and your confirmation. Adds and deletes run as an operation: poll
-    live_get_operation until ready."""
+    """Rename/jump/delete cues (index from live_get_arrangement) and add cues (transport
+    stopped). Live 12.2 puts a new cue on the nearest bar: the result gives its `time` and the
+    `requested` one. A cue at that time, or alone on that bar, is reused; another cue within
+    half a bar refuses the add. Deleting needs the local delete permission and your
+    confirmation. Adds and deletes run as an operation: poll live_get_operation until ready,
+    then read its result `status` (complete, partial, not_applied) and any `cleanup_issue`
+    (the playhead was not put back). Not one undo step."""
     plan = confirmed_plan()  # deletes: the cues the human confirmed
     if plan is not None:
         refs = plan["refs"]

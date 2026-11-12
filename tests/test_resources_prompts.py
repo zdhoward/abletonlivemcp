@@ -96,3 +96,17 @@ def test_live_resource_uses_registered_tool_and_reports_unavailable():
 
 def test_registering_adds_no_tools():
     assert not {n for n in server.SPECS if "prompt" in n or "resource" in n}
+
+
+def test_safety_doc_names_every_multi_step_write_the_readme_lists():
+    """R4 (round 7): docs://safety said every write is one undo step; the README lists the
+    writes that can take several. The MCP-facing text names the same ones."""
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    para = readme[readme.index("can take several undo steps") - 400 :][:600]
+    listed = set(re.findall(r"`(live_\w+)`", para)) - {"live_undo", "live_hello"}
+    assert listed == {
+        "live_set_labels", "live_build_chain", "live_delete", "live_duplicate",
+        "live_set_cue_points",
+    }  # fmt: skip
+    assert all(name in resources.SAFETY for name in listed)
+    assert "Every write is one undo step" not in resources.SAFETY
