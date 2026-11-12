@@ -47,6 +47,7 @@ path = "remote_script/AbletonLiveMCP/version.py"
 # applies `exclude` to mapped sources but never to force-included ones. Developer probes
 # (remote_script/AbletonLiveMCP/probe_pNN.py) stay in the source tree only.
 only-include = ["src/abletonlivemcp", "remote_script/AbletonLiveMCP"]
+dev-mode-dirs = ["src"]  # editable installs: hatch cannot map prefix-changing sources
 exclude = ["**/__pycache__", "**/*.pyc", "**/*.pyo", "**/probe_p[0-9][0-9].py"]
 
 [tool.hatch.build.targets.wheel.sources]
