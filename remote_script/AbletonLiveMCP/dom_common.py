@@ -518,7 +518,9 @@ def capability_report(ctx):
 # write: the gate then reports "not applied", which is true. Pass 2 writes in order and never
 # raises: from the first write on, the reply is a receipt (complete or partial) whose per-item
 # ``outcome`` is ``applied``, ``unknown`` (the write raised: it may have changed Live) or
-# ``not_attempted``. It stops at the first failure and never rolls back.
+# ``not_attempted``. It stops at the first failure and never rolls back. Each readback row is
+# sent once, in ``applied``: the applied items are always the leading ones, so ``applied[k]`` is
+# item ``k``'s row (items carry only index/outcome/error, never a second copy of the row).
 
 APPLIED, UNKNOWN_OUTCOME, NOT_ATTEMPTED = "applied", "unknown", "not_attempted"
 
@@ -539,8 +541,8 @@ def run_writes(prepared, write):
                 log_failure(f"write {i}", exc)
             items.append({"index": i, "outcome": UNKNOWN_OUTCOME, "error": error})
             continue
-        applied.append(row)
-        items.append({"index": i, "outcome": APPLIED, "result": row})
+        applied.append(row)  # items[i] is applied[i]: never sent twice
+        items.append({"index": i, "outcome": APPLIED})
     status = "complete" if stopped is None else "partial"
     return {
         "status": status,

@@ -62,7 +62,8 @@ def live_edit_notes(
 ) -> dict:
     """Edit one MIDI clip's notes in one call: removes, then modify/transpose/quantize (by
     note_id from live_get_notes), then duplicate_region, then add. Validated first; receipt
-    with new note_ids."""
+    with exact counts and note_ids (at most 4000 ids in all, new notes first; past that
+    note_ids_truncated is true and live_get_notes lists them)."""
     ref = issue_refs([{**clip_selector(clip), "expect_name": expect_name}])[0]
     params = {"targets": [{"kind": ref["kind"], "ref": ref["ref"], "expect_name": expect_name}]}
     parts = {

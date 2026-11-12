@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -757,3 +758,37 @@ def test_published_note_limits_fit_full_signed_envelopes(private_config):
         with pytest.raises(bridge.BridgeError) as error:
             client.call("edit_notes", {**edit, "add": add * 3})
         assert error.value.kind == "RequestTooLarge" and not error.value.may_have_applied
+
+
+@pytest.mark.parametrize("edit", ["transpose", "quantize"])
+def test_whole_clip_note_edit_receipt_fits_the_signed_reply(private_config, monkeypatch, edit):
+    """N1 (round 6): a whole-clip transpose of 9,000 notes applied, then its receipt (every id
+    twice: applied + items[].result) passed MAX_NODES and the reply became ReplyTooLarge (outcome
+    unknown). The real handler, at the documented 12,000-note maximum, through real framing."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tests.test_batch3_dom import Note, Song, midi_clip
+
+    from AbletonLiveMCP import dom_notes, handlers
+    from AbletonLiveMCP.safety import Safety
+
+    song = Song()
+    clip = midi_clip(song)
+    clip.notes = [Note(i, 36 + i % 60, i * 0.25 + 0.1, 0.2) for i in range(1, 12001)]
+    dispatch = handlers.make_dispatch(
+        lambda: song, types.SimpleNamespace(), Safety(lambda: song, policy=lambda: False)
+    )
+    change = {edit: {"transpose": {"semitones": 1}, "quantize": {"grid": 0.25}}[edit]}
+    with running(dispatch) as server:
+        client = bridge.BridgeClient(port=server.port)
+        issued = client.call("ref_issue", {"targets": [{"kind": "clip", "track": 0, "scene": 0}]})
+        target = {"kind": "clip", "ref": issued["refs"][0]["ref"]}
+        out = client.call("edit_notes", {"targets": [target], **change})
+    (row,) = out["applied"]
+    assert out["status"] == "complete" and out["items"] == [
+        {"index": 0, "outcome": "applied", "op": "modify"}
+    ]  # the row is sent once, in applied
+    assert row["modified"] == row["note_ids_total"] == 12000 and row["note_ids_truncated"]
+    assert len(row["note_ids"]) == dom_notes.RECEIPT_IDS and out["note_count"] == 12000
+    moved = {"transpose": lambda n: n.pitch == 37 + (n.note_id % 60),
+             "quantize": lambda n: n.start_time == n.note_id * 0.25}[edit]  # fmt: skip
+    assert all(moved(n) for n in clip.notes)

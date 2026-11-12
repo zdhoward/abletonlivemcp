@@ -26,6 +26,10 @@ CAPABILITIES = {
 WIDE_FROM, WIDE_SPAN = -16384.0, 65536.0  # every note Live keeps, past the clip end included
 READ_LIMIT = 500  # 19 JSON nodes per row: 500 rows are ~9.5k of the 16384-node reply cap
 MAX_TIME = 16384.0
+# Note ids listed per edit receipt, all ops together: one JSON node each, so a whole-clip edit of
+# the documented 12,000-note maximum stays far inside the 16384-node reply cap (the rest of the
+# receipt is a few dozen nodes). Counts are always exact; ids past the budget are cut and flagged.
+RECEIPT_IDS = 4000
 FIELDS = (
     "note_id", "pitch", "start_time", "duration", "velocity", "mute", "probability",
     "velocity_deviation", "release_velocity",
@@ -350,9 +354,24 @@ def _added(ids, count, past):
     return out
 
 
+def bound_receipt_ids(rows, budget=RECEIPT_IDS):
+    """Cap the ``note_ids`` lists of ``rows`` at ``budget`` ids in all, newest ops first (the ids
+    of added/duplicated notes are new to the caller; modified ids were known). Every row with ids
+    gets ``note_ids_total`` and ``note_ids_truncated``; the counts (modified/added/...) stay."""
+    for row in reversed(rows):
+        ids = row.get("note_ids") if isinstance(row, dict) else None
+        if ids is None:
+            continue
+        kept = list(ids[: max(budget, 0)])
+        budget -= len(kept)
+        row.update(note_ids=kept, note_ids_total=len(ids), note_ids_truncated=len(kept) < len(ids))
+    return rows
+
+
 def edit_notes(ctx, p, t):
     """All edits on one clip in one undo step, in a fixed order: remove_ids, remove_range,
-    modify/transpose/quantize (one apply), duplicate_region, add. Receipt per op."""
+    modify/transpose/quantize (one apply), duplicate_region, add. Receipt per op, with at most
+    ``RECEIPT_IDS`` note ids in all (see ``bound_receipt_ids``)."""
     resolved = t["targets"]
     if len(resolved) != 1:
         raise Invalid("'targets' must name exactly one clip")
@@ -364,6 +383,7 @@ def edit_notes(ctx, p, t):
     receipt = run_writes(ops, lambda op: op[1]())
     for item, (label, _fn) in zip(receipt["items"], ops, strict=True):
         item["op"] = label
+    bound_receipt_ids(receipt["applied"])
     try:
         receipt["note_count"] = len(wide(clip))
     except Exception:  # noqa: BLE001 - the receipt stands without the count

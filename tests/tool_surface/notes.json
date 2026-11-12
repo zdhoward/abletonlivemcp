@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Edit one MIDI clip's notes in one call: removes, then modify/transpose/quantize (by\nnote_id from live_get_notes), then duplicate_region, then add. Validated first; receipt\nwith new note_ids.",
+  "description": "Edit one MIDI clip's notes in one call: removes, then modify/transpose/quantize (by\nnote_id from live_get_notes), then duplicate_region, then add. Validated first; receipt\nwith exact counts and note_ids (at most 4000 ids in all, new notes first; past that\nnote_ids_truncated is true and live_get_notes lists them).",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
