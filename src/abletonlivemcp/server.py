@@ -25,9 +25,7 @@ from __future__ import annotations
 
 import contextvars
 import functools
-import hashlib
 import inspect
-import json
 import logging
 import os
 import sys
@@ -322,8 +320,9 @@ def _drop_optional_null(schema: dict) -> None:
 # shows, so nothing the model sends can stand in for it; a tool may not declare its own confirm.
 
 CONFIRM_PARAM = "confirmation"
-_RESERVED_PARAMS = {"confirm", CONFIRM_PARAM}
+_RESERVED_PARAMS = {"confirm", CONFIRM_PARAM, "confirmation_plan"}
 _CTX_PARAM = "_abletonlivemcp_ctx"
+_PLAN_PARAM = "confirmation_plan"  # the plan read for this request; injected, never sent
 _INPUT_REQUIRED_VERSION = "2026-07-28"  # first revision that elicits through InputRequiredResult
 
 
@@ -360,10 +359,11 @@ class Plan:
 
 
 # tool name -> plan(arguments) for the deleting paths; filled by the tool modules.
+# A plan is never cached between calls: it is a resolved parameter of the one tools/call that
+# asks the question, so the confirmation and the write of one request share it and no other
+# call (concurrent, identical or later) can consume it. Nothing outlives the request, so a
+# declined, cancelled or failed call leaves nothing behind.
 PLANS: dict[str, Callable[[dict], Plan]] = {}
-_PLAN_TTL = 900.0  # seconds a shown plan stays bindable (a form left open longer re-asks)
-_confirm_plans: dict[str, tuple[float, dict]] = {}  # not _plans: that is the chain PlanStore
-_plans_lock = threading.Lock()
 _confirmed_plan: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "abletonlivemcp_confirmed_plan", default=None
 )
@@ -382,28 +382,6 @@ def planned(tool: str):
 def confirmed_plan() -> dict | None:
     """The plan data the human confirmed for the running call (None outside a confirmed call)."""
     return _confirmed_plan.get()
-
-
-def _plan_key(name: str, args: dict) -> str:
-    plain = {k: _plain(v) for k, v in args.items() if k != CONFIRM_PARAM}
-    blob = json.dumps([name, plain], sort_keys=True, default=repr)
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
-
-
-def _remember_plan(name: str, args: dict, data: dict) -> None:
-    now = time.monotonic()
-    with _plans_lock:
-        for key in [k for k, (at, _d) in _confirm_plans.items() if now - at > _PLAN_TTL]:
-            del _confirm_plans[key]
-        _confirm_plans[_plan_key(name, args)] = (now, data)
-
-
-def _take_plan(name: str, args: dict) -> dict | None:
-    with _plans_lock:
-        entry = _confirm_plans.pop(_plan_key(name, args), None)
-    if entry is None or time.monotonic() - entry[0] > _PLAN_TTL:
-        return None
-    return entry[1]
 
 
 def _make_plan(name: str, args: dict) -> Plan:
@@ -456,11 +434,36 @@ def _confirmation_unavailable(ctx: Context) -> bool:
     return not ctx.session.can_send_request
 
 
-def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
-    """A resolver that receives every tool argument by name plus the Context, and returns the
-    form question (or refuses before asking when nothing could be applied anyway)."""
+def _by_name(fn, name: str, params: list[inspect.Parameter], extra: str, hint) -> None:
+    """Give a resolver every tool argument by name plus one injected keyword ``extra``."""
+    kw = inspect.Parameter.KEYWORD_ONLY
+    fn.__name__ = fn.__qualname__ = name
+    fn.__signature__ = inspect.Signature(
+        [p.replace(kind=kw, annotation=inspect.Parameter.empty) for p in params]
+        + [inspect.Parameter(extra, kw, annotation=hint)]
+    )
+    fn.__annotations__ = {extra: hint}
+
+
+def _confirmation_resolver(name: str, params: list[inspect.Parameter], plan_resolver):
+    """The form question, built from this request's plan (resolved first, once per call)."""
 
     def ask(**kwargs):
+        plan = kwargs.pop(_PLAN_PARAM)
+        if name in DELETING and not deletes(name, kwargs):
+            return None
+        return Elicit(confirmation_message(name, kwargs, plan), Confirmation)
+
+    _by_name(ask, f"confirm_{name}", params, _PLAN_PARAM, Annotated[Any, Resolve(plan_resolver)])
+    return ask
+
+
+def _plan_resolver(name: str, params: list[inspect.Parameter]):
+    """Refuse before asking when nothing could be applied, then read the plan in Live (None when
+    the call deletes nothing or the tool has no plan). The SDK caches the value for the request
+    and injects it into the question and the tool body alike."""
+
+    def plan(**kwargs):
         ctx = kwargs.pop(_CTX_PARAM)
         if name in DELETING and not deletes(name, kwargs):
             return None  # this call deletes nothing: no question (the guard re-checks the args)
@@ -476,20 +479,11 @@ def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
                     )
                 )
             )
-        plan = None
-        if name in PLANS:  # bind the question to the objects it names (read now, in Live)
-            plan = _make_plan(name, kwargs)
-            _remember_plan(name, kwargs, plan.data)
-        return Elicit(confirmation_message(name, kwargs, plan), Confirmation)
+        # bind the question to the objects it names (read now, in Live)
+        return _make_plan(name, kwargs) if name in PLANS else None
 
-    kw = inspect.Parameter.KEYWORD_ONLY
-    ask.__name__ = f"confirm_{name}"
-    ask.__signature__ = inspect.Signature(
-        [p.replace(kind=kw, annotation=inspect.Parameter.empty) for p in params]
-        + [inspect.Parameter(_CTX_PARAM, kw, annotation=Context)]
-    )
-    ask.__annotations__ = {_CTX_PARAM: Context}
-    return ask
+    _by_name(plan, f"plan_{name}", params, _CTX_PARAM, Context)
+    return plan
 
 
 def _check_confirmed(name: str, outcome) -> None:
@@ -535,21 +529,21 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
         try:
             if confirm:
                 outcome = kwargs.pop(CONFIRM_PARAM, None)
+                plan = kwargs.pop(_PLAN_PARAM, None)
                 if always or deletes(fn.__name__, kwargs):
                     _check_confirmed(fn.__name__, outcome)
                     if fn.__name__ in PLANS:
-                        data = _take_plan(fn.__name__, kwargs)
-                        if data is None:
+                        if not isinstance(plan, Plan):
                             raise ToolFailure(
                                 _explain(
                                     Refusal(
                                         "confirmation_stale",
-                                        "the confirmed targets were not found (expired or "
-                                        "a different call); call again to be asked anew",
+                                        "no targets were read for this call's confirmation; "
+                                        "call again to be asked anew",
                                     )
                                 )
                             )
-                        token = _confirmed_plan.set(data)
+                        token = _confirmed_plan.set(plan.data)
             if not mutation:
                 return fn(*args, **kwargs)
             _writable(fn.__name__, kwargs)
@@ -578,13 +572,23 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
     if confirm:
         # The confirmation is a resolved parameter: filled by the server, absent from the
         # input schema. Fresh annotations, so the wrapped function's own dict is untouched.
-        resolver = _confirmation_resolver(fn.__name__, list(sig.parameters.values()))
-        hint = Annotated[ElicitationResult[Confirmation], Resolve(resolver)]
-        extra = inspect.Parameter(CONFIRM_PARAM, inspect.Parameter.KEYWORD_ONLY, annotation=hint)
-        run.__signature__ = run.__signature__.replace(parameters=[*sig.parameters.values(), extra])
+        params = list(sig.parameters.values())
+        planner = _plan_resolver(fn.__name__, params)
+        hint = Annotated[
+            ElicitationResult[Confirmation],
+            Resolve(_confirmation_resolver(fn.__name__, params, planner)),
+        ]
+        plan_hint = Annotated[Any, Resolve(planner)]
+        kw = inspect.Parameter.KEYWORD_ONLY
+        extra = [
+            inspect.Parameter(CONFIRM_PARAM, kw, annotation=hint),
+            inspect.Parameter(_PLAN_PARAM, kw, annotation=plan_hint),
+        ]
+        run.__signature__ = run.__signature__.replace(parameters=[*params, *extra])
         run.__annotations__ = {
             **{n: p.annotation for n, p in sig.parameters.items() if p.annotation is not p.empty},
             CONFIRM_PARAM: hint,
+            _PLAN_PARAM: plan_hint,
             "return": ret,
         }
     return run

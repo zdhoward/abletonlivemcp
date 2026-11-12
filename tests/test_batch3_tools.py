@@ -173,7 +173,6 @@ def test_create_clips_if_exists_skip_leaves_occupied_slots_alone(bridge):
 def test_create_clips_replace_writes_against_the_confirmed_occupant(bridge, monkeypatch):
     """R3: the write reuses the references the confirmation showed; none are issued after."""
     bridge.replies["get_clips"] = {"clips": [{"track": 0, "scene": 0, "name": "n", "length": 4}]}
-    monkeypatch.setattr(server, "_confirm_plans", {})
     args = call_args(clips.live_create_clips, clips=[{"track": 0, "scene": 0}], if_exists="replace")
     with pytest.raises(server.ToolFailure, match="not_confirmed"):  # replace deletes: confirm
         clips.live_create_clips(**args)
@@ -182,9 +181,8 @@ def test_create_clips_replace_writes_against_the_confirmed_occupant(bridge, monk
         clips.live_create_clips(**args, confirmation=yes)
     plan = server.PLANS["live_create_clips"](args)  # what the resolver reads before asking
     assert plan.lines == ["Session clip 'n' (length None beats) at track 0, scene 0"]
-    server._remember_plan("live_create_clips", args, plan.data)
     shown = len(bridge.calls)
-    clips.live_create_clips(**args, confirmation=yes)
+    clips.live_create_clips(**args, confirmation=yes, confirmation_plan=plan)
     assert [m for m, _ in bridge.calls[shown:]] == ["create_clips"]  # no new refs, no delete
     (target,) = bridge.last()[1]["targets"]
     assert target["replace"] is True and target["expect_clip"] == "R0"

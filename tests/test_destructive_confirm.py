@@ -76,7 +76,6 @@ def test_the_question_names_live_objects_and_the_write_uses_them(mode, monkeypat
         return server.Plan(["track 'Bass' (track 2)"], {"rows": ["ref-shown"]})
 
     monkeypatch.setitem(server.PLANS, "live_fake_delete", plan)
-    monkeypatch.setattr(server, "_confirm_plans", {})
     applied, asked = [], []
     result = _call(
         _surface(applied, monkeypatch, seen), mode, _answer("accept", {"confirm": True}, asked)
@@ -84,7 +83,46 @@ def test_the_question_names_live_objects_and_the_write_uses_them(mode, monkeypat
     assert not result.is_error, _text(result)
     assert "deletes exactly:\n- track 'Bass' (track 2)" in asked[-1].message
     assert applied == [[2, "return:0"]] and reads and seen == [{"rows": ["ref-shown"]}]
-    assert server._confirm_plans == {}  # consumed by the write, never reused
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_concurrent_identical_calls_each_delete_only_what_their_human_saw(mode, monkeypatch):
+    """Two clients send the same arguments; Live changes between the two plans. Both forms are
+    open at once, then accepted: each write receives the plan of its own question, never the
+    other's (a cache keyed by tool+arguments handed A the objects shown to B)."""
+    live, seen = {"object": 0}, []
+
+    def plan(args):  # the first read sees object 0; Live then changes to object 1
+        n, live["object"] = live["object"], 1
+        return server.Plan([f"object {n}"], {"rows": [f"ref-{n}"]})
+
+    monkeypatch.setitem(server.PLANS, "live_fake_delete", plan)
+    surface = _surface([], monkeypatch, seen)
+    both_asked = asyncio.Event()
+    shown: list[str] = []
+
+    async def callback(ctx, params):
+        shown.append(params.message)
+        if len(shown) == 2:
+            both_asked.set()
+        await both_asked.wait()
+        return types.ElicitResult(action="accept", content={"confirm": True})
+
+    async def one():
+        async with Client(surface, mode=mode, elicitation_callback=callback) as client:
+            result = await client.call_tool("live_fake_delete", ARGS)
+            assert not result.is_error, _text(result)
+            return result
+
+    async def go():
+        await asyncio.gather(one(), one())
+
+    asyncio.run(go())
+    refs = sorted(ref for data in seen for ref in data["rows"])
+    for ref in refs:  # each write got the refs of a question a human was shown
+        assert any(f"object {ref[4:]}" in m for m in shown)
+    # legacy asks once per call; input-required re-reads, sees the change and asks again
+    assert refs == (["ref-0", "ref-1"] if mode == "legacy" else ["ref-1", "ref-1"])
 
 
 @pytest.mark.parametrize("mode", MODES)
