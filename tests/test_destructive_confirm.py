@@ -14,6 +14,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from abletonlivemcp import server
+from abletonlivemcp.chain import Refusal
 from abletonlivemcp.errors import Invalid
 from abletonlivemcp.models import BatchTarget, TrackSel
 from abletonlivemcp.models_clips import CueEdit
@@ -121,8 +122,56 @@ def test_concurrent_identical_calls_each_delete_only_what_their_human_saw(mode, 
     refs = sorted(ref for data in seen for ref in data["rows"])
     for ref in refs:  # each write got the refs of a question a human was shown
         assert any(f"object {ref[4:]}" in m for m in shown)
-    # legacy asks once per call; input-required re-reads, sees the change and asks again
-    assert refs == (["ref-0", "ref-1"] if mode == "legacy" else ["ref-1", "ref-1"])
+    # both flows: each call writes with the plan read for its own question, never re-read
+    assert refs == ["ref-0", "ref-1"] and not server._approvals
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_same_named_replacement_while_asking_is_refused_not_deleted(mode, monkeypatch):
+    """F1 (round 5): the human approves deleting track 'Bass'; while the form is open it is
+    replaced by another track also named 'Bass'. The real live_delete must refuse (the bridge's
+    stale_target for the approved reference) in both flows; the input-required resume used to
+    re-read the plan and delete the replacement under the old answer."""
+    from mcp.server.mcpserver.resolve import _decode_state, _render_request, _request_digest
+
+    assert _decode_state and _render_request and _request_digest  # SDK helpers F1 relies on
+    from abletonlivemcp.tools import tracks
+
+    live = {"object": 1, "refs": {}, "deleted": []}
+
+    def bridge(method, params=None):
+        if method == "ref_issue":
+            rows = []
+            for _ in params["targets"]:
+                ref = f"ref{len(live['refs'])}"
+                live["refs"][ref] = live["object"]
+                rows.append({"kind": "track", "ref": ref, "name": "Bass"})
+            return {"generation": 1, "refs": rows}
+        assert method == "delete_tracks", method
+        for item in params["targets"]:
+            if live["refs"][item["ref"]] != live["object"]:
+                raise Refusal("stale_target", "track reference no longer matches Live; re-read")
+        live["deleted"].append(live["object"])
+        return {"applied": len(params["targets"])}
+
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
+    monkeypatch.setattr(server, "_call", bridge)
+    monkeypatch.setattr(tracks, "_call", bridge)
+    surface = MCPServer("confirm-test")
+    surface.add_tool(server.tool("live_delete"), name="live_delete", annotations=server.DESTRUCTIVE)
+
+    async def replace_then_accept(ctx, params):
+        live["object"] += 1  # the same-named replacement, made while the form is open
+        return types.ElicitResult(action="accept", content={"confirm": True})
+
+    async def go():
+        async with Client(surface, mode=mode, elicitation_callback=replace_then_accept) as c:
+            args = {"targets": [{"kind": "track", "track": 2, "expect_name": "Bass"}]}
+            return await c.call_tool("live_delete", args)
+
+    result = asyncio.run(go())
+    assert result.is_error and "stale_target" in _text(result), _text(result)
+    assert live["deleted"] == [] and not server._approvals
 
 
 @pytest.mark.parametrize("mode", MODES)

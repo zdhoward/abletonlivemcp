@@ -182,7 +182,11 @@ def test_create_clips_replace_writes_against_the_confirmed_occupant(bridge, monk
     plan = server.PLANS["live_create_clips"](args)  # what the resolver reads before asking
     assert plan.lines == ["Session clip 'n' (length None beats) at track 0, scene 0"]
     shown = len(bridge.calls)
-    clips.live_create_clips(**args, confirmation=yes, confirmation_plan=plan)
+    clips.live_create_clips(
+        **args,
+        confirmation=yes,
+        confirmation_plan=server._issue_approval("live_create_clips", args, plan),
+    )
     assert [m for m, _ in bridge.calls[shown:]] == ["create_clips"]  # no new refs, no delete
     (target,) = bridge.last()[1]["targets"]
     assert target["replace"] is True and target["expect_clip"] == "R0"
@@ -195,7 +199,11 @@ def test_replace_into_empty_destinations_plans_no_deletes_and_creates(bridge):
     plan = server.PLANS["live_create_clips"](args)
     assert plan.lines == [] and plan.data["occupants"] == {}
     yes = AcceptedElicitation(data=server.Confirmation(confirm=True))
-    clips.live_create_clips(**args, confirmation=yes, confirmation_plan=plan)
+    clips.live_create_clips(
+        **args,
+        confirmation=yes,
+        confirmation_plan=server._issue_approval("live_create_clips", args, plan),
+    )
     (target,) = bridge.last()[1]["targets"]
     assert bridge.last()[0] == "create_clips" and "expect_clip" not in target
 

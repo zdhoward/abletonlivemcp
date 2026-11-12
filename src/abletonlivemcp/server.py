@@ -23,11 +23,14 @@ and refuse.
 
 from __future__ import annotations
 
+import collections
 import contextvars
 import functools
 import inspect
+import json
 import logging
 import os
+import secrets
 import sys
 import threading
 import time
@@ -359,14 +362,104 @@ class Plan:
 
 
 # tool name -> plan(arguments) for the deleting paths; filled by the tool modules.
-# A plan is never cached between calls: it is a resolved parameter of the one tools/call that
-# asks the question, so the confirmation and the write of one request share it and no other
-# call (concurrent, identical or later) can consume it. Nothing outlives the request, so a
-# declined, cancelled or failed call leaves nothing behind.
 PLANS: dict[str, Callable[[dict], Plan]] = {}
 _confirmed_plan: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "abletonlivemcp_confirmed_plan", default=None
 )
+
+# An approval binds one question to the plan it shows. The plan is read in Live once, before
+# the first question, and held here under a random single-use token printed in the question.
+# On >= 2026-07-28 the resolvers re-run when the client resumes with the answer; the resume
+# finds the approval whose rendered question the client was asked (the SDK's question digest
+# in request_state) and reuses its plan instead of reading Live again, so a same-named
+# replacement made while the form was open is refused by the bridge (stale_target), never
+# deleted under the old answer. The tool call consumes the token (accepted, declined or
+# cancelled alike); a token expires after APPROVAL_TTL and the store is bounded. A resume that
+# finds no live approval reads a fresh plan under a new token: the question changes, so the
+# SDK asks again instead of reusing the old answer.
+APPROVAL_TTL = 600.0
+MAX_APPROVALS = 64
+
+
+@dataclass(frozen=True)
+class Approval:
+    token: str
+    tool: str
+    args: str  # canonical JSON of the call's arguments
+    plan: Plan
+    message: str  # the exact question text, rendered once
+    expires: float
+
+
+_approvals: collections.OrderedDict[str, Approval] = collections.OrderedDict()
+_approvals_lock = threading.Lock()
+
+
+def _args_key(args: dict) -> str:
+    plain = {k: _plain(v) for k, v in args.items()}
+    return json.dumps(plain, sort_keys=True, separators=(",", ":"), default=repr)
+
+
+def _purge_approvals(now: float) -> None:
+    for token in [t for t, a in _approvals.items() if a.expires <= now]:
+        del _approvals[token]
+    while len(_approvals) > MAX_APPROVALS:
+        _approvals.popitem(last=False)
+
+
+def _issue_approval(name: str, args: dict, plan: Plan) -> Approval:
+    token = secrets.token_hex(4)
+    label = f"{token} (single use, expires in {int(APPROVAL_TTL // 60)} min)"
+    message = confirmation_message(name, args, plan, label)
+    expires = time.monotonic() + APPROVAL_TTL
+    approval = Approval(token, name, _args_key(args), plan, message, expires)
+    with _approvals_lock:
+        _approvals[token] = approval
+        _purge_approvals(time.monotonic())
+    return approval
+
+
+def _take_approval(approval) -> Approval | None:
+    """Consume ``approval``: the held record, or None when it expired, was evicted or used."""
+    if not isinstance(approval, Approval):
+        return None
+    with _approvals_lock:
+        _purge_approvals(time.monotonic())
+        return _approvals.pop(approval.token, None)
+
+
+def _asked_digests(ctx: Context) -> set[str] | None:
+    """Digests of the questions a resumed call was asked, from the SDK's request_state; None
+    if this SDK cannot say (then every candidate is offered: the SDK still accepts an answer
+    only for the exact question it was given, so a wrong one is asked again, never applied)."""
+    try:
+        from mcp.server.mcpserver.resolve import _decode_state
+    except ImportError:  # pragma: no cover - SDK drift; a test pins these helpers
+        return None
+    return set(_decode_state(ctx.request_state).asked.values())
+
+
+def _question_digest(message: str) -> str | None:
+    try:
+        from mcp.server.mcpserver.resolve import _render_request, _request_digest
+    except ImportError:  # pragma: no cover
+        return None
+    return _request_digest(_render_request(Elicit(message, Confirmation)))
+
+
+def _shown_approval(ctx: Context, name: str, args: dict) -> Approval | None:
+    """On a resume, the held approval whose question this call was asked; otherwise None."""
+    if not ctx.request_state:
+        return None
+    asked = _asked_digests(ctx)
+    key = _args_key(args)
+    with _approvals_lock:
+        _purge_approvals(time.monotonic())
+        candidates = [a for a in reversed(_approvals.values()) if (a.tool, a.args) == (name, key)]
+    for approval in candidates:
+        if asked is None or _question_digest(approval.message) in asked:
+            return approval
+    return None
 
 
 def planned(tool: str):
@@ -393,7 +486,9 @@ def _make_plan(name: str, args: dict) -> Plan:
         raise ToolFailure(_explain(exc)) from exc
 
 
-def confirmation_message(name: str, args: dict, plan: Plan | None = None) -> str:
+def confirmation_message(
+    name: str, args: dict, plan: Plan | None = None, approval: str | None = None
+) -> str:
     """What the human reads: the tool, the real objects this call deletes (from ``plan``, read
     in Live), every target, the other arguments. expect_name is shown only when given."""
     args = {k: _plain(v) for k, v in args.items() if v is not None}
@@ -406,6 +501,8 @@ def confirmation_message(name: str, args: dict, plan: Plan | None = None) -> str
         lines.append("Read from Live just now, this call deletes exactly:")
         lines += [f"- {line}" for line in plan.lines] or ["- nothing"]
         lines.append("If any of these changes before the write, nothing is applied.")
+    if approval is not None:
+        lines.append(f"Approval {approval}.")
     if isinstance(targets, list):
         lines.append(f"Targets ({len(targets)}):")
         for i, target in enumerate(targets, 1):
@@ -449,19 +546,22 @@ def _confirmation_resolver(name: str, params: list[inspect.Parameter], plan_reso
     """The form question, built from this request's plan (resolved first, once per call)."""
 
     def ask(**kwargs):
-        plan = kwargs.pop(_PLAN_PARAM)
+        approval = kwargs.pop(_PLAN_PARAM)
         if name in DELETING and not deletes(name, kwargs):
             return None
-        return Elicit(confirmation_message(name, kwargs, plan), Confirmation)
+        if isinstance(approval, Approval):  # the text rendered once for the held plan
+            return Elicit(approval.message, Confirmation)
+        return Elicit(confirmation_message(name, kwargs), Confirmation)
 
     _by_name(ask, f"confirm_{name}", params, _PLAN_PARAM, Annotated[Any, Resolve(plan_resolver)])
     return ask
 
 
 def _plan_resolver(name: str, params: list[inspect.Parameter]):
-    """Refuse before asking when nothing could be applied, then read the plan in Live (None when
-    the call deletes nothing or the tool has no plan). The SDK caches the value for the request
-    and injects it into the question and the tool body alike."""
+    """Refuse before asking when nothing could be applied, then the approval: on a resume the
+    held one whose question was asked, otherwise a plan read in Live now under a new token
+    (None when the call deletes nothing or the tool has no plan). The SDK caches the value for
+    the round and injects it into the question and the tool body alike."""
 
     def plan(**kwargs):
         ctx = kwargs.pop(_CTX_PARAM)
@@ -479,8 +579,11 @@ def _plan_resolver(name: str, params: list[inspect.Parameter]):
                     )
                 )
             )
-        # bind the question to the objects it names (read now, in Live)
-        return _make_plan(name, kwargs) if name in PLANS else None
+        if name not in PLANS:
+            return None
+        # bind the question to the objects it names: those already shown, or read now in Live
+        shown = _shown_approval(ctx, name, kwargs)
+        return shown or _issue_approval(name, kwargs, _make_plan(name, kwargs))
 
     _by_name(plan, f"plan_{name}", params, _CTX_PARAM, Context)
     return plan
@@ -529,21 +632,22 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
         try:
             if confirm:
                 outcome = kwargs.pop(CONFIRM_PARAM, None)
-                plan = kwargs.pop(_PLAN_PARAM, None)
+                # consumed whatever the answer: single use, nothing held after a decline
+                approval = _take_approval(kwargs.pop(_PLAN_PARAM, None))
                 if always or deletes(fn.__name__, kwargs):
                     _check_confirmed(fn.__name__, outcome)
                     if fn.__name__ in PLANS:
-                        if not isinstance(plan, Plan):
+                        if approval is None:
                             raise ToolFailure(
                                 _explain(
                                     Refusal(
                                         "confirmation_stale",
-                                        "no targets were read for this call's confirmation; "
+                                        "this call's approval expired or was already used; "
                                         "call again to be asked anew",
                                     )
                                 )
                             )
-                        token = _confirmed_plan.set(plan.data)
+                        token = _confirmed_plan.set(approval.plan.data)
             if not mutation:
                 return fn(*args, **kwargs)
             _writable(fn.__name__, kwargs)
