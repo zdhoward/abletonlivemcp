@@ -28,9 +28,11 @@ UNITS = """\
 - "applied" means Live reported and read back the change; receipts carry per-item outcomes
   (applied / not_applied / unknown / not_attempted) and there is no rollback. An operation
   (device load, cue add/delete) is in progress only while live_get_operation says pending;
-  ready, failed and unknown are final. Read its result (status, cleanup_issue); after unknown,
-  read the state back before any further write. Where Live adjusts a value (a cue lands on the
-  nearest bar), the receipt gives the actual value and `requested`.
+  stop polling once it is ready, failed or unknown and read its result (status,
+  cleanup_issue). After unknown, read the state back before any further write: a timed-out
+  device load can still turn ready later (reason late), so never start a second load for it.
+  Where Live adjusts a value (a cue lands on the nearest bar), the receipt gives the actual
+  value and `requested`.
 """
 
 SAFETY = """\
