@@ -551,7 +551,7 @@ def _cue_task(ctx, queue, previous, params):
             "action": action,
             "requested": time_,
             "appeared": sorted(c.time for c in new),
-            "removed": sorted(c.time for c in gone),
+            "removed": sorted(t for _c, t in gone),
         }
         return end(f"the {action} at {time_} changed other cues than expected; nothing renamed")
 
@@ -651,13 +651,14 @@ def _cue_task(ctx, queue, previous, params):
                     return end(changed)
                 if not selected:
                     raise RuntimeError("the cue is not selected at its own time")
-            st["before"] = list(song.cue_points)
+            # Times read now: a deleted cue's handle raises when read (ArgumentError, Live 12.2).
+            st["before"] = [(c, c.time) for c in song.cue_points]
             song.set_or_delete_cue()
             st["phase"], st["waits"] = "observe_toggle", 0
             return None
         now = list(song.cue_points)  # observe_toggle: the toggle is made; observe it to its end
-        new = [c for c in now if not any(_same(c, o) for o in st["before"])]
-        gone = [o for o in st["before"] if not any(_same(c, o) for c in now)]
+        new = [c for c in now if not any(_same(c, o) for o, _t in st["before"])]
+        gone = [(o, t) for o, t in st["before"] if not any(_same(c, o) for c in now)]
         if not new and not gone:
             return None
         if action == "add":
@@ -674,7 +675,8 @@ def _cue_task(ctx, queue, previous, params):
                     return end(error)
                 new[0].name = b
             return advance(row)
-        if new or len(gone) != 1 or not _same(gone[0], a):
+        # Only live handles are compared: the one gone must be ours (``a`` is no longer here).
+        if new or len(gone) != 1 or any(_same(c, a) for c in now):
             return unclear(action, time_, new, gone)
         return advance({"action": "delete", "time": time_})
 

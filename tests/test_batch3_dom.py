@@ -212,8 +212,20 @@ class CopyTrack(Track):
 
 
 class Cue:
+    """A cue whose handle dies when Live deletes it: reading it then raises (ArgumentError)."""
+
     def __init__(self, time, name=""):
-        self.time, self.name = time, name
+        self._time, self.name, self.dead = time, name, False
+
+    @property
+    def time(self):
+        if self.dead:
+            raise RuntimeError("ArgumentError: the cue point is gone")
+        return self._time
+
+    @time.setter
+    def time(self, value):
+        self._time = value
 
     def jump(self):
         pass
@@ -250,6 +262,7 @@ class Song:
         hit = [c for c in self.cue_points if c.time == self._time]
         if hit:
             self.cue_points.remove(hit[0])
+            hit[0].dead = True
         else:
             self.cue_points.append(Cue(self._time))
 
@@ -866,6 +879,7 @@ def live_toggle(song):
         near = [c for c in song.cue_points if abs(c.time - song._time) <= 2.0]
         if near:
             song.cue_points.remove(near[0])
+            near[0].dead = True
         else:
             song.cue_points.append(Cue((song._time + 2.0) // 4 * 4))
 
@@ -880,7 +894,9 @@ def live_toggle(song):
         ("tie", 18.0, "ready", [(8.0, "Verse"), (20.0, "Requested")]),  # 18 -> 20
         ("arrival", 30.0, "unknown", [(8.0, "Verse"), (200.0, "Human")]),  # not ours: no rename
         ("collision", 33.0, "ready", [(8.0, "Verse"), (32.0, "Requested")]),  # 32 reused
-        ("deletes", 10.0, "failed", [(8.0, "Verse")]),  # the toggle would delete 8: refused
+        ("occupied", 10.0, "failed", [(8.0, "Verse")]),  # the toggle would delete 8: refused
+        ("delete", 8.0, "ready", []),
+        ("delete_two", 8.0, "unknown", []),  # the toggle took a human's cue at 9 as well
     ],
 )
 def test_a_cue_add_accepts_only_its_own_bar_and_never_toggles_another_cue(
@@ -895,8 +911,24 @@ def test_a_cue_add_accepts_only_its_own_bar_and_never_toggles_another_cue(
         song.set_or_delete_cue = lambda: song.cue_points.append(Cue(200.0, "Human"))
     if case == "collision":
         song.cue_points.append(Cue(32.0, "Bridge"))  # on the bar 33 would land on
-    p = {"cues": [], "add": [{"time": time, "name": "Requested"}],
-         "generation": dispatch.safety.generation}  # fmt: skip
+    if case == "delete_two":
+        human = Cue(9.0, "Human")
+
+        def toggle():  # Live deletes ours; a human deletes theirs in the same tick
+            calls.append(song._time)
+            for cue in [song.cue_points[0], human]:
+                song.cue_points.remove(cue)
+                cue.dead = True  # reading a deleted cue raises, as in Live
+
+        song.set_or_delete_cue = toggle
+    if case.startswith("delete"):
+        (r,) = refs(dispatch, {"kind": "cue", "cue": 0})
+        if case == "delete_two":
+            song.cue_points.append(human)
+        p = {"cues": [{"cue": r["ref"], "action": "delete"}]}
+    else:
+        p = {"cues": [], "add": [{"time": time, "name": "Requested"}],
+             "generation": dispatch.safety.generation}  # fmt: skip
     op = ok(dispatch("set_cue_points", p))["applied"][0]["operation"]
     for _ in range(8):
         dispatch.operations.tick()
@@ -912,6 +944,11 @@ def test_a_cue_add_accepts_only_its_own_bar_and_never_toggles_another_cue(
     elif case == "arrival":
         assert snap["reason"] == "ambiguous_change" and result["status"] == "ambiguous"
         assert result["ambiguous"]["appeared"] == [200.0] and result["results"] == []
+    elif case == "delete":
+        assert result["results"] == [{"action": "delete", "time": 8.0}] and calls == [8.0]
+    elif case == "delete_two":
+        assert snap["reason"] == "ambiguous_change"
+        assert result["ambiguous"]["removed"] == [8.0, 9.0] and result["results"] == []
     elif case == "collision":
         assert result["results"] == [{"action": "add", "time": 32.0, "reused": True,
                                        "requested": 33.0}]  # fmt: skip
