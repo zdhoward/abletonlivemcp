@@ -236,7 +236,7 @@ class StructTarget(_LeanTarget):
 # ---- recording and view -----------------------------------------------------------------------
 
 RecordAction = Literal[
-    "session_record", "arrangement_record", "overdub", "trigger_session_record",
+    "session_record", "arrangement_record", "overdub",
     "capture_midi", "capture_and_insert_scene",
 ]  # fmt: skip
 

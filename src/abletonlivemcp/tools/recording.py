@@ -19,9 +19,8 @@ def live_record(
 ) -> dict:
     """Recording controls (unverified on Live 12.2). session_record / arrangement_record /
     overdub take `value`; turning one on needs `length` (beats, <= 8 s; one at a time) and
-    returns an operation that restores the switches and play state. trigger_session_record (optional
-    `length`), capture_midi (`destination` 0 auto, 1 session, 2 arrangement),
-    capture_and_insert_scene."""
+    returns an operation that restores the switches and play state. capture_midi
+    (`destination` 0 auto, 1 session, 2 arrangement), capture_and_insert_scene."""
     params: dict = {"action": action, "generation": _generation()}
     for key, val in (("value", value), ("length", length), ("destination", destination)):
         if val is not None:

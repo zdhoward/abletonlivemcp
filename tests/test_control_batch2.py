@@ -3,6 +3,7 @@ feature, through the real bridge gate (``make_dispatch``) and the host tool func
 
 import sys
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
@@ -10,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "remote_script"))
 
 from AbletonLiveMCP import dom_tracks  # noqa: E402
 from AbletonLiveMCP.handlers import make_dispatch  # noqa: E402
+from abletonlivemcp.models_control import RecordAction  # noqa: E402
 from AbletonLiveMCP.safety import Safety  # noqa: E402
 
 # ---- fake Live -----------------------------------------------------------------------------
@@ -512,6 +514,15 @@ def test_a_recording_that_times_out_or_disconnects_still_stops(live, monkeypatch
     assert snap["reason"] == ("timeout" if ending == "late_tick" else "session_ended")
     assert snap["result"]["cleanup"]["ran"] is True
     assert not song.session_record and not song.is_playing
+
+
+def test_trigger_session_record_is_not_exposed(live):
+    """F3 (round 5): trigger_session_record ran unbounded, outside the operation and guard."""
+    song, _a, d, g = live
+    with pytest.raises(ValueError, match="'action' must be one of"):
+        d("record", {"generation": g, "action": "trigger_session_record", "length": 4})
+    assert not song.session_record and not song.is_playing
+    assert "trigger_session_record" not in get_args(RecordAction)
 
 
 def test_a_second_bounded_recording_is_refused_while_one_runs(live):

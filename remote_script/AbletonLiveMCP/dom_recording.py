@@ -5,6 +5,11 @@ always bounded: it needs ``length`` (beats, at most ``MAX_SECONDS`` at the curre
 playback if needed, and a step task (``operations.start_task``) restores the previous record
 switches and play state once the song time has advanced ``length`` beats (or the wall-clock bound
 passes). Turning a switch OFF is a plain write.
+
+``Song.trigger_session_record`` is deliberately not exposed: a second trigger stops a running
+recording, its start waits for launch quantization (so a beat count cannot bound it) and it
+creates clips in whichever slot is selected. The bounded ``session_record`` switch covers the
+same Session recording with a guard, an operation and a cleanup finalizer.
 """
 
 import time
@@ -16,7 +21,6 @@ CAPABILITIES = {
     "record.session": ("unverified", "P-18 unrun: Song.session_record"),
     "record.arrangement": ("unverified", "P-18 unrun: Song.record_mode"),
     "record.overdub": ("unverified", "P-18 unrun: Song.arrangement_overdub"),
-    "record.trigger_session": ("unverified", "P-18 unrun: Song.trigger_session_record"),
     "record.capture_midi": ("unverified", "P-18 unrun: Song.capture_midi/can_capture_midi"),
     "record.capture_scene": ("unverified", "P-18 unrun: Song.capture_and_insert_scene"),
 }
@@ -101,14 +105,6 @@ def record(ctx, p, _t):
         else:
             setattr(song, attribute, False)
             out = {}
-    elif action == "trigger_session_record":
-        state = require(ctx, "record.trigger_session", ((song, "trigger_session_record"),))
-        length = p.get("length")
-        if length is None:
-            song.trigger_session_record()
-        else:
-            song.trigger_session_record(float(_number(length, "length", 0.0, 1024.0, True)))
-        out = {}
     elif action == "capture_midi":
         state = require(ctx, "record.capture_midi", ((song, "capture_midi"),))
         destination = p.get("destination", 0)
@@ -124,7 +120,7 @@ def record(ctx, p, _t):
         song.capture_and_insert_scene()
         out = {"scenes_added": len(song.scenes) - before}
     else:
-        actions = [*SWITCHES, "trigger_session_record", "capture_midi", "capture_and_insert_scene"]
+        actions = [*SWITCHES, "capture_midi", "capture_and_insert_scene"]
         raise Invalid(f"'action' must be one of {actions}")
     return {
         "action": action,

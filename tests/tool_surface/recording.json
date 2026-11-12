@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Recording controls (unverified on Live 12.2). session_record / arrangement_record /\noverdub take `value`; turning one on needs `length` (beats, <= 8 s; one at a time) and\nreturns an operation that restores the switches and play state. trigger_session_record (optional\n`length`), capture_midi (`destination` 0 auto, 1 session, 2 arrangement),\ncapture_and_insert_scene.",
+  "description": "Recording controls (unverified on Live 12.2). session_record / arrangement_record /\noverdub take `value`; turning one on needs `length` (beats, <= 8 s; one at a time) and\nreturns an operation that restores the switches and play state. capture_midi\n(`destination` 0 auto, 1 session, 2 arrangement), capture_and_insert_scene.",
   "inputSchema": {
    "properties": {
     "action": {
@@ -14,7 +14,6 @@
       "session_record",
       "arrangement_record",
       "overdub",
-      "trigger_session_record",
       "capture_midi",
       "capture_and_insert_scene"
      ],
