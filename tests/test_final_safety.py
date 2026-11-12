@@ -50,3 +50,41 @@ def test_cleanup_discovery_failure_still_restores_safe_policy(monkeypatch, tmp_p
     with pytest.raises(RuntimeError, match="discovery unavailable"):
         cleanup.main()
     assert json.loads(config.read_text(encoding="utf-8")) == {"read_only": True}
+
+
+def test_reruns_merge_only_same_build_rows_and_never_touch_the_full_run(monkeypatch, tmp_path):
+    """F7 (round 5): --only merged earlier rows from any build into the full-run evidence."""
+    for name in ("EVIDENCE_MD", "EVIDENCE_JSON", "LEDGER_JSON", "RERUN_MD", "RERUN_JSON",
+                 "RERUN_LEDGER"):
+        monkeypatch.setattr(proof, name, tmp_path / name)
+    monkeypatch.setattr(proof, "REPO", tmp_path)
+    monkeypatch.setattr(proof, "log_modules", lambda: ("", []))
+    case = {"id": "a", "phase": proof.PHASES[0], "steps": []}
+    hashes = {"a": proof.case_hash(case), "b": proof.case_hash({**case, "id": "b"})}
+    build = proof.build_identity({"script": {"version": "0.11.0", "build": "sha256:1"}}, "12.2")
+    build["dirty"] = False
+
+    def row(rid, **mark):
+        return {"id": rid, "phase": case["phase"], "status": "pass", "checks": 1, "failures": [],
+                "provenance": {**build, "case": hashes[rid], **mark}}
+
+    fresh = [row("a")]
+    assert proof._merge([row("b")], fresh, build, hashes) == [row("a"), row("b")]
+    for other in ({"git": "0" * 40}, {"script_build": "sha256:2"}, {"case": "sha256:x"},
+                  {"dirty": True}, {"env": {}}):
+        assert proof._merge([row("b", **other)], fresh, build, hashes) == fresh
+    assert proof._merge([row("b")], fresh, {**build, "dirty": True}, hashes) == fresh
+    proof.write_evidence(fresh, [], {"build": build}, 0, "", subset=True)
+    assert proof.RERUN_JSON.is_file() and not proof.EVIDENCE_JSON.exists()
+    assert json.loads(proof.RERUN_JSON.read_text(encoding="utf-8"))["run"] == "subset"
+
+
+def test_scratch_policy_restores_the_config_byte_for_byte(monkeypatch, tmp_path):
+    config = tmp_path / "bridge.json"
+    original = b'{"version": 1, "secret": "s", "read_only": false}\r\n'
+    config.write_bytes(original)
+    monkeypatch.setattr(proof, "config_path", lambda: config)
+    with pytest.raises(RuntimeError), proof.scratch_policy(True):
+        assert json.loads(config.read_text(encoding="utf-8"))["read_only"] is False
+        raise RuntimeError("scenario crashed")
+    assert config.read_bytes() == original

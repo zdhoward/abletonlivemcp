@@ -36,21 +36,27 @@ run (``--check`` verifies coverage and the manifest offline, without Live).
 
 Exit codes: 0 every scenario passed and coverage is complete; 1 a scenario failed, was blocked,
 or a tool has no scenario; 2 the proof could not run (Live/bridge unreachable, read-only, bad
-manifest or arguments). ``--only ID[,ID]`` reruns just those scenarios (plus nothing else) and
-merges their results into the previous results file.
+manifest or arguments). ``--only ID[,ID]`` reruns those scenarios and the ones they need.
 
-Evidence: ``docs/release/v2-fast-track.md`` (table + output) and ``v2-fast-track.json``
-(machine-readable results, used by ``--only``).
+Provenance: every result row records the build it ran on (git revision and dirty flag, the
+Remote Script version/build Live reported, Live's version, which ``ABLETONLIVEMCP_*`` roots
+were set) and a hash of its scenario definition (JSON plus hook file). Evidence:
+``docs/release/v2-fast-track.{md,json}`` and ``-ledger.json`` hold only a full run;
+``--only`` writes ``v2-fast-track-reruns.*`` instead and merges a previous rerun row only when
+its build and scenario hash equal this run's on a clean tree (others are dropped, and listed).
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -83,6 +89,14 @@ CASES_DIR = Path(__file__).resolve().parent / "final_cases"
 EVIDENCE_MD = REPO / "docs" / "release" / "v2-fast-track.md"
 EVIDENCE_JSON = REPO / "docs" / "release" / "v2-fast-track.json"
 LEDGER_JSON = REPO / "docs" / "release" / "v2-fast-track-ledger.json"
+RERUN_MD = REPO / "docs" / "release" / "v2-fast-track-reruns.md"
+RERUN_JSON = REPO / "docs" / "release" / "v2-fast-track-reruns.json"
+RERUN_LEDGER = REPO / "docs" / "release" / "v2-fast-track-reruns-ledger.json"
+ENV_KEYS = (
+    "ABLETONLIVEMCP_FILE_ROOTS", "ABLETONLIVEMCP_ALS_ROOTS", "ABLETONLIVEMCP_DATA_DIR",
+    "ABLETONLIVEMCP_KNOWLEDGE", "ABLETONLIVEMCP_TOOLSETS",
+)  # fmt: skip
+BUILD_KEYS = ("git", "dirty", "script_version", "script_build", "live_version", "env")
 SCRATCH_PREFIX = "ALMCP-FINAL"
 EXPECTS = re.compile(r"^(ok|refused|refused:[A-Za-z_]+|ok_or_unsupported)$")
 TEMPLATE = re.compile(r"\$\{([^}]+)\}")
@@ -376,7 +390,7 @@ async def run_case(run: Run, case: dict) -> dict:
 async def run_all(cases: list[dict], args, state: dict) -> list[dict]:
     run_id = time.strftime("%m%d-%H%M%S")
     results: list[dict] = []
-    done: dict[str, str] = dict(state.get("prior_status", {}))
+    done: dict[str, str] = {}  # --only selects every needed scenario, so nothing is assumed
     holder: dict = {}
 
     async def elicit(ctx, params):
@@ -402,6 +416,8 @@ async def run_all(cases: list[dict], args, state: dict) -> list[dict]:
         state["live_version"] = (
             ".".join(map(str, version)) if isinstance(version, list | tuple) else version
         )
+        state["build"] = build = build_identity(hello, state["live_version"])
+        print(f"info build {json.dumps(build, sort_keys=True)}")
         print(f"info live {state['live_version']}; {len(h.tool_names)} tools listed")
         for phase in PHASES:
             phase_cases = [c for c in cases if c["phase"] == phase]
@@ -415,6 +431,7 @@ async def run_all(cases: list[dict], args, state: dict) -> list[dict]:
                     print(f"\n== {case['id']}: BLOCKED (needs {blocked})")
                 else:
                     row = await run_case(run, case)
+                row["provenance"] = {**build, "case": case_hash(case)}
                 done[case["id"]] = "pass" if row["status"] in ("pass", "unsupported") else "fail"
                 results.append(row)
         state["ledger"] = run.ledger
@@ -425,23 +442,79 @@ async def run_all(cases: list[dict], args, state: dict) -> list[dict]:
 # ---- evidence -----------------------------------------------------------------------------
 
 
-def _merge(prior: list[dict], fresh: list[dict]) -> list[dict]:
-    by_id = {r["id"]: r for r in prior}
+def _git(*args: str) -> str:
+    try:
+        out = subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def build_identity(hello: dict, live_version) -> dict:
+    """What a result is bound to: this checkout, the Remote Script Live runs, Live, the env."""
+    script = hello.get("script") if isinstance(hello.get("script"), dict) else {}
+    return {
+        "git": _git("rev-parse", "HEAD") or "unknown",
+        "dirty": bool(_git("status", "--porcelain", "--untracked-files=no")),
+        "script_version": script.get("version"),
+        "script_build": script.get("build"),
+        "script_match": script.get("match"),
+        "live_version": live_version,
+        "env": {key: bool(os.environ.get(key)) for key in ENV_KEYS},
+    }
+
+
+def case_hash(case: dict) -> str:
+    """The scenario definition: its JSON (without the loader's file tag) and its hook file."""
+    body = {k: v for k, v in case.items() if k != "_file"}
+    digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode())
+    if case.get("hook"):
+        hook = CASES_DIR / f"{case['hook'].partition('.')[0]}.py"
+        digest.update(hook.read_bytes() if hook.is_file() else b"missing")
+    return "sha256:" + digest.hexdigest()[:16]
+
+
+def compatible(row: dict, build: dict | None, hashes: dict[str, str]) -> bool:
+    """A previous rerun row may stand next to this run's only on the same clean build and the
+    same scenario definition."""
+    mark = row.get("provenance")
+    if not isinstance(mark, dict) or not build or build["dirty"] or mark.get("dirty"):
+        return False
+    same_build = all(mark.get(k) == build.get(k) for k in BUILD_KEYS)
+    return same_build and mark.get("case") == hashes.get(row.get("id"))
+
+
+def _merge(prior: list[dict], fresh: list[dict], build=None, hashes=None) -> list[dict]:
+    kept = [r for r in prior if compatible(r, build, hashes or {})]
+    dropped = sorted({r.get("id") for r in prior} - {r["id"] for r in kept + fresh})
+    if dropped:
+        print(f"info not merged (other build or scenario definition): {', '.join(dropped)}")
+    by_id = {r["id"]: r for r in kept}
     by_id.update({r["id"]: r for r in fresh})
     return sorted(by_id.values(), key=lambda r: (PHASES.index(r["phase"]), r["id"]))
 
 
-def write_evidence(results, coverage_gaps, state, code, output) -> None:
-    EVIDENCE_MD.parent.mkdir(parents=True, exist_ok=True)
+def evidence_paths(subset: bool) -> tuple[Path, Path, Path]:
+    """(md, json, ledger): a full run's files, or the separate rerun files for --only."""
+    if subset:
+        return RERUN_MD, RERUN_JSON, RERUN_LEDGER
+    return EVIDENCE_MD, EVIDENCE_JSON, LEDGER_JSON
+
+
+def write_evidence(results, coverage_gaps, state, code, output, subset=False) -> None:
+    md, data, ledger = evidence_paths(subset)
+    md.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "date": time.strftime("%Y-%m-%d %H:%M"),
+        "run": "subset" if subset else "full",
         "live_version": state.get("live_version"),
+        "build": state.get("build"),
         "exit": code,
         "coverage_gaps": coverage_gaps,
         "results": results,
     }
-    EVIDENCE_JSON.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
-    LEDGER_JSON.write_text(
+    data.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
+    ledger.write_text(
         json.dumps(
             {"ledger": state.get("ledger", {}), "confirmations": state.get("confirmations", [])},
             indent=1,
@@ -456,13 +529,14 @@ def write_evidence(results, coverage_gaps, state, code, output) -> None:
         for r in results
     ]
     body = [
-        f"# v2 fast-track final proof ({payload['date']})",
+        f"# v2 fast-track {'rerun (subset)' if subset else 'final proof'} ({payload['date']})",
         "",
         f"- Live version: {state.get('live_version') or 'unknown'}",
+        f"- Build: {json.dumps(state.get('build'), sort_keys=True)}",
         f"- Result: exit {code}",
         f"- Coverage gaps: {', '.join(coverage_gaps) or 'none'}",
         f"- Log.txt: {log_path}",
-        f"- Ledger: {LEDGER_JSON.relative_to(REPO).as_posix()}",
+        f"- Ledger: {ledger.relative_to(REPO).as_posix()}",
         "",
         "| Scenario | Phase | Status | Checks | Failures |",
         "|---|---|---|---:|---|",
@@ -481,7 +555,7 @@ def write_evidence(results, coverage_gaps, state, code, output) -> None:
         "```",
         "",
     ]
-    EVIDENCE_MD.write_text("\n".join(body), encoding="utf-8")
+    md.write_text("\n".join(body), encoding="utf-8")
 
 
 # ---- entry --------------------------------------------------------------------------------
@@ -507,8 +581,9 @@ def _select(cases: list[dict], only: str | None) -> list[dict]:
 
 
 def _prior() -> list[dict]:
+    """Rows of the previous subset rerun (never the full-run file)."""
     try:
-        return json.loads(EVIDENCE_JSON.read_text(encoding="utf-8")).get("results", [])
+        return json.loads(RERUN_JSON.read_text(encoding="utf-8")).get("results", [])
     except (OSError, ValueError):
         return []
 
@@ -529,8 +604,8 @@ def execute(args, state: dict) -> int:
         print(f"RESULT: {'FAIL' if code else 'PASS'} (exit {code}): offline manifest check")
         return code
     prior = _prior() if args.only else []
+    hashes = {c["id"]: case_hash(c) for c in cases}
     state["gaps"] = gaps
-    state["prior_status"] = {r["id"]: r["status"] for r in prior}
     try:
         try:
             fresh = asyncio.run(run_all(selected, args, state))
@@ -539,7 +614,7 @@ def execute(args, state: dict) -> int:
     except Abort as exc:
         print(f"RESULT: ABORT (exit 2): {exc}")
         if "results" in state:
-            state["results"] = _merge(prior, state["results"])
+            state["results"] = _merge(prior, state["results"], state.get("build"), hashes)
         return 2
     except BridgeError as exc:
         print(f"RESULT: ABORT (exit 2): bridge unusable: {exc}")
@@ -547,7 +622,7 @@ def execute(args, state: dict) -> int:
     except (OSError, RuntimeError) as exc:
         print(f"RESULT: ABORT (exit 2): could not run the stdio server: {exc!r}")
         return 2
-    results = _merge(prior, fresh)
+    results = _merge(prior, fresh, state.get("build"), hashes)
     state["results"], state["gaps"] = results, gaps
     unlisted = sorted(set(registered_tools()) - set(state.get("listed", [])))
     for name in unlisted:
@@ -566,23 +641,20 @@ def scratch_policy(enabled):
         yield
         return
     path = config_path()
-    config = json.loads(path.read_text(encoding="utf-8"))
-
-    def write(writable):
-        config["read_only"] = not writable
-        config.pop("dev_probes", None)
-        path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-
+    original = path.read_bytes()  # restored byte for byte, whatever happens
+    config = json.loads(original)
+    config["read_only"] = False
+    config.pop("dev_probes", None)
     try:
-        write(True)
+        path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
         yield
     finally:
-        write(False)
+        path.write_bytes(original)
 
 
 def main(argv=None) -> int:
     p: argparse.ArgumentParser = base_parser(__doc__.split("\n\n")[0])
-    p.add_argument("--only", help="comma-separated scenario ids to rerun (results are merged)")
+    p.add_argument("--only", help="comma-separated scenario ids to rerun (separate evidence)")
     p.add_argument("--check", action="store_true", help="offline: manifest + coverage only")
     p.add_argument("--scratch-writes", action="store_true",
                    help="temporarily enable disposable proof writes; restore safe defaults")
@@ -598,8 +670,9 @@ def main(argv=None) -> int:
             code = execute(args, state)
     finally:
         if "results" in state and not args.no_evidence:
-            write_evidence(state["results"], state["gaps"], state, code, buf.getvalue())
-            print(f"evidence: {EVIDENCE_MD}")
+            subset = bool(args.only)
+            write_evidence(state["results"], state["gaps"], state, code, buf.getvalue(), subset)
+            print(f"evidence: {evidence_paths(subset)[0]}")
     return code
 
 
