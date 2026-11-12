@@ -74,9 +74,10 @@ def _plan_replace(args: dict) -> Plan:
         end = c.start + float(source["length"])
         (row,) = _call("get_arrangement", {"tracks": [c.track], "include": ["clips"]})["tracks"]
         hits = [k for k in row.get("clips", ()) if k["start"] < end and k["end"] > c.start]
-        found = issue_refs(
-            [{"kind": "arr_clip", "track": c.track, "arrangement": k["arrangement"]} for k in hits]
-        )
+        sels = [
+            {"kind": "arr_clip", "track": c.track, "arrangement": k["arrangement"]} for k in hits
+        ]
+        found = issue_refs(sels) if sels else []  # nothing in the way: replace deletes nothing
         expect.append([r["ref"] for r in found])
         lines += [
             f"arrangement clip {r['name']!r} at beats {r.get('start_time')}-{r.get('end_time')}"

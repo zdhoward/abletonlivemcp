@@ -73,7 +73,9 @@ def _plan_replace(args: dict) -> Plan:
     clips = args["clips"]
     slots = issue_refs([{"kind": "slot", "track": c.track, "scene": c.scene} for c in clips])
     occupied = sorted(_occupied(clips))
-    rows = issue_refs([{"kind": "clip", "track": t, "scene": s} for t, s in occupied])
+    # every destination empty: nothing to delete (issue_refs refuses an empty list)
+    occupants_sel = [{"kind": "clip", "track": t, "scene": s} for t, s in occupied]
+    rows = issue_refs(occupants_sel) if occupants_sel else []
     lines = [
         f"Session clip {r['name']!r} (length {r.get('length')} beats) at track {t}, scene {s}"
         for (t, s), r in zip(occupied, rows, strict=True)

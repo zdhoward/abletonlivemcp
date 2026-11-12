@@ -188,6 +188,27 @@ def test_create_clips_replace_writes_against_the_confirmed_occupant(bridge, monk
     assert target["replace"] is True and target["expect_clip"] == "R0"
 
 
+def test_replace_into_empty_destinations_plans_no_deletes_and_creates(bridge):
+    """Regression: with every destination empty the plan asked issue_refs([]) and refused."""
+    bridge.replies["get_clips"] = {"clips": [{"track": 0, "scene": 0, "empty": True}]}
+    args = call_args(clips.live_create_clips, clips=[{"track": 0, "scene": 0}], if_exists="replace")
+    plan = server.PLANS["live_create_clips"](args)
+    assert plan.lines == [] and plan.data["occupants"] == {}
+    yes = AcceptedElicitation(data=server.Confirmation(confirm=True))
+    clips.live_create_clips(**args, confirmation=yes, confirmation_plan=plan)
+    (target,) = bridge.last()[1]["targets"]
+    assert bridge.last()[0] == "create_clips" and "expect_clip" not in target
+
+    bridge.replies["get_clips"] = {"clips": [{"track": 0, "scene": 0, "length": 4}]}
+    bridge.replies["get_arrangement"] = {"tracks": [{"track": 0, "clips": []}]}
+    args = call_args(
+        arrangement.live_create_arrangement_clips,
+        clips=[{"track": 0, "kind": "from_session", "scene": 0, "start": 8, "replace": True}],
+    )
+    plan = server.PLANS["live_create_arrangement_clips"](args)
+    assert plan.lines == [] and plan.data["expect"] == [[]]
+
+
 def test_automation_parameter_by_name_resolves_to_its_index(bridge):
     bridge.replies["device_parameters"] = [
         {"index": 0, "name": "Device On"},
