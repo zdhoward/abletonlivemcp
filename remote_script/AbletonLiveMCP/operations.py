@@ -45,6 +45,12 @@ and is not gated. Its report lands in ``result.cleanup``: ``{"ran": true, "resul
 ``set_changed``/``no_song`` it is skipped (``{"ran": false, "skipped": <reason>}``): the
 objects it would touch belong to a Set that is no longer open.
 
+Failed cleanup: a step result or finalizer result with ``status: "cleanup_failed"`` (a restore
+step raised or its readback does not show the prior state) is never ``ready``: the task ends
+``unknown`` with reason ``cleanup_failed`` and the per-step report in ``result``. A task started
+with ``hold=fn`` keeps its exclusion (``blocking_task``) while it is unresolved and ``fn()`` (a
+fresh readback) still says the prior state is not back; a Set change or disconnect releases it.
+
 ``tick`` is called from the entry point's ``update_display``; a soft monotonic budget of
 ``TICK_BUDGET`` s per call stops it between operations (a single native call cannot be preempted).
 """
@@ -118,9 +124,10 @@ class Task:
 
     track = None  # never matches a load target
 
-    def __init__(self, op_id, kind, step, generation, now, timeout, finalize=None):
+    def __init__(self, op_id, kind, step, generation, now, timeout, finalize=None, hold=None):
         self.id, self.kind, self.step, self.generation = op_id, kind, step, generation
         self.finalize = finalize  # runs once when the task ends without its own ending
+        self.hold = hold  # unresolved: True while a readback says the prior state is not back
         self.state, self.reason, self.result = PENDING, None, None
         self.deadline, self.watch_until = now + timeout, None
 
@@ -205,9 +212,9 @@ class Operations:
             return False
         return same_items(cur, op.before)
 
-    def start_task(self, kind, step, timeout=MAX_TASK_TIMEOUT, finalize=None):
+    def start_task(self, kind, step, timeout=MAX_TASK_TIMEOUT, finalize=None, hold=None):
         """Record a step task (cue protocol etc.); returns its snapshot. Refused when the ring is
-        full of unresolved records. ``finalize``: see the module docstring."""
+        full of unresolved records. ``finalize`` and ``hold``: see the module docstring."""
         if not isinstance(kind, str) or not kind or not callable(step):
             raise ValueError("internal: a task needs a kind and a step callable")
         for old_id in [i for i, o in self._ring.items() if o.state in (READY, FAILED)]:
@@ -225,16 +232,31 @@ class Operations:
             self._clock(),
             timeout,
             finalize,
+            hold,
         )
         self._ring[task.id] = task
         self.tasks_started += 1
         return task.snapshot()
 
-    def pending_task(self, prefix):
-        """The id of a still-pending step task whose kind starts with ``prefix``, else None."""
+    def blocking_task(self, prefix):
+        """The id of a step task whose kind starts with ``prefix`` and that still excludes a new
+        one: pending, or unresolved (``unknown``) while its ``hold`` readback says the prior state
+        is not back (an unreadable state keeps the hold). Only this Set's tasks count."""
+        generation = self._safety.generation
         for op in self._ring.values():
-            if isinstance(op, Task) and op.state == PENDING and op.kind.startswith(prefix):
+            if not isinstance(op, Task) or not op.kind.startswith(prefix):
+                continue
+            if op.state == PENDING:
                 return op.id
+            if op.state != UNKNOWN or op.hold is None or op.generation != generation:
+                continue
+            try:
+                held = bool(op.hold())
+            except Exception:  # noqa: BLE001 - cannot show the state is back: keep excluding
+                held = True
+            if held:
+                return op.id
+            op.hold = None  # a readback showed the prior state; released for good
         return None
 
     def _abort_task(self, task, reason, cleanup=True):
@@ -251,6 +273,12 @@ class Operations:
             except Exception as exc:  # noqa: BLE001 - reported, never retried
                 log_failure(f"task {task.kind} cleanup", exc)
                 report = {"ran": False, "error": type(exc).__name__}
+            result = report.get("result")
+            if not report["ran"] or (
+                isinstance(result, dict) and result.get("status") == "cleanup_failed"
+            ):
+                report["after"] = reason
+                task.reason = "cleanup_failed"
         task.result = {**(task.result or {}), "cleanup": report}
         return None
 
@@ -268,6 +296,9 @@ class Operations:
             task.result = out if isinstance(out, dict) else {"value": out}
             if task.result.get("status") == "not_applied":  # stopped before its first change
                 return self._finish(task, FAILED, "not_applied")
+            if task.result.get("status") == "cleanup_failed":  # never ready: state not restored
+                return self._finish(task, UNKNOWN, "cleanup_failed")
+            task.hold = None
             self._finish(task, READY, None)
         return None
 

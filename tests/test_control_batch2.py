@@ -516,26 +516,54 @@ def test_a_recording_that_times_out_or_disconnects_still_stops(live, monkeypatch
     assert not song.session_record and not song.is_playing
 
 
-def test_a_failing_switch_restore_still_stops_the_transport(live, monkeypatch):
-    """F4 (round 5): restoring the record switch raised and stop_playing was skipped. Each
-    cleanup step now runs on its own and is reported with a readback."""
+@pytest.mark.parametrize("playing", [False, True])
+@pytest.mark.parametrize("ending", ["completed", "late_tick", "disconnect"])
+def test_a_failed_recording_cleanup_is_unknown_and_keeps_the_guard(
+    live, monkeypatch, playing, ending
+):
+    """N3 (round 6): a raising switch restore ended the task ready with session_record still on,
+    and the guard (pending tasks only) let another recording start. F4 (round 5): it must also
+    never skip stopping a transport this call started."""
     song, _a, d, g = live
-    song.current_song_time = 0.0
-    out = d("record", {"generation": g, "action": "session_record", "value": True, "length": 2})
+    song.current_song_time, song.is_playing = 0.0, playing
+    args = {"generation": g, "action": "session_record", "value": True, "length": 2}
+    op = d("record", args)["operation"]["operation"]
 
     def refuse(self, value):
         raise RuntimeError("D:/Music/someone/private.als")
 
-    monkeypatch.setattr(type(song), "session_record", property(lambda s: True, refuse), False)
-    song.current_song_time = 3.0
-    d.operations.tick()
-    result = d.operations.get(out["operation"]["operation"])["result"]
-    assert result["cleanup"] == [
-        {"step": "session_record", "ok": False, "error": "RuntimeError"},
-        {"step": "stop_playing", "ok": True},
-    ]
-    assert result["restored"] == {"session_record": True, "is_playing": False}
-    assert not song.is_playing and "private" not in repr(result)
+    stuck = property(lambda s: s.__dict__["session_record"], refuse)
+    monkeypatch.setattr(type(song), "session_record", stuck, False)
+    if ending == "completed":
+        song.current_song_time = 3.0
+        d.operations.tick()
+    elif ending == "late_tick":
+        clock = d.operations._clock() + 60.0  # Live's ticks stalled past the task deadline
+        monkeypatch.setattr(d.operations, "_clock", lambda: clock)
+        d.operations.tick()
+    else:
+        d.operations.invalidate()
+    snap = d.operations.get(op)
+    assert snap["state"] == "unknown" and snap["reason"] == "cleanup_failed", snap
+    assert snap["applied"] is None and snap["may_have_applied"] is True
+    result = snap["result"]
+    if ending != "completed":
+        report = result["cleanup"]
+        assert report["ran"] is True and report["after"] == {
+            "late_tick": "timeout", "disconnect": "session_ended"}[ending]  # fmt: skip
+        result = report["result"]
+    steps = [{"step": "session_record", "ok": False, "error": "RuntimeError",
+              "observed": True, "restored": False}]  # fmt: skip
+    if not playing:
+        steps.append({"step": "stop_playing", "ok": True, "observed": False, "restored": True})
+    assert result["status"] == "cleanup_failed" and result["cleanup"] == steps
+    assert song.is_playing is playing and "private" not in repr(snap)
+    if ending == "disconnect":
+        return
+    other = {**args, "action": "arrangement_record"}
+    assert d("record", other)["code"] == "recording_active" and not song.record_mode
+    song.__dict__["session_record"] = False  # turned off by hand; a readback now shows it
+    assert d("record", other)["operation"]["state"] == "pending" and song.record_mode
 
 
 def test_trigger_session_record_is_not_exposed(live):

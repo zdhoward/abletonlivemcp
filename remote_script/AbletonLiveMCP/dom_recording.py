@@ -6,6 +6,11 @@ playback if needed, and a step task (``operations.start_task``) restores the pre
 switches and play state once the song time has advanced ``length`` beats (or the wall-clock bound
 passes). Turning a switch OFF is a plain write.
 
+Cleanup is verified, not assumed: each restore step is reported, then the switch and play state
+are read back. A step that raised or a readback that does not show the prior state makes the
+task ``unknown`` (``cleanup_failed``), never ready, and the recording exclusion stays until a
+fresh readback shows the prior state (or the Set changes).
+
 ``Song.trigger_session_record`` is deliberately not exposed: a second trigger stops a running
 recording, its start waits for launch quantization (so a beat count cannot bound it) and it
 creates clips in whichever slot is selected. The bounded ``session_record`` switch covers the
@@ -61,15 +66,22 @@ def _bounded(ctx, key, attribute, length):
         )
     # One bounded recording at a time: a second one would snapshot the first one's switches as
     # "before" and restore them to on after the first had turned them off.
-    active = ctx.operations.pending_task("record:")
+    active = ctx.operations.blocking_task("record:")
     if active is not None:
         raise Refused(
             "recording_active",
-            f"a bounded recording is still running (operation {active}); poll it until ready",
+            f"a bounded recording is still running or its cleanup is unconfirmed (operation "
+            f"{active}); poll it, and turn the switch off / stop the transport if it stays on",
         )
     before = {"was_playing": song.is_playing, attribute: getattr(song, attribute)}
     start = song.current_song_time
     started = time.monotonic()
+
+    def unrestored():
+        """Readback: the switch and play state are not back where this call found them."""
+        if getattr(song, attribute) != before[attribute]:
+            return True
+        return not before["was_playing"] and bool(song.is_playing)
 
     def restore():
         # Independent steps: a failing switch restore must never skip stopping the transport.
@@ -87,11 +99,21 @@ def _bounded(ctx, key, attribute, length):
                 readback[key] = read()
             except Exception as exc:  # noqa: BLE001 - reported, never raised from cleanup
                 readback[key] = f"unreadable: {type(exc).__name__}"
-        return {
+        # Per step: what it should have left and what the readback shows.
+        reads = {attribute: (attribute, before[attribute]), "stop_playing": ("is_playing", False)}
+        for row in cleanup:
+            key, expected = reads[row["step"]]
+            row["observed"] = readback[key]
+            row["restored"] = row["ok"] and readback[key] == expected
+        restored = all(row["restored"] for row in cleanup)
+        out = {
             "recorded_beats": readback.pop("recorded_beats"),
             "cleanup": cleanup,
             "restored": readback,
         }
+        if not restored:
+            out["status"] = "cleanup_failed"  # unknown, and the exclusion stays (hold)
+        return out
 
     def step():
         done = song.current_song_time - start >= length
@@ -104,7 +126,7 @@ def _bounded(ctx, key, attribute, length):
     # restore is also the finalizer: a late tick (timeout), a step error or a script disconnect
     # still turns recording off and stops a transport this call started.
     task = ctx.operations.start_task(
-        f"record:{key}", step, timeout=seconds + TASK_SLACK, finalize=restore
+        f"record:{key}", step, timeout=seconds + TASK_SLACK, finalize=restore, hold=unrestored
     )
     setattr(song, attribute, True)
     if not song.is_playing:
