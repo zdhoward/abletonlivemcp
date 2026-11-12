@@ -382,7 +382,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Duplicate tracks, scenes or clips (clip `to`: destination slot). The copy lands next\nto the source. Devices and returns cannot be duplicated on Live 12.2.",
+  "description": "Duplicate tracks, scenes or Session clips. Tracks and scenes land next to the source;\na clip goes to `to` (an empty slot on a regular track of its kind; refused, never\noverwritten, when taken) or else to the next empty slot below it. Devices and returns\ncannot be duplicated on Live 12.2.",
   "inputSchema": {
    "$defs": {
     "ClipAddr": {

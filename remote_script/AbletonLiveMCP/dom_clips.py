@@ -28,6 +28,7 @@ from .dom_common import (
     for_deletion,
     owner_node,
     position_of,
+    reference_nodes,
     require,
     run_writes,
     two_pass,
@@ -476,13 +477,18 @@ def delete_clips(ctx, p, t):
 
 
 def duplicate_clips(ctx, p, t):
-    """Copy each session clip into the next empty slot below it on its track
-    (``ClipSlot.duplicate_clip_to``; nothing is overwritten, no scene is created). Arrangement
-    duplication is disabled on 12.2 (P-19)."""
+    """Copy each session clip with ``ClipSlot.duplicate_clip_to``: into the item's ``to`` slot
+    (``{track, scene}``) when given, else into the next empty slot below it on its track.
+    Nothing is overwritten and no scene is created: every destination is resolved and checked
+    (a regular track that takes this clip's kind, an empty slot no other item of the batch
+    claims) before the first write. Arrangement duplication is disabled on 12.2 (P-19)."""
     items, resolved = p.get("targets"), t["targets"]
-    taken = []  # slots promised to earlier items of this batch
+    taken = []  # slots promised to items of this batch
 
-    def validate(i, _item):
+    def free(dest):
+        return not dest.has_clip and not any(dest is s for s in taken)
+
+    def source(i):
         where = f"targets[{i}]"
         if clip_kind(resolved[i], where) == "arr_clip":
             require(ctx, "arrangement.duplicate")
@@ -490,14 +496,41 @@ def duplicate_clips(ctx, p, t):
         if track is None:
             raise Invalid(f"{where}: only regular-track clips can be duplicated")
         require(ctx, "clip.duplicate", ((slot, "duplicate_clip_to"),))
+        return where, slot, track
+
+    def named(i, to):
+        """The item's own ``to`` slot, validated (pass 1: nothing is written)."""
+        where, slot, _track = source(i)
+        if not isinstance(to, dict) or set(to) != {"track", "scene"}:
+            raise Invalid(f"{where}.to: a destination is a Session slot {{track, scene}}")
+        owner, (_kind, dest, _snap) = reference_nodes(ctx.song, {"kind": "slot", **to})
+        if owner[0] != "track" or getattr(owner[1], "is_foldable", False):
+            raise Invalid(f"{where}.to: clips can only be copied to a regular track's slot")
+        midi = bool(getattr(slot.clip, "is_midi_clip", False))
+        if bool(owner[1].has_midi_input) != midi:
+            kind = "MIDI" if midi else "audio"
+            raise Invalid(f"{where}.to: a {kind} clip needs a {kind} track")
+        if not free(dest):
+            claim = "holds a clip" if dest.has_clip else "is claimed by another item"
+            raise Invalid(f"{where}.to: that slot {claim}; a slot is never overwritten")
+        taken.append(dest)
+        return slot, owner[1], dest
+
+    def below(i):
+        where, slot, track = source(i)
         slots = track.clip_slots
-        start = position_of(slots, slot) + 1
-        for k in range(start, len(slots)):
-            dest = slots[k]
-            if not dest.has_clip and not any(dest is s for s in taken):
-                taken.append(dest)
-                return slot, track, dest
+        for k in range(position_of(slots, slot) + 1, len(slots)):
+            if free(slots[k]):
+                taken.append(slots[k])
+                return slot, track, slots[k]
         raise Invalid(f"{where}: no empty slot below this clip; add a scene first")
+
+    if not isinstance(items, list) or len(items) != len(resolved):
+        raise Invalid("'targets' must list the duplicated clips")
+    # Named destinations are reserved first, so an automatic one never takes a named slot.
+    prepared = [named(i, it["to"]) if it.get("to") is not None else None
+                for i, it in enumerate(items)]  # fmt: skip
+    prepared = [e if e is not None else below(i) for i, e in enumerate(prepared)]
 
     def write(e):
         slot, track, dest = e
@@ -508,7 +541,7 @@ def duplicate_clips(ctx, p, t):
             **clip_row(dest.clip),
         }
 
-    return two_pass(items, validate, write)
+    return run_writes(prepared, write)
 
 
 # ---- launch (kept for the batch-2 launch route; settle readback in the host) -------------------

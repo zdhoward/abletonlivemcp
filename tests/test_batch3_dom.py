@@ -433,6 +433,43 @@ def test_delete_and_duplicate_session_clips(env):
     assert not song.tracks[0].clip_slots[0].has_clip
 
 
+def test_duplicate_clips_honors_to_and_refuses_before_any_write(env):
+    """N2 (round 6): the public `to` destination was ignored and the copy always went to the
+    next empty slot below. It is now resolved and checked for every item before any write."""
+    song, dispatch = env
+    group = Track("Grp")
+    group.is_foldable = True
+    song.tracks += [Track("Bass"), group]
+    midi_clip(song)
+    song.tracks[0].clip_slots[1].clip = Clip(2.0)  # occupied: never overwritten
+
+    def dup(*destinations):
+        (r,) = refs(dispatch, {"kind": "clip", "track": 0, "scene": 0})
+        targets = [item(r, **({"to": to} if to else {})) for to in destinations]
+        return dispatch("duplicate_clips", {"targets": targets})
+
+    def filled():
+        return [[s.has_clip for s in t.clip_slots] for t in song.tracks]
+
+    out = ok(dup({"track": 2, "scene": 2}))
+    assert (out["applied"][0]["track"], out["applied"][0]["scene"]) == (2, 2)
+    before = filled()
+    assert before[0] == [True, True, False] and before[2] == [False, False, True]
+    for destinations, match in (
+        ([{"track": 0, "scene": 1}], "holds a clip"),
+        ([{"track": 1, "scene": 0}], "a MIDI clip needs a MIDI track"),
+        ([{"track": 3, "scene": 0}], "regular track"),
+        ([{"track": 2, "scene": 9}], "scene"),
+        ([{"track": 2, "scene": 0}, {"track": 2, "scene": 0}], "claimed by another item"),
+        ([None, {"track": 0, "scene": 2}], "no empty slot below"),  # a named slot is reserved
+    ):
+        with pytest.raises(ValueError, match=match):
+            dup(*destinations)
+        assert filled() == before  # refused before the first write
+    out = ok(dup(None))  # no `to`: the next empty slot below, as before
+    assert out["applied"][0]["scene"] == 2 and song.tracks[0].clip_slots[2].has_clip
+
+
 # ---- notes -------------------------------------------------------------------------------------
 
 

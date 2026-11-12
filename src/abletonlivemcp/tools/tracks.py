@@ -148,9 +148,11 @@ def _structural(
 
 
 def _routable(targets: list[StructTarget], routes: dict[str, str], verb: str) -> None:
-    for t in targets:
+    for i, t in enumerate(targets):
         if t.kind not in routes:
             raise unsupported(f"{verb} {t.kind}", "Live 12.2 has no API for it")
+        if t.to is not None and (verb != "duplicate" or t.kind != "clip" or t.scene is None):
+            raise Invalid(f"targets[{i}]: 'to' is only for duplicating a Session clip")
 
 
 def _check_expect_names(targets: list[StructTarget]) -> None:
@@ -185,6 +187,8 @@ def live_delete(targets: StructTargets) -> dict:
 
 @_create
 def live_duplicate(targets: StructTargets) -> dict:
-    """Duplicate tracks, scenes or clips (clip `to`: destination slot). The copy lands next
-    to the source. Devices and returns cannot be duplicated on Live 12.2."""
+    """Duplicate tracks, scenes or Session clips. Tracks and scenes land next to the source;
+    a clip goes to `to` (an empty slot on a regular track of its kind; refused, never
+    overwritten, when taken) or else to the next empty slot below it. Devices and returns
+    cannot be duplicated on Live 12.2."""
     return _structural(targets, DUPLICATE_ROUTES, "duplicate")
