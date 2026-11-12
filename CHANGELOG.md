@@ -17,6 +17,10 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   listing; explicit nulls are still accepted). A test now budgets the default 36-tool listing.
 - README and validation docs: current version, dated validation status, and the buildup
   section no longer documents flags the example script does not have.
+- Fix: `live_create_clips(if_exists="replace")` deleted the occupied clips before the new
+  clips were validated, so a refused create (for example a MIDI clip on an audio track) still
+  lost the originals. Replace now runs as one bridge call that validates every target first,
+  then deletes and creates; each replaced row says `replaced` (the old clip's name).
 
 ## [0.11.0] - 2026-11-11
 

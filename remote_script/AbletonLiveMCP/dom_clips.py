@@ -18,6 +18,7 @@ from .dom_common import (
     _index,
     _note_specification,
     _number,
+    _same,
     _slot,
     clip_address_nodes,
     for_deletion,
@@ -338,18 +339,29 @@ def audio_file(path, where):
 
 
 def create_clips(ctx, p, t):
-    """New session clips in empty slots: MIDI (length, optional notes) or audio (file)."""
+    """New session clips: MIDI (length, optional notes) or audio (file). A slot must be empty
+    unless its target says ``replace: true`` (needs the delete permission at the gate); every
+    target is validated before the first old clip is deleted, so a refusal deletes nothing.
+    A replaced slot's row says ``replaced`` (the old clip's name)."""
     items, resolved = p.get("targets"), t["targets"]
+    planned = []  # slots of earlier items in this batch
 
     def validate(i, item):
         where = f"targets[{i}]"
         slot, track = resolved[i].obj, resolved[i].nodes.get("track")
         if track is None:
             raise ValueError(f"{where}: clips are created on regular tracks only")
-        if slot.has_clip:
+        if any(_same(slot, s) for s in planned):
+            raise ValueError(f"{where}: this slot is already a target of this call")
+        planned.append(slot)
+        replace = item.get("replace", False)
+        if not isinstance(replace, bool):
+            raise ValueError(f"{where}: 'replace' must be a bool")
+        if slot.has_clip and not replace:
             raise ValueError(f"{where}: clip slot is occupied")
         kind = item.get("kind", "midi")
         prepared = {"slot": slot, "track": track, "kind": kind, "notes": ()}
+        prepared["replace"] = slot.has_clip and replace
         if kind == "midi":
             if not track.has_midi_input:
                 raise ValueError(f"{where}: a MIDI clip needs a MIDI track")
@@ -381,6 +393,10 @@ def create_clips(ctx, p, t):
 
     def write(e):
         slot = e["slot"]
+        replaced = None
+        if e["replace"] and slot.has_clip:
+            replaced = slot.clip.name
+            slot.delete_clip()
         if e["kind"] == "midi":
             slot.create_clip(e["length"])
         else:
@@ -396,6 +412,8 @@ def create_clips(ctx, p, t):
         }
         if e["notes"]:
             row["note_ids"] = list(ids or ())
+        if replaced is not None:
+            row["replaced"] = replaced
         return row
 
     return two_pass(items, validate, write)

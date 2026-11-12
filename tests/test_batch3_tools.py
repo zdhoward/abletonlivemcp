@@ -166,6 +166,13 @@ def test_create_clips_if_exists_skip_leaves_occupied_slots_alone(bridge):
     assert out["skipped"] == [{"track": 0, "scene": 0}]
 
 
+def test_create_clips_replace_is_one_bridge_call(bridge, monkeypatch):
+    monkeypatch.setattr(clips, "load_config", lambda: {})  # legacy config: every permission
+    call(clips.live_create_clips, clips=[{"track": 0, "scene": 0}], if_exists="replace")
+    assert [m for m, _ in bridge.calls] == ["ref_issue", "create_clips"]  # no separate delete
+    assert bridge.last()[1]["targets"][0]["replace"] is True
+
+
 def test_automation_parameter_by_name_resolves_to_its_index(bridge):
     bridge.replies["device_parameters"] = [
         {"index": 0, "name": "Device On"},

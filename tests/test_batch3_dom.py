@@ -316,6 +316,21 @@ def test_create_clips_midi_with_notes_and_audio_needs_audio_track(env, tmp_path)
     assert not song.tracks[0].clip_slots[2].has_clip
 
 
+def test_create_clips_replace_validates_everything_before_deleting(env):
+    song, dispatch = env
+    old = song.tracks[1].clip_slots[0].clip = Clip(8.0, audio=True)
+    keys = midi_clip(song)
+    a, b = refs(
+        dispatch, {"kind": "slot", "track": 0, "scene": 0}, {"kind": "slot", "track": 1, "scene": 0}
+    )
+    # a MIDI clip on the audio track refuses: neither occupied slot loses its clip
+    targets = [{"ref": a["ref"], "replace": True}, {"ref": b["ref"], "replace": True}]
+    bad(dispatch, "create_clips", {"targets": targets}, "MIDI track")
+    assert song.tracks[0].clip_slots[0].clip is keys and song.tracks[1].clip_slots[0].clip is old
+    out = ok(dispatch("create_clips", {"targets": targets[:1]}))
+    assert out["applied"][0]["replaced"] == "clip" and song.tracks[0].clip_slots[0].clip is not keys
+
+
 def test_set_clips_widens_loop_before_narrowing(env):
     song, dispatch = env
     clip = midi_clip(song)
