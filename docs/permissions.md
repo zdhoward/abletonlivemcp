@@ -28,6 +28,17 @@ in `live_set_cue_points` (`action: "delete"`), `live_create_clips(if_exists="rep
 the server asks the human to confirm them through the same form as `live_delete`; the same
 tool's non-deleting calls need only `edit` and ask nothing.
 
+Before asking, the server reads the objects the call would delete from Live and lists them
+(names, cue times, clip spans). The write is bound to exactly those objects through bridge
+references (`expect_clip` / `expect_replace` for replaces): if the Set changes while the form
+is open, the call refuses (`stale_target`, `target_changed`) and nothing is deleted. An
+acceptance that does not match a question shown for these same arguments refuses
+`confirmation_stale`.
+
+The Remote Script decides whether a bridge call deletes from strictly typed arguments: a
+`replace` that is not a JSON boolean is refused before any permission decision, so a string
+like `"true"` cannot delete with only `edit`.
+
 An empty permissions list permits no writes. Unknown names or a malformed list grant no
 capabilities. The host and Live bridge independently enforce their respective operations;
 the read-only switch always takes precedence. Existing configurations without a permissions

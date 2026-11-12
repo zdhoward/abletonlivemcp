@@ -36,8 +36,11 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   `live_transport.beats`, `live_get_tracks` and the view/recording tools) refused it with a
   validation error. The advertised schemas are unchanged.
 - Fix: `live_get_arrangement` without `tracks` no longer refuses on a Set with more than 64
-  tracks. A whole-Set read stops at the 256-row clip budget and returns `next_track`; call
-  again with `next_track` to continue.
+  tracks. A whole-Set read returns 256 clip rows per page and a `cursor`; call again with
+  `cursor` to continue exactly where the page stopped, including inside a track with more than
+  256 clips (that row says `partial`). A cursor is refused as `stale_cursor` when the Set
+  changed between pages. (Replaces the `next_track` of an earlier unreleased build, which
+  skipped the rest of such a track.)
 - Fix: `live_transport` and `live_launch` reported "(not applied)" when the command succeeded
   but the state readback after it failed. They now return the command's reply with
   `settled` / `state` set to null and a `verification` message.
@@ -49,7 +52,33 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
 - Fix: a running cue add/delete operation kept writing after writes were switched off
   (`read_only`) or the needed permission was removed. It now rereads the policy before each
   change and stops: `partial` with the earlier results kept, or `failed` (`not_applied`) when
-  nothing had changed yet.
+  nothing had changed yet. This includes the rename of a newly added cue, and any ending puts
+  a moved playhead back and reports it (`playhead`). The reply no longer claims `undo_steps`.
+- Security: `"replace"` on the clip-creating bridge methods must be a JSON boolean. A string
+  such as `"true"` used to replace clips while the permission check saw no delete; it is now
+  refused before any permission decision, and the gate and the handler read the flag the same
+  way.
+- Confirmations of deletes (`live_delete`, `live_set_cue_points` deletes and the replace modes
+  of `live_create_clips` / `live_create_arrangement_clips`) list the objects read from Live
+  just before asking (names, cue times, clip spans), and the write is bound to exactly those
+  objects: if the Set changes while the form is open, the call refuses (`stale_target` /
+  `target_changed`) instead of deleting something else. Bridge replace targets now carry
+  `expect_clip` / `expect_replace`.
+- Privacy: only deliberate refusals (a dedicated refusal class) are echoed; any other error,
+  including a native `ValueError` from Live, is logged by type and location and reported
+  without its text, on the Remote Script and the server.
+- Fix: once a bridge call has written, a later failure in that call (state readback,
+  `end_undo_step`) keeps the receipt instead of reporting "not applied". `live_launch` treats
+  a malformed readback as a verification note.
+- Fix: a second bounded recording while one runs is refused (`recording_active`); overlapping
+  recordings used to leave recording armed and playback running.
+- Fix: a long bridge command (for example creating many tracks) no longer comes back as "may
+  have been applied" after 5 s while Live is still running it; the client waits for the reply
+  up to the exchange deadline. Track batches are capped at what Live 12.2 finishes inside the
+  bridge budget: 32 per create/delete call, 16 per duplicate call.
+- Build: developer probe modules are no longer shipped in wheels built straight from the
+  source tree; the distribution check refuses probes, caches and development directories.
+- Docs: the README's list of tools that can take several undo steps is corrected.
 
 ## [0.11.0] - 2026-11-11
 

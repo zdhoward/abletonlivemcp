@@ -5,6 +5,30 @@ versions and operating systems have not been qualified against a running DAW.
 
 What has been checked, newest first:
 
+- **Unreleased, review round 2 (2026-11-12, Live 12.2, disposable Basic Set, never saved;
+  Remote Script reinstalled before each run):**
+  - A `"replace"` of `"true"`, `1` or `"replace"` sent straight to the bridge with only `edit`
+    was refused ("must be a bool"); `replace: true` was refused `permission_denied`; the
+    occupant clip stayed.
+  - Confirmations over stdio with an elicitation client: the question listed the track
+    (`'r3-a' (track 10)`), the cue (`'r3-cue' at beat 200.0`) and the occupant clip read from
+    Live. Shifting the track index while the form was open made `live_delete` refuse
+    `stale_target` (nothing deleted); swapping the occupant made the replace refuse
+    `target_changed` (the newcomer stayed); adding an earlier cue while the form was open
+    still deleted only the confirmed cue. A fresh accept deleted exactly what was shown.
+  - Cue add with `read_only` or the `edit` permission revoked as it started: `failed` /
+    `not_applied`, no cue, playhead unmoved, no `undo_steps` claim. An unrevoked add put the
+    playhead back (4 -> 4, reported `restored`). The task finishes within one bridge round
+    trip, so a revocation between its seek and toggle could not be timed from outside; that
+    phase is covered offline.
+  - A track with 300 arrangement clips read through the whole-Set cursor in 2 pages (first
+    page `partial` at 232 of that track's rows): all 300 rows, none repeated; a delete between
+    pages made the old cursor refuse `stale_cursor`.
+  - A second bounded recording during a 12-beat arrangement recording was refused
+    `recording_active`; afterwards recording was off and transport stopped.
+  - Track batches: create 8/16/32 took 4.9/5.5/7.9 s, delete 2.6/3.3/5.1 s, duplicate 32 empty
+    tracks 7.6 s; create 64 took 8.7-14.2 s and once exceeded the 10 s request budget
+    (`TimeoutAfterStart`, all 64 created), hence the 32/16 caps.
 - **Unreleased (after 0.11.0):** on Live 12.2 with a Set containing nested group tracks,
   `live_get_arrangement` read the whole Set (group rows marked `group: true`), and an
   arrangement-clip reference on a group track refused with a readable message. Before this
