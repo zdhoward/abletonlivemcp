@@ -1,7 +1,13 @@
-# Validation and limits (v0.11 beta)
+# Validation and limits (1.0.0)
 
-This beta targets Ableton Live 12.2 on Windows. Host Python is 3.10 or later. Other Live
+This release targets Ableton Live 12.2 on Windows. Host Python is 3.10 or later. Other Live
 versions and operating systems have not been qualified against a running DAW.
+
+The evidence below predates the 1.0.0 version bump; original versions and build IDs are
+retained for traceability. No new Live run was performed for the packaging/docs release.
+The package retains its Beta classifier: this record covers disposable, unsaved Sets,
+and several failure paths have offline coverage only. A 1.0 version does not expand
+the qualified scope. macOS remains untested.
 
 What has been checked, newest first:
 
@@ -281,4 +287,4 @@ tests and Ruff passed. Server wheel and Remote Script were reinstalled before th
 - Knowledge is optional local reference material, not an audio analysis or automatic mixing engine.
 
 Writes are off by default. Unknown mutation outcomes must be read back before any further edits;
-never retry blindly. Keep backups of valuable Sets while testing the beta.
+never retry blindly. Keep backups of valuable Sets.

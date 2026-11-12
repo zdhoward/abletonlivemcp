@@ -1,4 +1,4 @@
-"""The frozen v2 tool surface and final-proof metadata (batch 1; docs/plans/v2-contracts.md).
+"""The frozen v2 tool surface and Live scenario proof metadata.
 
 ``FINAL_SURFACE`` maps each tool module (``tools/<module>.py``) to the exact tool names it
 registers when v2 is complete: 30 core + 27 opt-in = 57. The toolset of a module follows the T-002
@@ -95,7 +95,7 @@ CORE_LISTING_TARGET = 64_000
 DEFAULT_INPUT_BYTES = 36_000
 DEFAULT_LISTING_BYTES = 80_000
 
-# The nine ordered phases of the single end-of-project proof (fast-track plan). Scenario files
+# The nine ordered phases of the complete Live proof. Scenario files
 # in scripts/final_cases/*.json name one of these as their ``phase``.
 PHASES: tuple[str, ...] = (
     "connection",

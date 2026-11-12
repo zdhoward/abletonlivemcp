@@ -73,7 +73,7 @@ def test_reruns_merge_only_same_build_rows_and_never_touch_the_full_run(monkeypa
     monkeypatch.setattr(proof, "log_modules", lambda: ("", []))
     case = {"id": "a", "phase": proof.PHASES[0], "steps": []}
     hashes = {"a": proof.case_hash(case), "b": proof.case_hash({**case, "id": "b"})}
-    build = proof.build_identity({"script": {"version": "0.11.0", "build": "sha256:1"}}, "12.2")
+    build = proof.build_identity({"script": {"version": "1.0.0", "build": "sha256:1"}}, "12.2")
     build["dirty"] = False
 
     def row(rid, **mark):

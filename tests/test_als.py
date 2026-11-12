@@ -1,5 +1,5 @@
 """Tests use small SYNTHETIC XML mirroring the structure described in docs/research-deep-review.md.
-Real Live files are needed to confirm the schema; see tasks/todo.md."""
+Real Live files are needed to confirm the schema; see docs/validation.md."""
 
 import gzip
 from pathlib import Path

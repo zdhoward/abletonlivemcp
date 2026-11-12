@@ -14,4 +14,6 @@ labels: bug
 - abletonlivemcp version:
 - MCP client (Claude Desktop, Claude Code, etc.):
 
-**Logs** (remove personal paths if you like)
+**Diagnostics** (`live_hello` output, if available; remove private names and paths)
+
+**Logs** (redact personal paths and project content; never attach `bridge.json` or secrets)

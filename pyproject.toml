@@ -5,19 +5,31 @@ build-backend = "hatchling.build"
 [project]
 name = "abletonlivemcp"
 dynamic = ["version"]
-description = "MCP server that lets LLMs assist in Ableton Live: racks, macros, organization, and chain building."
+description = "Model Context Protocol (MCP) server for Ableton Live: let AI assistants like Claude read and edit your Live Set."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [{ name = "Zach Howard" }]
-keywords = ["ableton", "ableton-live", "mcp", "llm", "music-production"]
+keywords = ["ableton", "ableton-live", "ableton-live-12", "mcp", "model-context-protocol", "claude", "ai-assistant", "music-production", "midi", "daw"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Operating System :: Microsoft :: Windows",
   "Topic :: Multimedia :: Sound/Audio",
 ]
 dependencies = ["mcp>=2,<3"]
+
+[project.urls]
+Homepage = "https://github.com/zdhoward/abletonlivemcp"
+Repository = "https://github.com/zdhoward/abletonlivemcp"
+Issues = "https://github.com/zdhoward/abletonlivemcp/issues"
+Changelog = "https://github.com/zdhoward/abletonlivemcp/blob/main/CHANGELOG.md"
 
 [project.scripts]
 abletonlivemcp = "abletonlivemcp.server:main"

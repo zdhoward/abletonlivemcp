@@ -11,5 +11,9 @@ This tool runs a local socket server inside Ableton Live and reads/writes local 
 - XML/project readers bound decompression and reject entities; no arbitrary Python execution tool is exposed.
 - No telemetry or external API credentials are required.
 
-Report vulnerabilities privately via GitHub's "Report a vulnerability" (Security tab) once the repo is
-public. Please do not open public issues for security problems.
+## Reporting and supported versions
+
+Security fixes target the latest release; upgrade both the host and Remote Script together.
+Use [GitHub private vulnerability reporting](https://github.com/zdhoward/abletonlivemcp/security/advisories/new)
+if available. If the form is unavailable, open an issue requesting a private contact without
+including vulnerability details. Never post exploit details, secrets or `bridge.json` publicly.

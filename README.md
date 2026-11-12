@@ -1,209 +1,172 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<img src="assets/icon.svg" width="64" height="64" alt="AbletonLiveMCP icon">
 
-# AbletonLiveMCP
+# AbletonLiveMCP: MCP server for Ableton Live
 
-An MCP server that lets Claude (or any MCP-capable LLM) assist you inside Ableton Live, with control
-as close to native as possible. Not an autonomous producer: you stay in charge, the LLM does the tedious parts.
+[![CI](https://github.com/zdhoward/abletonlivemcp/actions/workflows/ci.yml/badge.svg)](https://github.com/zdhoward/abletonlivemcp/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-> **v0.11.0 beta.** Built for Ableton Live 12.2 on Windows. Ready for hands-on testing;
-> [validation and limitations](docs/validation.md) describe what was checked.
+AbletonLiveMCP is a Model Context Protocol (MCP) server for Ableton Live. It lets AI
+assistants like Claude read and edit your Live Set through a local Remote Script.
 
-## Install and upgrade
+## What you can do
 
-With Python 3.10 or later, install a tagged release (or download the wheel from the
-[releases page](https://github.com/zdhoward/abletonlivemcp/releases)):
+- Read your session, tracks, clips, notes and device parameters.
+- Edit the mixer and MIDI notes, load installed devices and build effect chains.
+- Write Session clip automation and make bounded arrangement edits.
+- Work with stock drum kits and existing rack macros through optional toolsets.
 
-```sh
-python -m pip install "git+https://github.com/zdhoward/abletonlivemcp@v0.11.0"
+Writes start disabled. The server reads changes back and reports what Live stored.
+See [supported operations and limits](docs/validation.md#known-limits).
+
+## Requirements
+
+- Ableton Live 12.2 on Windows is the qualified setup. Other Ableton Live 12 versions
+  and macOS are untested. The [validation record](docs/validation.md) lists the tested cases.
+- Python 3.10 or later, on the same machine and user account as Live.
+- An MCP client that supports stdio. Deletion also needs a client with form elicitation.
+- Git for installation from GitHub, or a downloaded release wheel.
+
+## Install
+
+The command below uses the `v1.0.0` tag once it is published. PyPI availability is not
+assumed. In Windows PowerShell, create an environment in a folder you will keep:
+
+```powershell
+py -3 -m venv .venv
+.venv/Scripts/python.exe -m pip install "git+https://github.com/zdhoward/abletonlivemcp@v1.0.0"
 ```
 
-From a clone, `python -m pip install .` does the same.
+On macOS, use `python3 -m venv .venv` and `.venv/bin/python` instead. You can also install a
+wheel from [GitHub Releases](https://github.com/zdhoward/abletonlivemcp/releases).
+For pipx or uv, see [installation alternatives and upgrades](docs/setup.md).
 
-1. Close Live, then install the Remote Script into your **User Library** (the one Live is set to
-   use; check Settings > Library). The installer only touches a folder it created itself:
+## Set up the Remote Script
 
+1. Close Live. Find your User Library in Live's Preferences/Settings > Library.
+   Pass that folder to the installer; it must contain a `Presets` folder:
+
+   ```powershell
+   .venv/Scripts/abletonlivemcp-install.exe "<path to your User Library>"
    ```
-   abletonlivemcp-install "<path to your User Library>"
-   ```
 
-   The first run also creates `~/.abletonlivemcp/bridge.json` with a private secret (owner-only).
-   Treat that file like a password. A new `AbletonLiveMCP` folder appears under `Remote Scripts`.
-2. Start Live, then choose **AbletonLiveMCP** in Settings > Link, Tempo & MIDI > Control Surface.
-   Live resets that slot to None if the script fails to load; check `Log.txt` if so.
-3. **Writes are off by default.** `bridge.json` ships with `"read_only": true`, so every write is
-   refused. Set it to `false` (and nothing else) when you want the assistant to change your Set.
-   Live re-reads the file on every write; no restart needed. New configurations also limit
-   writes to `transport` and `edit`; MIDI file operations and structural deletion need their
-   own permissions. See [local permissions](docs/permissions.md).
+   On macOS, use `.venv/bin/abletonlivemcp-install`.
+2. Start Live. In Preferences > Link/Tempo/MIDI > Control Surface (called
+   Settings > Link, Tempo & MIDI in Live 12), select `AbletonLiveMCP` in a free slot.
 
-**Upgrading from an older build** (before the authenticated bridge): the old script speaks a
-different protocol and the new server refuses it. The installer refuses a folder it did not
-create, so first move your old `AbletonLiveMCP` folder out of `Remote Scripts` (keep a copy
-elsewhere, not inside the library), then run the install step above and restart Live.
-Reinstalls keep only the latest backup of the previous version. Do not run the server and the
-script from different versions: they will report "protocol 2 verification failed".
+The installer creates `Remote Scripts/AbletonLiveMCP` in your User Library and a private
+`~/.abletonlivemcp/bridge.json`. That file contains a secret. Never share it or put it
+in an MCP client config.
 
-On Windows the strict permission check on `bridge.json` runs on the host side. Inside Live the
-embedded Python has no `ctypes`, so Live applies a weaker check (location, no links); it logs one
-line saying so at startup.
+## Connect your MCP client
 
-## Connect your assistant
+Replace `C:/path/to/.venv/Scripts/abletonlivemcp.exe` below with the absolute path to
+the environment you created. On macOS, use the absolute `.venv/bin/abletonlivemcp` path.
+Open a new client session after saving the configuration.
 
-Use the Python executable where you installed the package. Live runs on one machine and the
-bridge secret is per user, so add the server at **user scope** in Claude Code:
+### Claude Desktop and Cursor
 
-```sh
-claude mcp add abletonlive --scope user -- python -m abletonlivemcp.server
-```
-
-| Scope | Stored in | Use it for |
-| --- | --- | --- |
-| `user` (recommended) | `~/.claude.json`, top level | Every project on this machine, private to you |
-| `local` (default) | `~/.claude.json`, under this project | Trying a development checkout in one project |
-| `project` | `.mcp.json`, committed | A shared template repo; put settings in `${VARS}`, never secrets |
-
-Settings are environment variables, so they can differ per scope, for example
-`claude mcp add --scope user --env ABLETONLIVEMCP_TOOLSETS=core,drums abletonlive -- python -m abletonlivemcp.server`.
-The bridge secret lives only in `~/.abletonlivemcp/bridge.json`; never copy it into an MCP config.
-
-Other clients take the equivalent JSON:
+For Claude Desktop, open Settings > Developer > Edit Config and merge this into
+`claude_desktop_config.json`. For Cursor, use `~/.cursor/mcp.json`.
 
 ```json
 {
   "mcpServers": {
     "abletonlive": {
-      "command": "python",
-      "args": ["-m", "abletonlivemcp.server"]
+      "command": "C:/path/to/.venv/Scripts/abletonlivemcp.exe",
+      "args": []
     }
   }
 }
 ```
 
-For Codex: `codex mcp add abletonlive -- python -m abletonlivemcp.server`.
-Restart the client after changing its MCP configuration. Ask it to call `live_hello`, then
-`live_get_session`. To make edits, enable writes in your private bridge config as described above.
-Destructive operations also require an MCP client that supports form elicitation.
+Quit and reopen Claude Desktop after saving.
 
-## Using it on a real project
+### Claude Code
 
-1. **Save a copy of the Set first.** Writes are verified and most tool writes are one Live undo
-   step (`live_undo`). `live_set_labels`, `live_build_chain`, a `live_delete` or
-   `live_duplicate` mixing kinds (tracks with scenes, clips or devices: one bridge call per
-   kind) and `live_set_cue_points` (it runs as an operation) can take several undo steps; their
-   replies make no `undo_steps` claim. A batch has no rollback.
-2. Start read-only: ask for `live_hello` and a summary of the Set. Nothing can change yet.
-3. When you want edits, set `"read_only": false` in `~/.abletonlivemcp/bridge.json`. The default
-   permissions (`transport`, `edit`) allow playback and edits but not deletion or MIDI files.
-   Add `"delete"` or `"files"` only when you need them; deletion always asks you to confirm,
-   including cue deletes and the replace modes of the clip-creating tools.
-4. Enable opt-in toolsets only for the job at hand (`drums`, `racks`, `arrangement`...). Fewer
-   tools means faster, more accurate tool choice.
-5. If something goes wrong, check Live's `Log.txt` and the server's stderr. Set
-   `ABLETONLIVEMCP_AUDIT=1` to log every allowed write (tool and permission, never arguments).
-   Report issues with the `live_hello` output and the refusal text.
+```powershell
+claude mcp add --transport stdio --scope user abletonlive -- "C:/path/to/.venv/Scripts/abletonlivemcp.exe"
+```
 
-## What it does
+### VS Code
 
-- Cover what the other Ableton MCP servers do (sessions, tracks, clips, mixer, devices, browser loading) and go
-  further, with verified writes (every change is read back and reported as stored), read-only by default, and
-  fewer, batched calls. Includes mixer/routing, extended note edits and bounded arrangement operations.
-- Read and edit stock drum kits, pads and nested Simpler devices; custom pad loading is unavailable on 12.2.
-- Set up scenes and plugin stacks; replicate a described vocal chain with the plugins you own.
-- Edit existing rack macros; automatic grouping and macro mapping are unavailable on 12.2.
-- Organize tracks and maintain local labels and project-usage reports. Native browser Collections are not writable.
-
-## Knowledge base
-
-Knowledge notes are personal, optional local reference material. They are excluded from Git and
-from both package formats. Enable the `library` toolset and set `ABLETONLIVEMCP_KNOWLEDGE` to your
-own Markdown directory to use `live_knowledge` and knowledge resources. Keep private notes outside
-the public source tree (the local `knowledge/` directory is also ignored).
-
-## Toolsets and limits
-
-A default install enables 36 tools: the 30-tool `core` toolset (session/transport/undo,
-tracks/mixer/scenes, clips/notes, device parameters/order, browser/load operations, chain
-planning/building and confirmed delete/duplicate) plus the 2-tool `automation` toolset (Session-clip
-envelopes) and 4-tool `arrangement` toolset (timeline clips and locators). Set
-`ABLETONLIVEMCP_TOOLSETS` to add more (`core`, `automation`, `arrangement` stay on), or `all` for 57 tools.
-Without the variable, a `"toolsets": "drums,racks"` key in `~/.abletonlivemcp/bridge.json` does the
-same. Either is read once when the server starts: start a new client session after a change
-(restarting the server process alone keeps the client's old tool list).
-Opt-ins: `drums`, `racks`, `organize`, `als`, `library`, `recording`,
-`editing`, `view`, `devices-advanced`, `files`. Resources and ten workflow prompts supplement tools.
-
-Live 12.2 cannot insert rack chains or map macros automatically. Custom drum-pad loading and pad
-copy refuse unsupported; stock kits, pad reads/mute and rack macro values are available. Unsafe
-arrangement split/move/take-lane edits and arrangement automation refuse unsupported. Capabilities
-vary by object; `live_hello` explains support and refusals. Reads have a supported scope (for
-example 256 arrangement clips per track and 512 cue points per arrangement read); past it they
-refuse `beyond_scope` instead of returning a partial answer. See [validation](docs/validation.md)
-for tested paths and limitations; a listed tool does not imply every action is supported.
-
-Saving is yours: the Live 12.2 control-surface API has no call to save a Set or open one, so
-this server never saves and does not qualify what survives a save and reopen. Set labels
-(`live_set_labels`, stored with `get_data`/`set_data` on the Song and tracks) are experimental
-for that reason; every other write is ordinary Live state that Live saves with the Set.
-
-Offline scans use `ABLETONLIVEMCP_ALS_ROOTS`; MIDI files use `ABLETONLIVEMCP_FILE_ROOTS`
-(both separated with the platform path separator). Global labels use `ABLETONLIVEMCP_DATA_DIR`.
-Writes remain off by default and destructive tools require client form elicitation.
-Set `ABLETONLIVEMCP_READ_ONLY_TOOLS=1` to list only read tools. This is a discovery filter;
-the private bridge configuration still enforces access. MIDI file roots must be explicitly
-configured; the home and temporary directories are no longer allowed by default.
-
-## Arrangement buildup demo
-
-Ask: **"Turn Intro into an EDM buildup, with the drop on DROP."** Read locators with
-`live_get_arrangement`, build Session automation carriers and envelopes with `live_create_clips` and
-`live_set_automation`, then place each with `live_create_arrangement_clips`:
+In your workspace's `.vscode/mcp.json`:
 
 ```json
-{"clips":[{"track":7,"kind":"from_session","scene":0,"start":0}]}
+{
+  "servers": {
+    "abletonlive": {
+      "type": "stdio",
+      "command": "C:/path/to/.venv/Scripts/abletonlivemcp.exe",
+      "args": []
+    }
+  }
+}
 ```
 
-Session automation becomes track automation on the Arrangement. Call
-`live_transport(action="back_to_arranger")` before playback. Reading or writing timeline
-envelopes directly is unavailable, as are moving, splitting and take-lane edits of
-arrangement clips.
+For any other stdio client, launch `abletonlivemcp` with no arguments, or the installed
+environment's Python with `-m abletonlivemcp.server`.
 
-Automation takes `points: [{"time":0,"value":0},{"time":16,"value":1}]` (two or three
-points, linear segments; requires `clear:true` and spans the whole clip) or `steps`.
-There is no curve setter; shape curves in Live.
+## Enable writes and try it
 
-For a working end-to-end example, `python examples/filter_sweep_buildup.py` talks to the
-server over stdio and, on any Set, adds a MIDI track with an Auto Filter and automates a
-16-beat high-pass sweep. It leaves existing tracks alone and never saves the Set. Use
-`--length` to change the sweep and `--play` to launch the clip.
+1. Open a disposable Set or save a copy in Live. Ask your assistant to call
+   `live_hello` with `{}`. Check `script.match`, `read_only` and the capability report.
+2. Call `live_get_session` with `{}` to read tempo, transport and session counts.
+3. Stop playback yourself. In your existing `~/.abletonlivemcp/bridge.json`, change
+   `"read_only": true` to `"read_only": false`. Preserve the secret and other fields.
+4. Call `live_set_session` with `{"metronome": true}`, then `live_get_session` to check it.
+   Restore the original metronome value with the same tool when done.
 
-## Development
+Set `read_only` back to `true` when you finish. The switch takes effect without a restart.
+New configs allow only `transport` and `edit`. Other permissions are opt-in; see
+[local permissions](docs/permissions.md). Ordinary edits do not ask for confirmation.
+After an unknown outcome, read the state before another write.
 
-```
-python -m pip install -e ".[dev]"
-ruff check . && pytest
-```
+## Troubleshooting
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed MIT. No telemetry.
+- If Live resets the Control Surface to None, check the User Library and Live's
+  `Log.txt`: `%APPDATA%/Ableton/Live 12.2/Preferences/Log.txt` on Windows.
+  Use the folder for your exact Live version.
+- The bridge uses `127.0.0.1:9877`. Check for a port conflict or another Live instance.
+- After upgrading, close Live, rerun the Remote Script installer and restart Live and
+  the MCP client. A version/build mismatch in `live_hello` needs this reinstall.
+- If the client cannot find the command, use the absolute executable path from your
+  installation environment.
 
-## Distribution
+See [setup and troubleshooting](docs/setup.md) for macOS log paths and installer errors.
 
-The repository retains source, public documentation, tests, CI and their reusable proof helpers.
-Personal knowledge, research, task notes and one-off development scripts stay local. The root
-`.gitignore` uses an explicit public-file allowlist; add new public files deliberately.
+## FAQ
 
-Wheels and source archives contain only the runtime source, Remote Script, package metadata and
-license/attribution files. They do not contain tests, scripts, knowledge notes, research or the
-developer probe modules (`probe_pNN.py`): those exist only in the source tree, load all-or-none,
-and run only when the private configuration says `"dev_probes": true`.
+### What is AbletonLiveMCP?
 
-To build and verify a clean installation without touching Live:
+It is an open-source Ableton Live MCP server. An AI assistant uses its tools to inspect
+and edit a Live Set through the Model Context Protocol.
 
-```sh
-python -m pip install build
-python -m build --sdist --wheel
-python scripts/check_distribution.py dist --smoke
-```
+### Which Live versions work?
 
----
+Live 12.2 on Windows is qualified for the cases in the [validation record](docs/validation.md).
+Other versions have not been qualified.
 
-Created in [T3 Code](https://t3.codes).
+### Does it work on Mac?
+
+macOS is untested. The installer has platform-specific file permission handling, but I
+have not qualified it against Live on a Mac.
+
+### Is it safe, and can it change my Set without asking?
+
+Writes are disabled by default. Once you enable them, ordinary edits can run without
+another prompt. Deletion needs a separate permission and a confirmation form. Keep a
+copy of your Set; batches have no rollback. See [write safety](docs/usage.md#write-safety).
+
+### Which AI clients work with it?
+
+Use a client with stdio MCP support, such as Claude Desktop, Claude Code, Cursor or
+VS Code. The configurations above launch the same server. Client versions differ in
+their support for form elicitation, which destructive tools require.
+
+## More information
+
+- [Setup, upgrades and troubleshooting](docs/setup.md)
+- [Toolsets and usage](docs/usage.md)
+- [Local permissions](docs/permissions.md)
+- [Validation and known limits](docs/validation.md)
+- [Changelog](CHANGELOG.md) and [1.0.0 release notes](docs/release-notes-1.0.0.md)
+- [Contributing and tests](CONTRIBUTING.md), [security reporting](SECURITY.md) and [MIT license](LICENSE)

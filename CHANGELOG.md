@@ -6,7 +6,17 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
-Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live.
+## [1.0.0] - 2026-11-12
+
+Upgrade: upgrade the host package, close Live, reinstall the Remote Script with
+`abletonlivemcp-install "<path to your User Library>"`, then restart Live and your MCP
+client. Preserve your private bridge configuration. Server and script must match;
+check `live_hello`. Existing configs without `permissions` retain their earlier policy;
+add an explicit list as described in [permissions](docs/permissions.md).
+
+- Add client setup examples, troubleshooting, public package metadata and CI for
+  Python 3.10 through 3.14. Live qualification remains limited to
+  12.2 on Windows; see [validation](docs/validation.md).
 
 - Fix: a cue add accepts only a cue at the requested time or on its bar. Before, any new
   cue counted, so a cue someone else added at 200 during an add at 10 was renamed and
@@ -276,8 +286,7 @@ First public beta for hands-on testing. Tested on Ableton Live 12.2/Windows; see
 - MCP tools split into `abletonlivemcp/tools/<domain>.py`; names, descriptions and schemas unchanged.
 
 ### Removed
-- The Jev/TypeSafe judge backend, its `jev` extra and the `typesafe-sdk` dev dependency; the local
-  rules judge is the only backend.
+- The external judge backend and its dependencies; the local rules judge is the only backend.
 
 ### Fixed
 - A missing request parameter now returns a readable refusal ("not applied") instead of a generic error.

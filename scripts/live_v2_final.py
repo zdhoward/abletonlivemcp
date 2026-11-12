@@ -1,4 +1,4 @@
-"""The single end-of-project v2 proof (fast-track plan; contract: docs/plans/v2-contracts.md).
+"""The complete Live scenario proof (contract: scripts/proof_contract.py).
 
 One long-lived stdio MCP client with every toolset enabled runs every scenario in
 ``scripts/final_cases/*.json`` in the nine fixed phases (``proof_contract.PHASES``). Batches add

@@ -27,6 +27,10 @@
 /docs/*
 !/docs/validation.md
 !/docs/permissions.md
+!/docs/release-notes-1.0.0.md
+!/docs/setup.md
+!/docs/usage.md
+!/docs/distribution-1.0.0.md
 !/docs/data/
 /docs/data/*
 !/docs/data/live-12.2-api.json
