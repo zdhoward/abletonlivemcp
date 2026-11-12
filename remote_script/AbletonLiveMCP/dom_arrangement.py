@@ -48,6 +48,9 @@ CAPABILITIES = {
 }
 
 CLIP_ROWS = 256
+# Supported scope: arrangement clips per track and per take lane. Live returns a whole collection
+# on every access, so this bounds the native work of each read page; past it a read refuses.
+CLIP_SCOPE = 256
 SCAN_TRACKS = 256  # track rows per whole-Set read page (continue with cursor)
 CUE_ACTIONS = 8  # adds + deletes per call (one bounded operation)
 EPS = 1e-6
@@ -63,16 +66,29 @@ def _in_range(clip, span):
     return span is None or (clip.end_time > span[0] and clip.start_time < span[1])
 
 
-def _track_rows(track, include, span):
+def _scoped_clips(parent, where):
+    """``_sorted_clips`` for a read, refused past ``CLIP_SCOPE`` (the supported scope)."""
+    clips = _sorted_clips(parent)
+    if len(clips) > CLIP_SCOPE:
+        raise Refused(
+            "beyond_scope",
+            f"{where} holds {len(clips)} arrangement clips; reads support up to {CLIP_SCOPE}",
+        )
+    return clips
+
+
+def _track_rows(track, include, span, sel=None):
     """A track's in-range clip rows in reading order: its own clips, then each take lane's.
     Returns ``(rows, lane_names)``; a row is ``(lane index or None, clip index, clip)``."""
-    rows, lanes = [], []
+    rows, lanes, where = [], [], f"track {sel}"
     if "clips" in include:
-        rows += [(None, i, c) for i, c in enumerate(_sorted_clips(track)) if _in_range(c, span)]
+        clips = _scoped_clips(track, where)
+        rows += [(None, i, c) for i, c in enumerate(clips) if _in_range(c, span)]
     if "take_lanes" in include:
         for k, lane in enumerate(list(getattr(track, "take_lanes", None) or ())):
             lanes.append(lane.name)
-            rows += [(k, i, c) for i, c in enumerate(_sorted_clips(lane)) if _in_range(c, span)]
+            clips = _scoped_clips(lane, f"{where} take lane {k}")
+            rows += [(k, i, c) for i, c in enumerate(clips) if _in_range(c, span)]
     return rows, lanes
 
 
@@ -178,7 +194,7 @@ def get_arrangement(ctx, p):
         if not has_arrangement_clips(track):
             rows.append({"track": sel, "name": track.name, "group": True})  # clips on members
             continue
-        items, lanes = _track_rows(track, include, span)
+        items, lanes = _track_rows(track, include, span, sel)
         done = skip if scan and n == 0 else 0
         now = _row_ids(items)
         if done and not (

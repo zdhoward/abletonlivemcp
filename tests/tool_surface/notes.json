@@ -431,7 +431,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity). The default window includes notes past the clip end (past_clip_end\ncounts them). More pages: call again with the same clip/window and the reply's `cursor`;\nall pages are one snapshot (single-use cursor, 30 s to use it), refused if the clip is replaced\nor its notes change before the last page.",
+  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity). The default window includes notes past the clip end (past_clip_end\ncounts them). More pages: call again with the same clip/window and the reply's `cursor`;\nall pages are one snapshot (single-use cursor, 10 min), refused if the clip is replaced or\nits notes change before the last page. A window over 12,000 notes refuses (beyond_scope).",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {

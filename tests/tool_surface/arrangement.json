@@ -511,7 +511,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows per reply. With `tracks`, a longer read\nis cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`,\ncall again with it (same other arguments) to continue exactly there, even inside a track\n(that row says partial). A cursor is single use (10 min); one from a Set whose tracks\nchanged, or with other arguments, is refused. Group tracks: rows say group: true.",
+  "description": "Arrangement clips per track (index = order by start), take lanes, cue points (index =\norder by time), song length and loop. 256 clip rows per reply. With `tracks`, a longer read\nis cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`,\ncall again with it (same other arguments) to continue exactly there, even inside a track\n(that row says partial). A cursor is single use (10 min); one from a Set whose tracks\nchanged, or with other arguments, is refused. Group tracks: rows say group: true. A track\nor take lane over 256 clips refuses (beyond_scope).",
   "inputSchema": {
    "properties": {
     "cursor": {

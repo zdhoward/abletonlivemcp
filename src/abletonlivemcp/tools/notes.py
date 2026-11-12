@@ -34,8 +34,8 @@ def live_get_notes(
     """Notes by time with note_id (detailed adds probability, velocity_deviation,
     release_velocity). The default window includes notes past the clip end (past_clip_end
     counts them). More pages: call again with the same clip/window and the reply's `cursor`;
-    all pages are one snapshot (single-use cursor, 30 s to use it), refused if the clip is replaced
-    or its notes change before the last page."""
+    all pages are one snapshot (single-use cursor, 10 min), refused if the clip is replaced or
+    its notes change before the last page. A window over 12,000 notes refuses (beyond_scope)."""
     params = {**clip.model_dump(exclude_none=True), "pitch_from": pitch_from}
     params.update(pitch_span=pitch_span, limit=limit)
     if cursor is not None:

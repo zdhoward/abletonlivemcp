@@ -635,17 +635,19 @@ def test_whole_set_read_pages_past_64_tracks(env):
 
 
 def test_a_track_denser_than_one_page_continues_inside_it(env):
-    """R7: the old next_track skipped the rest of a track holding more than 256 clips."""
+    """R7: the old next_track skipped the rest of a track the 256-row page cut. (Round 6: one
+    track holds at most 256 clips, so the cut comes from the rows of the tracks before it.)"""
     song, dispatch = env
-    song.tracks = [Track("Dense"), Track("After")]
-    song.tracks[0].arrangement_clips = [Clip(1.0, start=float(k)) for k in range(300)]
-    song.tracks[1].arrangement_clips = [Clip(1.0, start=0.0)]
+    song.tracks = [Track("Before"), Track("Dense"), Track("After")]
+    song.tracks[0].arrangement_clips = [Clip(1.0, start=float(k)) for k in range(100)]
+    song.tracks[1].arrangement_clips = [Clip(1.0, start=float(k)) for k in range(200)]
+    song.tracks[2].arrangement_clips = [Clip(1.0, start=0.0)]
     pages, seen = read_all(dispatch)
-    assert seen == [(0, k) for k in range(300)] + [(1, 0)]
-    assert pages[0]["tracks"][0]["partial"] is True and len(pages) == 2
+    assert seen == [(0, k) for k in range(100)] + [(1, k) for k in range(200)] + [(2, 0)]
+    assert pages[0]["tracks"][1]["partial"] is True and len(pages) == 2
     # the cut track changed before the next page: refused, never a silent skip or repeat
     first = dispatch("get_arrangement", {"include": ["clips"]})
-    song.tracks[0].arrangement_clips.pop(0)
+    song.tracks[1].arrangement_clips.pop(0)
     out = dispatch("get_arrangement", {"include": ["clips"], "cursor": first["cursor"]})
     assert out["code"] == "stale_cursor"
     first = dispatch("get_arrangement", {"include": ["clips"]})
@@ -883,3 +885,45 @@ def test_lab_cue_that_lands_elsewhere_is_reported_applied_not_refused():
     out = dispatch("ref_lab", params | {"generation": gate.generation})
     assert out["status"] == "applied_mismatch" and out["requested"] == 99999.0
     assert out["time"] == 0.0 and len(song.cue_points) == 2
+
+
+def test_paged_reads_do_bounded_native_work_and_enforce_scope(env):
+    """F8 (round 6): every note page fetched and sorted the whole clip (12,000 native rows per
+    500-row page). A paged read now reads the window once on the first page and once more on
+    the last (the change check); pages between read no notes. Past the supported scope (12,000
+    notes per window, 256 arrangement clips per track) a read refuses."""
+    from AbletonLiveMCP import dom_arrangement, dom_notes
+
+    song, dispatch = env
+    clip = midi_clip(song)
+    clip.notes = [Note(i, 60 + i % 12, i * 0.25, 0.2) for i in range(1, dom_notes.NOTE_SCOPE + 1)]
+    fetched, real = [], clip.get_notes_extended
+
+    def counted(*window):
+        raw = real(*window)
+        fetched[-1] += len(raw)
+        return raw
+
+    clip.get_notes_extended = counted
+    page, per_page, seen = {"cursor": None}, [], 0
+    while True:
+        fetched.append(0)
+        extra = {"cursor": page["cursor"]} if page["cursor"] else {}
+        page = dispatch("get_notes", {"track": 0, "scene": 0, "limit": 500, **extra})
+        per_page.append(fetched[-1])
+        seen += len(page["notes"])
+        if page["cursor"] is None:
+            break
+    assert seen == page["total"] == 12000 and len(per_page) == 24
+    assert per_page[0] == per_page[-1] == 12000 and set(per_page[1:-1]) == {0}
+    clip.notes.append(Note(99999, 60, 0.0, 0.1))
+    out = dispatch("get_notes", {"track": 0, "scene": 0, "limit": 500})
+    assert out["code"] == "beyond_scope"
+
+    track = song.tracks[0]
+    track.arrangement_clips = [Clip(1.0, start=float(i)) for i in range(dom_arrangement.CLIP_SCOPE)]
+    out = dispatch("get_arrangement", {"tracks": [0], "include": ["clips"]})
+    assert len(out["tracks"][0]["clips"]) == dom_arrangement.CLIP_SCOPE
+    track.arrangement_clips.append(Clip(1.0, start=999.0))
+    out = dispatch("get_arrangement", {"tracks": [0], "include": ["clips"]})
+    assert out["code"] == "beyond_scope"

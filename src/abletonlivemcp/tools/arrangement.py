@@ -48,7 +48,8 @@ def live_get_arrangement(
     is cut (truncated). Without, it reads the whole Set in pages: when a reply has `cursor`,
     call again with it (same other arguments) to continue exactly there, even inside a track
     (that row says partial). A cursor is single use (10 min); one from a Set whose tracks
-    changed, or with other arguments, is refused. Group tracks: rows say group: true."""
+    changed, or with other arguments, is refused. Group tracks: rows say group: true. A track
+    or take lane over 256 clips refuses (beyond_scope)."""
     params = {"include": include or ["clips", "cues"]}
     if tracks is not None:
         params["tracks"] = tracks

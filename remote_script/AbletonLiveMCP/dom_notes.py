@@ -32,6 +32,9 @@ MAX_TIME = 16384.0
 # the documented 12,000-note maximum stays far inside the 16384-node reply cap (the rest of the
 # receipt is a few dozen nodes). Counts are always exact; ids past the budget are cut and flagged.
 RECEIPT_IDS = 4000
+# Supported scope: notes in one read window. The first page holds them all (a cursor snapshot),
+# so this bounds the native work and the memory of a paged read; past it a read refuses.
+NOTE_SCOPE = 12000
 FIELDS = (
     "note_id", "pitch", "start_time", "duration", "velocity", "mute", "probability",
     "velocity_deviation", "release_velocity",
@@ -163,6 +166,12 @@ def get_notes(ctx, p):
         raise _stale("the clip at that address is gone") from None
     if token is None:
         rows, start = _snapshot(clip, window), 0
+        if len(rows) > NOTE_SCOPE:
+            raise Refused(
+                "beyond_scope",
+                f"that window holds {len(rows)} notes; reads support up to {NOTE_SCOPE} "
+                "(narrow time_from/time_span or pitch_from/pitch_span)",
+            )
         state = {"generation": ctx.safety.generation, "clip": clip, "args": args, "rows": rows}
     else:
         if not isinstance(token, str) or len(token) > 64:
