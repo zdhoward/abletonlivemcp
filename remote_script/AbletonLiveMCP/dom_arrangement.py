@@ -313,17 +313,50 @@ def _cue_index(song, cue):
 
 def _cue_task(ctx, queue, previous, params):
     """The tick-driven cue protocol. ``queue``: ``[("add", time, name) | ("delete", cue, time)]``.
-    Returns None while pending, then a result dict. Before each step that may change the Set,
-    the write policy (read_only, permissions for ``params``) is read again: when it now refuses,
-    the task stops there (``partial``, or ``not_applied`` before the first change) and keeps
-    the earlier results; the playhead is then left where it is."""
-    st = {"i": 0, "phase": "seek", "before": None, "waits": 0, "done": []}
+    Returns None while pending, then a result dict. The write policy (read_only, permissions for
+    ``params``) is read again right before every step that writes: a seek, a toggle, and the
+    rename of a cue just added. When it now refuses, the task stops there, keeping the earlier
+    results; a toggle already made is still observed (it cannot be called back) but its new cue
+    is not renamed. Every ending sends a moved playhead back to where it was and observes it
+    there (cleanup to the prior state, never gated); ``playhead`` says where it ended.
+    ``status``: ``complete``; ``partial`` (stopped after a cue change, or the playhead did not
+    return); ``not_applied`` (stopped with nothing changed)."""
+    st = {"i": 0, "phase": "seek", "before": None, "waits": 0, "done": [], "moved": False}
 
-    def finish(extra=None):
-        ctx.song.current_song_time = previous
-        out = {"status": "complete", "results": st["done"]}
-        if extra:
-            out.update(extra)
+    def refusal():
+        try:
+            ctx.safety.check_policy("set_cue_points", params)
+        except Refused as exc:
+            return f"refused:{exc.code}: {exc.message}"
+        return None
+
+    def end(error=None):
+        """Begin the ending: a moved playhead is sent back, then ``settle`` observes it."""
+        st["end"] = {"status": "complete", "results": st["done"]}
+        if error is not None:
+            st["end"].update(stopped_at=st["i"], error=error)
+        if st["moved"]:
+            ctx.song.current_song_time = previous
+        st["phase"], st["waits"] = "restore", 0
+        return settle()
+
+    def settle():
+        out = st["end"]
+        restored = True
+        if st["moved"]:
+            at = ctx.song.current_song_time
+            restored = abs(at - previous) <= EPS
+            if not restored and st["waits"] < 20:
+                st["waits"] += 1
+                return None
+            out["playhead"] = {"moved": True, "restored": restored, "at": at, "was": previous}
+        else:
+            out["playhead"] = {"moved": False, "at": previous}
+        if "error" in out:
+            out["status"] = "partial" if st["done"] or not restored else "not_applied"
+        elif not restored:
+            out["status"] = "partial"
+            out["error"] = f"the playhead stayed at {out['playhead']['at']}, not {previous}"
         return out
 
     def advance(row):
@@ -332,28 +365,30 @@ def _cue_task(ctx, queue, previous, params):
         st["phase"], st["waits"] = "seek", 0
 
     def step():
-        # an in-flight toggle is observed to its end; the final playhead restore is cleanup
-        in_flight = st["phase"] == "observe_toggle" or st["i"] >= len(queue)
+        if st["phase"] == "restore":
+            return settle()
         try:
-            if not in_flight:
-                ctx.safety.check_policy("set_cue_points", params)
-        except Refused as exc:
-            return {
-                "status": "partial" if st["done"] else "not_applied",
-                "results": st["done"],
-                "stopped_at": st["i"],
-                "error": f"refused:{exc.code}: {exc.message}",
-            }
-        return advance_one()
+            return advance_one()
+        except Exception:
+            if st["moved"]:  # best effort before the task turns unknown
+                try:
+                    ctx.song.current_song_time = previous
+                except Exception:  # noqa: BLE001
+                    pass
+            raise
 
     def advance_one():
         song = ctx.song
         if st["i"] >= len(queue):
-            return finish()
+            return end()
         if song.is_playing:
             raise RuntimeError("the transport started during a cue edit")
         action, a, b = queue[st["i"]]
         time_ = a if action == "add" else b
+        if st["phase"] in ("seek", "observe_seek"):  # both may write: recheck first
+            error = refusal()
+            if error is not None:
+                return end(error)
         if st["phase"] == "seek":
             if action == "add" and _cue_at(song, time_) is not None:
                 cue = _cue_at(song, time_)
@@ -362,6 +397,7 @@ def _cue_task(ctx, queue, previous, params):
                 return advance({"action": "add", "time": cue.time, "reused": True})
             if action == "delete" and not any(_same(c, a) for c in song.cue_points):
                 return advance({"action": "delete", "time": time_, "already_gone": True})
+            st["moved"] = True
             song.current_song_time = time_
             st["phase"] = "observe_seek"
             return None
@@ -369,13 +405,9 @@ def _cue_task(ctx, queue, previous, params):
             if abs(song.current_song_time - time_) > EPS:
                 st["waits"] += 1
                 if st["waits"] > 20:
-                    return finish(
-                        {
-                            "status": "partial",
-                            "stopped_at": st["i"],
-                            "error": f"the playhead stayed at {song.current_song_time}, not "
-                            f"{time_} (past the song end?); nothing toggled",
-                        }
+                    return end(
+                        f"the playhead stayed at {song.current_song_time}, not {time_} (past "
+                        "the song end?); nothing toggled"
                     )
                 return None
             selected = cue_selected(song)
@@ -390,16 +422,21 @@ def _cue_task(ctx, queue, previous, params):
             song.set_or_delete_cue()
             st["phase"], st["waits"] = "observe_toggle", 0
             return None
-        now = list(song.cue_points)
+        now = list(song.cue_points)  # observe_toggle: the toggle is made; observe it to its end
         if action == "add":
             new = [c for c in now if not any(_same(c, o) for o in st["before"])]
             if not new:
                 return None
             if len(new) != 1 or abs(new[0].time - time_) > EPS:
                 raise RuntimeError(f"unexpected cue change: {[c.time for c in new]}")
+            row = {"action": "add", "time": new[0].time, "cue": _cue_index(song, new[0])}
             if b:
+                error = refusal()  # the rename is a write of its own
+                if error is not None:
+                    advance({**row, "renamed": False})
+                    return end(error)
                 new[0].name = b
-            return advance({"action": "add", "time": new[0].time, "cue": _cue_index(song, new[0])})
+            return advance(row)
         if any(_same(c, a) for c in now):
             return None
         return advance({"action": "delete", "time": time_})

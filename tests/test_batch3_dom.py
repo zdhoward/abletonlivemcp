@@ -575,6 +575,44 @@ def test_cue_task_stops_when_writes_are_switched_off_midway():
     assert dispatch.operations.get(op)["state"] == "failed" and len(song.cue_points) == 2
 
 
+@pytest.mark.parametrize("revoke", ["read_only", "permission"])
+@pytest.mark.parametrize(
+    ("ticks", "status", "cues", "playhead_moved"),
+    [
+        (0, "not_applied", [8.0], False),  # before the seek
+        (1, "not_applied", [8.0], True),  # after the seek, before the toggle
+        (2, "partial", [8.0, 16.0], True),  # toggled; the new cue's rename is a write too
+    ],
+)
+def test_cue_task_rechecks_policy_before_every_write(revoke, ticks, status, cues, playhead_moved):
+    """R4: revoking writes (read_only, or the edit permission) at any phase stops the task
+    before its next write; a moved playhead goes back and the outcome says what changed."""
+    song, read_only, perms = Song(), [False], {"edit", "delete"}
+    safety = Safety(lambda: song, policy=lambda: read_only[0], permissions=lambda: set(perms))
+    dispatch = handlers.make_dispatch(lambda: song, types.SimpleNamespace(), safety)
+    song._time = 4.0
+    p = {"cues": [], "add": [{"time": 16.0, "name": "Drop"}], "generation": safety.generation}
+    out = ok(dispatch("set_cue_points", p))
+    assert "undo_steps" not in out  # its writes land later, outside this call's undo step
+    op = out["applied"][0]["operation"]
+    for _ in range(ticks):
+        dispatch.operations.tick()
+        song.settle()
+    read_only[0] = revoke == "read_only"
+    if revoke == "permission":
+        perms.discard("edit")
+    for _ in range(4):
+        dispatch.operations.tick()
+        song.settle()
+    snap = dispatch.operations.get(op)
+    result = snap["result"]
+    assert result["status"] == status and "refused:" in result["error"], snap
+    assert snap["state"] == ("failed" if status == "not_applied" else "ready")
+    assert sorted(c.time for c in song.cue_points) == cues
+    assert all(c.name != "Drop" for c in song.cue_points)  # never renamed after revocation
+    assert result["playhead"]["moved"] is playhead_moved and song.current_song_time == 4.0
+
+
 def test_cue_add_refuses_while_playing(env):
     song, dispatch = env
     song.is_playing = True
