@@ -76,7 +76,7 @@ def test_the_question_names_live_objects_and_the_write_uses_them(mode, monkeypat
         return server.Plan(["track 'Bass' (track 2)"], {"rows": ["ref-shown"]})
 
     monkeypatch.setitem(server.PLANS, "live_fake_delete", plan)
-    monkeypatch.setattr(server, "_plans", {})
+    monkeypatch.setattr(server, "_confirm_plans", {})
     applied, asked = [], []
     result = _call(
         _surface(applied, monkeypatch, seen), mode, _answer("accept", {"confirm": True}, asked)
@@ -84,7 +84,7 @@ def test_the_question_names_live_objects_and_the_write_uses_them(mode, monkeypat
     assert not result.is_error, _text(result)
     assert "deletes exactly:\n- track 'Bass' (track 2)" in asked[-1].message
     assert applied == [[2, "return:0"]] and reads and seen == [{"rows": ["ref-shown"]}]
-    assert server._plans == {}  # consumed by the write, never reused
+    assert server._confirm_plans == {}  # consumed by the write, never reused
 
 
 @pytest.mark.parametrize("mode", MODES)

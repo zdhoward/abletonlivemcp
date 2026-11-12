@@ -362,7 +362,7 @@ class Plan:
 # tool name -> plan(arguments) for the deleting paths; filled by the tool modules.
 PLANS: dict[str, Callable[[dict], Plan]] = {}
 _PLAN_TTL = 900.0  # seconds a shown plan stays bindable (a form left open longer re-asks)
-_plans: dict[str, tuple[float, dict]] = {}
+_confirm_plans: dict[str, tuple[float, dict]] = {}  # not _plans: that is the chain PlanStore
 _plans_lock = threading.Lock()
 _confirmed_plan: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "abletonlivemcp_confirmed_plan", default=None
@@ -393,14 +393,14 @@ def _plan_key(name: str, args: dict) -> str:
 def _remember_plan(name: str, args: dict, data: dict) -> None:
     now = time.monotonic()
     with _plans_lock:
-        for key in [k for k, (at, _d) in _plans.items() if now - at > _PLAN_TTL]:
-            del _plans[key]
-        _plans[_plan_key(name, args)] = (now, data)
+        for key in [k for k, (at, _d) in _confirm_plans.items() if now - at > _PLAN_TTL]:
+            del _confirm_plans[key]
+        _confirm_plans[_plan_key(name, args)] = (now, data)
 
 
 def _take_plan(name: str, args: dict) -> dict | None:
     with _plans_lock:
-        entry = _plans.pop(_plan_key(name, args), None)
+        entry = _confirm_plans.pop(_plan_key(name, args), None)
     if entry is None or time.monotonic() - entry[0] > _PLAN_TTL:
         return None
     return entry[1]

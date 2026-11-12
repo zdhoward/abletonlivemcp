@@ -173,7 +173,7 @@ def test_create_clips_if_exists_skip_leaves_occupied_slots_alone(bridge):
 def test_create_clips_replace_writes_against_the_confirmed_occupant(bridge, monkeypatch):
     """R3: the write reuses the references the confirmation showed; none are issued after."""
     bridge.replies["get_clips"] = {"clips": [{"track": 0, "scene": 0, "name": "n", "length": 4}]}
-    monkeypatch.setattr(server, "_plans", {})
+    monkeypatch.setattr(server, "_confirm_plans", {})
     args = call_args(clips.live_create_clips, clips=[{"track": 0, "scene": 0}], if_exists="replace")
     with pytest.raises(server.ToolFailure, match="not_confirmed"):  # replace deletes: confirm
         clips.live_create_clips(**args)

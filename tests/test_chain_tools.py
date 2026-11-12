@@ -171,15 +171,30 @@ class Bridge:
         }
 
 
-@pytest.fixture
-def live(monkeypatch, tmp_path):
+def _wire(monkeypatch, tmp_path) -> "Bridge":
     bridge = Bridge()
     monkeypatch.setattr(server._bridge, "call", bridge.call)
     monkeypatch.setattr(server, "_writable", lambda *_args: None)
     monkeypatch.setattr(chain, "POLL", 0)
     monkeypatch.setenv("ABLETONLIVEMCP_PREFS", str(tmp_path / "none.json"))
+    return bridge
+
+
+@pytest.fixture
+def live(monkeypatch, tmp_path):
+    bridge = _wire(monkeypatch, tmp_path)
     monkeypatch.setattr(server, "_plans", chain.PlanStore())
     return bridge
+
+
+def test_plan_then_build_works_on_the_module_state_the_server_starts_with(monkeypatch, tmp_path):
+    """Regression: a confirmation cache once rebound ``server._plans`` to a dict at import, so
+    every plan/build failed in production while the store-replacing fixture hid it."""
+    assert type(server._plans) is chain.PlanStore  # as imported, nothing replaced
+    live = _wire(monkeypatch, tmp_path)
+    live.write_value = 0.5
+    plan = server.live_plan_chain(0, [{"device": "Compressor", "params": {"Level": "-30 dB"}}])
+    assert server.live_build_chain(plan["plan_id"])["status"] == "complete"
 
 
 def _plan(*stages):
