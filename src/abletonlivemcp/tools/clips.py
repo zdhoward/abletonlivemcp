@@ -8,10 +8,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from ..config import load_config
 from ..models import ClipRef, ResponseFormat, TrackSel
 from ..models_clips import ClipEdit, NewClip
-from ..permissions import allowed_permissions
 from ..server import _call, _create, _overwrite, _read, _untrusted, clip_selector, issue_refs, shape
 
 CONCISE = ("track", "scene", "arrangement", "name", "kind", "length", "start", "is_playing")
@@ -69,11 +67,6 @@ def live_create_clips(
     permission and your confirmation). Re-running with skip or replace is idempotent.
     Arrangement: live_create_arrangement_clips; from a .mid: live_import_midi."""
     skipped: list[dict] = []
-    if if_exists == "replace" and "delete" not in allowed_permissions(load_config()):
-        raise ValueError(
-            "permission_denied: if_exists='replace' deletes clips and needs the local "
-            '"delete" permission in the private bridge config'
-        )
     if if_exists == "skip":
         busy = _occupied(clips)
         skipped = [{"track": t, "scene": s} for t, s in sorted(busy)]

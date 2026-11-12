@@ -181,9 +181,7 @@ def create_arrangement_clips(ctx, p, t):
             raise ValueError(f"{where}: 'kind' must be 'midi', 'audio' or 'from_session'")
         overlaps = _overlaps(track, start, end)
         prepared["replace"] = []
-        if item.get("replace"):
-            if "delete" not in ctx.safety._permissions():
-                raise Refused("permission_denied", "replace requires local permission delete")
+        if item.get("replace"):  # the write gate required the delete permission
             if kind != "from_session":
                 raise ValueError(f"{where}: replace is only supported for from_session")
             require(ctx, "arrangement.delete_clip", ((track, "delete_clip"),))

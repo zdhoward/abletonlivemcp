@@ -14,6 +14,7 @@ from mcp.server.mcpserver import MCPServer
 
 from abletonlivemcp import server
 from abletonlivemcp.models import BatchTarget, TrackSel
+from abletonlivemcp.models_clips import CueEdit
 
 MODES = ["legacy", "auto"]
 
@@ -100,6 +101,27 @@ def test_absent_capability_refuses_and_model_confirm_is_ignored(mode, monkeypatc
     result = _call(surface, mode, _answer("decline"), forged)
     assert result.is_error and "refused:not_confirmed" in _text(result), _text(result)
     assert applied == []
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_call_that_deletes_asks_even_on_a_non_destructive_tool(mode, monkeypatch):
+    monkeypatch.setattr(server, "_writable", lambda *_args: None)
+    applied, asked = [], []
+
+    def live_set_cue_points(cues: list[CueEdit] | None = None) -> dict:
+        """Cue edits (test double)."""
+        applied.append([c.action for c in cues])
+        return {"status": "complete", "items": [], "stopped_at": None, "error": None, "applied": []}
+
+    surface = MCPServer("confirm-test")
+    run = server._guard(live_set_cue_points, server.OVERWRITE, True)
+    surface.add_tool(run, name="live_fake_delete", annotations=server.OVERWRITE)
+    callback = _answer("decline", asked=asked)
+    rename = {"cues": [{"cue": 0, "action": "rename", "name": "A"}]}
+    assert not _call(surface, mode, callback, rename).is_error and not asked  # no question
+    result = _call(surface, mode, callback, {"cues": [{"cue": 1, "action": "delete"}]})
+    assert result.is_error and "refused:not_confirmed" in _text(result), _text(result)
+    assert "This call deletes" in asked[0].message and applied == [["rename"]]
 
 
 def test_confirm_never_appears_in_the_input_schema(monkeypatch):

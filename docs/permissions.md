@@ -20,7 +20,13 @@ to false enables only the listed capabilities:
 | `transport` | Playback, launches, selection, and view changes |
 | `edit` | Track/clip/device edits, recording, chain builds, and undo/redo |
 | `files` | MIDI export; MIDI import additionally requires `edit` |
-| `delete` | Structural deletion, with human form confirmation at the MCP layer |
+| `delete` | Deletion, with human form confirmation at the MCP layer (see below) |
+
+`delete` covers `live_delete` and every call that deletes as part of another tool: cue deletes
+in `live_set_cue_points` (`action: "delete"`), `live_create_clips(if_exists="replace")` and
+`live_create_arrangement_clips` with `replace: true`. Those calls need `edit` and `delete`, and
+the server asks the human to confirm them through the same form as `live_delete`; the same
+tool's non-deleting calls need only `edit` and ask nothing.
 
 An empty permissions list permits no writes. Unknown names or a malformed list grant no
 capabilities. The host and Live bridge independently enforce their respective operations;

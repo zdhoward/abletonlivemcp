@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from ..config import load_config
 from ..models import ResponseFormat, TrackSel
 from ..models_clips import ArrangementEdit, CueAdd, CueEdit, NewArrangementClip, Span
-from ..permissions import allowed_permissions
 from ..server import (
     _call,
     _create,
@@ -54,9 +52,8 @@ def live_create_arrangement_clips(clips: list[NewArrangementClip]) -> dict:
     placed after the track's last clip), or from_session (scene index on the same track;
     copies notes and Session automation to the timeline). Overlaps refuse. Copies are kept;
     direct arrangement envelope reads are unavailable. replace=True deletes only clips wholly
-    inside the destination span (needs local delete permission). Take lanes refuse on 12.2."""
-    if any(c.replace for c in clips) and "delete" not in allowed_permissions(load_config()):
-        raise ValueError("permission_denied: replace needs the local delete permission")
+    inside the destination span (needs the local delete permission and your confirmation).
+    Take lanes refuse on 12.2."""
     refs = issue_refs([{"kind": "track", "track": c.track} for c in clips])
     targets = [{"ref": r["ref"], **fields(c, ("track",))} for r, c in zip(refs, clips, strict=True)]
     return _call("create_arrangement_clips", {"targets": targets})
@@ -77,8 +74,9 @@ def live_edit_arrangement_clips(targets: list[ArrangementEdit]) -> dict:
 @_overwrite
 def live_set_cue_points(cues: list[CueEdit] | None = None, add: list[CueAdd] | None = None) -> dict:
     """Rename/jump/delete cues (index from live_get_arrangement) and add cues at exact times
-    (transport stopped; an existing cue there is reused). Adds and deletes run as an operation:
-    poll live_get_operation until ready."""
+    (transport stopped; an existing cue there is reused). Deleting needs the local delete
+    permission and your confirmation. Adds and deletes run as an operation: poll
+    live_get_operation until ready."""
     refs = issue_refs([{"kind": "cue", "cue": c.cue} for c in cues]) if cues else []
     params: dict = {
         "cues": [

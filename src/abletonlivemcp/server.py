@@ -47,7 +47,7 @@ from .chain import ChainError, Refusal
 from .config import ConfigError, load_config
 from .models import ResponseFormat
 from .output_models import TOOL_OUTPUTS
-from .permissions import allowed_permissions, required_permissions
+from .permissions import DELETING, allowed_permissions, deletes, required_permissions
 
 mcp = MCPServer("abletonlivemcp")
 _bridge = BridgeClient()
@@ -170,8 +170,9 @@ def _explain(exc: Exception) -> str:
     return f"invalid_request: {exc} (not applied)"
 
 
-def _writable(tool: str | None = None) -> None:
-    """Host policy, aligned with the bridge: writes only when the config says read_only: false."""
+def _writable(tool: str | None = None, args: dict | None = None) -> None:
+    """Host policy, aligned with the bridge: writes only when the config says read_only: false.
+    ``args`` (the call's arguments) matter for tools that delete only sometimes."""
     try:
         config = load_config()
         read_only = config.get("read_only") is not False
@@ -183,7 +184,8 @@ def _writable(tool: str | None = None) -> None:
             "there to allow them; it is read on every call, no restart needed (not applied)"
         )
     if tool is not None:
-        missing = required_permissions(tool) - allowed_permissions(config)
+        required = required_permissions(tool, args)
+        missing = required - allowed_permissions(config)
         if missing:
             needed = ", ".join(sorted(missing))
             _audit.warning("permission_denied tool=%s permissions=%s", tool, needed)
@@ -191,7 +193,7 @@ def _writable(tool: str | None = None) -> None:
                 f"permission_denied: {tool} requires local permission(s) {needed}; "
                 "update permissions in the private bridge config (not applied)"
             )
-        granted = ",".join(sorted(required_permissions(tool))) or "-"
+        granted = ",".join(sorted(required)) or "-"
         _audit.info("allowed tool=%s permissions=%s", tool, granted)
 
 
@@ -318,16 +320,27 @@ def _plain(value):
     return value
 
 
+def _brief(value):
+    """A long list (notes, for instance) is summarised in the confirmation text."""
+    return f"<{len(value)} items>" if isinstance(value, list) and len(value) > 8 else value
+
+
 def confirmation_message(name: str, args: dict) -> str:
-    """What the human reads: the tool, every target with its expect_name, the other arguments."""
+    """What the human reads: the tool, every target with its expect_name, the other arguments.
+    A tool that deletes only for some arguments also says what this call deletes."""
     args = {k: _plain(v) for k, v in args.items() if v is not None}
-    targets = args.pop("targets", None)
+    key = next((k for k in ("targets", "clips", "cues") if isinstance(args.get(k), list)), None)
+    targets = args.pop(key) if key else None
     lines = [f"Confirm the destructive operation {_title(name)} ({name})."]
+    if name in DELETING:
+        lines.append(f"This call deletes: {DELETING[name][1]}.")
     if isinstance(targets, list):
         lines.append(f"Targets ({len(targets)}):")
         for i, target in enumerate(targets, 1):
             if isinstance(target, dict):
-                rest = ", ".join(f"{k}={v!r}" for k, v in target.items() if k != "expect_name")
+                rest = ", ".join(
+                    f"{k}={_brief(v)!r}" for k, v in target.items() if k != "expect_name"
+                )
                 lines.append(f"{i}. {rest}; expect_name={target.get('expect_name')!r}")
             else:
                 lines.append(f"{i}. {target!r}; expect_name=None")
@@ -356,7 +369,10 @@ def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
 
     def ask(**kwargs):
         ctx = kwargs.pop(_CTX_PARAM)
-        _writable(name)  # policy wins: never ask a human to approve a write that will refuse
+        if name in DELETING and not deletes(name, kwargs):
+            return None  # this call deletes nothing: no question (the guard re-checks the args)
+        # policy wins: never ask a human to approve a write that will refuse
+        _writable(name, kwargs)
         if _confirmation_unavailable(ctx):
             raise ToolFailure(
                 _explain(
@@ -380,7 +396,11 @@ def _confirmation_resolver(name: str, params: list[inspect.Parameter]):
 
 
 def _check_confirmed(name: str, outcome) -> None:
-    if not (isinstance(outcome, AcceptedElicitation) and outcome.data.confirm is True):
+    if not (
+        isinstance(outcome, AcceptedElicitation)
+        and isinstance(outcome.data, Confirmation)
+        and outcome.data.confirm is True
+    ):
         action = getattr(outcome, "action", "missing")
         detail = "accepted without ticking Apply" if action == "accept" else action
         raise ToolFailure(
@@ -404,19 +424,24 @@ def _register(fn, annotations: ToolAnnotations, mutation: bool):
 def _guard(fn, annotations: ToolAnnotations, mutation: bool):
     """Wrap a tool body with the write policy, the mutation lock, refusal reporting and, for
     the DESTRUCTIVE preset, the human confirmation. Registers nothing."""
-    confirm = annotations == DESTRUCTIVE
+    # DESTRUCTIVE tools are always confirmed; a tool in DELETING is confirmed for the calls
+    # that delete (replace modes, cue delete), through the same form question.
+    always = annotations == DESTRUCTIVE
+    confirm = always or fn.__name__ in DELETING
     sig = inspect.signature(fn, eval_str=True)
     if confirm and _RESERVED_PARAMS & set(sig.parameters):
-        raise RuntimeError(f"{fn.__name__}: a DESTRUCTIVE tool may not take a confirm argument")
+        raise RuntimeError(f"{fn.__name__}: a confirmed tool may not take a confirm argument")
 
     @functools.wraps(fn)
     def run(*args, **kwargs):
         try:
             if confirm:
-                _check_confirmed(fn.__name__, kwargs.pop(CONFIRM_PARAM, None))
+                outcome = kwargs.pop(CONFIRM_PARAM, None)
+                if always or deletes(fn.__name__, kwargs):
+                    _check_confirmed(fn.__name__, outcome)
             if not mutation:
                 return fn(*args, **kwargs)
-            _writable(fn.__name__)
+            _writable(fn.__name__, kwargs)
             if not _mutation_lock.acquire(timeout=LOCK_WAIT):
                 raise ToolFailure("busy: another mutation is running; retry later (not applied)")
             try:

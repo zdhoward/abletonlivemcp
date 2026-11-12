@@ -6,7 +6,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;\nplaced after the track's last clip), or from_session (scene index on the same track;\ncopies notes and Session automation to the timeline). Overlaps refuse. Copies are kept;\ndirect arrangement envelope reads are unavailable. replace=True deletes only clips wholly\ninside the destination span (needs local delete permission). Take lanes refuse on 12.2.",
+  "description": "New arrangement clips at `start` beats: MIDI (length, notes) or audio (absolute file;\nplaced after the track's last clip), or from_session (scene index on the same track;\ncopies notes and Session automation to the timeline). Overlaps refuse. Copies are kept;\ndirect arrangement envelope reads are unavailable. replace=True deletes only clips wholly\ninside the destination span (needs the local delete permission and your confirmation).\nTake lanes refuse on 12.2.",
   "inputSchema": {
    "$defs": {
     "NewArrangementClip": {
@@ -628,7 +628,7 @@
    "openWorldHint": false,
    "readOnlyHint": false
   },
-  "description": "Rename/jump/delete cues (index from live_get_arrangement) and add cues at exact times\n(transport stopped; an existing cue there is reused). Adds and deletes run as an operation:\npoll live_get_operation until ready.",
+  "description": "Rename/jump/delete cues (index from live_get_arrangement) and add cues at exact times\n(transport stopped; an existing cue there is reused). Deleting needs the local delete\npermission and your confirmation. Adds and deletes run as an operation: poll\nlive_get_operation until ready.",
   "inputSchema": {
    "$defs": {
     "CueAdd": {

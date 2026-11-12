@@ -304,14 +304,33 @@ def config_permissions():
     return frozenset(value) if not set(value) - PERMISSIONS else frozenset()
 
 
-def method_permission(method):
+def _any_item(params, key, field, value):
+    items = params.get(key) if isinstance(params, dict) else None
+    return isinstance(items, list) and any(
+        isinstance(i, dict) and i.get(field) == value for i in items
+    )
+
+
+# Methods that delete only for some params also need "delete" then (host: permissions.DELETING).
+DELETING = {
+    "create_clips": lambda p: _any_item(p, "targets", "replace", True),
+    "create_arrangement_clips": lambda p: _any_item(p, "targets", "replace", True),
+    "set_cue_points": lambda p: _any_item(p, "cues", "action", "delete"),
+}
+
+
+def method_permissions(method, params=None):
+    """Every local permission a write of ``method`` with ``params`` needs."""
     if method.startswith("delete_"):
-        return "delete"
+        return frozenset({"delete"})
     if method in {
         "transport", "play", "stop", "launch", "fire_scene", "fire_clip", "view", "select"
     }:
-        return "transport"
-    return "edit"
+        return frozenset({"transport"})
+    test = DELETING.get(method)
+    if test is not None and test(params or {}):
+        return frozenset({"edit", "delete"})
+    return frozenset({"edit"})
 
 
 def _at(seq, index, obj):
@@ -534,13 +553,19 @@ class Safety:
             raise Refused("lease_held", "another workflow holds the mutation lease")
 
     # ---- the single write gate ------------------------------------------------------------
-    def authorize(self, method, params):
-        """Run checks 1-4 for a write; return resolved targets by param name. Raises Refused."""
+    def check_policy(self, method, params):
+        """Checks 1-2 (read_only switch, local permissions), read fresh from the config. The
+        write gate runs it per call; deferred operations rerun it before every later step."""
         if self.read_only():
             raise Refused("read_only", "bridge is read-only; enable writes in the local config")
-        permission = method_permission(method)
-        if permission not in self._permissions():
-            raise Refused("permission_denied", f"{method} requires local permission {permission}")
+        missing = method_permissions(method, params) - self._permissions()
+        if missing:
+            needed = ", ".join(sorted(missing))
+            raise Refused("permission_denied", f"{method} requires local permission {needed}")
+
+    def authorize(self, method, params):
+        """Run checks 1-4 for a write; return resolved targets by param name. Raises Refused."""
+        self.check_policy(method, params)
         self.check_lease(params.get("lease"))
         song = self.song()
         specs = TARGETS[method]

@@ -21,6 +21,11 @@ Upgrade: reinstall the Remote Script (`abletonlivemcp-install`) and restart Live
   clips were validated, so a refused create (for example a MIDI clip on an audio track) still
   lost the originals. Replace now runs as one bridge call that validates every target first,
   then deletes and creates; each replaced row says `replaced` (the old clip's name).
+- Fix: every call that deletes now needs the `delete` permission and your confirmation, like
+  `live_delete`: cue deletes in `live_set_cue_points` (previously `edit` only, on both the
+  server and the Remote Script), `live_create_clips(if_exists="replace")` and
+  `live_create_arrangement_clips` with `replace: true` (previously permission only, no
+  confirmation). Calls of those tools that delete nothing are unchanged.
 
 ## [0.11.0] - 2026-11-11
 

@@ -4,6 +4,7 @@ file codec and roots (no Live)."""
 import inspect
 
 import pytest
+from mcp.server.elicitation import AcceptedElicitation
 from pydantic import TypeAdapter
 
 from abletonlivemcp import midi_file, server
@@ -31,12 +32,15 @@ class Bridge:
         return self.calls[-1]
 
 
+def call_args(tool, **kwargs):
+    """Validate keyword arguments like the MCP layer does."""
+    params = inspect.signature(tool.__wrapped__, eval_str=True).parameters
+    return {k: TypeAdapter(params[k].annotation).validate_python(v) for k, v in kwargs.items()}
+
+
 def call(tool, **kwargs):
     """Validate keyword arguments like the MCP layer does, then run the guarded tool."""
-    params = inspect.signature(tool.__wrapped__, eval_str=True).parameters
-    return tool(
-        **{k: TypeAdapter(params[k].annotation).validate_python(v) for k, v in kwargs.items()}
-    )
+    return tool(**call_args(tool, **kwargs))
 
 
 @pytest.fixture
@@ -166,9 +170,12 @@ def test_create_clips_if_exists_skip_leaves_occupied_slots_alone(bridge):
     assert out["skipped"] == [{"track": 0, "scene": 0}]
 
 
-def test_create_clips_replace_is_one_bridge_call(bridge, monkeypatch):
-    monkeypatch.setattr(clips, "load_config", lambda: {})  # legacy config: every permission
-    call(clips.live_create_clips, clips=[{"track": 0, "scene": 0}], if_exists="replace")
+def test_create_clips_replace_is_one_bridge_call(bridge):
+    target = {"clips": [{"track": 0, "scene": 0}], "if_exists": "replace"}
+    with pytest.raises(server.ToolFailure, match="not_confirmed"):  # replace deletes: confirm
+        call(clips.live_create_clips, **target)
+    yes = AcceptedElicitation(data=server.Confirmation(confirm=True))
+    clips.live_create_clips(**call_args(clips.live_create_clips, **target), confirmation=yes)
     assert [m for m, _ in bridge.calls] == ["ref_issue", "create_clips"]  # no separate delete
     assert bridge.last()[1]["targets"][0]["replace"] is True
 

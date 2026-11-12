@@ -44,6 +44,29 @@ def test_local_permissions_and_file_roots_fail_closed(monkeypatch, tmp_path, cap
         files.confined(str(tmp_path.parent / "outside.mid"))
 
 
+def test_deleting_cues_or_replacing_needs_delete_on_host_and_bridge(monkeypatch):
+    rename, drop = {"cues": [{"cue": 0, "action": "rename"}]}, {"cues": [{"action": "delete"}]}
+    assert permissions.required_permissions("live_set_cue_points", rename) == {"edit"}
+    assert permissions.required_permissions("live_set_cue_points", drop) == {"edit", "delete"}
+    replace = {"if_exists": "replace"}
+    assert "delete" in permissions.required_permissions("live_create_clips", replace)
+    config = {"read_only": False, "permissions": ["edit"]}
+    monkeypatch.setattr(server, "load_config", lambda: config)
+    server._writable("live_set_cue_points", rename)
+    with pytest.raises(server.ToolFailure, match="permission_denied"):
+        server._writable("live_set_cue_points", drop)
+    gate = safety.Safety(lambda: object(), policy=lambda: False, permissions=lambda: {"edit"})
+    gate.check_policy("set_cue_points", {"cues": [{"cue": "R0", "action": "rename"}]})
+    for method, params in (
+        ("set_cue_points", {"cues": [{"cue": "R0", "action": "delete"}]}),
+        ("create_clips", {"targets": [{"ref": "R0", "replace": True}]}),
+        ("create_arrangement_clips", {"targets": [{"ref": "R0", "replace": True}]}),
+    ):
+        with pytest.raises(safety.Refused) as denied:
+            gate.authorize(method, params)
+        assert denied.value.code == "permission_denied", method
+
+
 def test_allowed_writes_are_audited_without_arguments(monkeypatch, caplog):
     config = {"read_only": False, "permissions": ["transport", "edit"]}
     monkeypatch.setattr(server, "load_config", lambda: config)

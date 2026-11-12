@@ -91,7 +91,8 @@ Destructive operations also require an MCP client that supports form elicitation
 2. Start read-only: ask for `live_hello` and a summary of the Set. Nothing can change yet.
 3. When you want edits, set `"read_only": false` in `~/.abletonlivemcp/bridge.json`. The default
    permissions (`transport`, `edit`) allow playback and edits but not deletion or MIDI files.
-   Add `"delete"` or `"files"` only when you need them; deletion always asks you to confirm.
+   Add `"delete"` or `"files"` only when you need them; deletion always asks you to confirm,
+   including cue deletes and the replace modes of the clip-creating tools.
 4. Enable opt-in toolsets only for the job at hand (`drums`, `racks`, `arrangement`...). Fewer
    tools means faster, more accurate tool choice.
 5. If something goes wrong, check Live's `Log.txt` and the server's stderr. Set
