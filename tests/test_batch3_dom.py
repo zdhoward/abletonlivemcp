@@ -1182,3 +1182,8 @@ def test_warp_rows_flag_lives_trailing_sentinel_marker():
     rows = warp_rows(clip)
     assert len(rows) == 3 and rows[2]["sentinel"] is True and "sentinel" not in rows[1]
     assert "sentinel" not in warp_rows(types.SimpleNamespace(warp_markers=clip.warp_markers[:2]))[1]
+    # more than 64 markers: the truncated last row is a real marker, never flagged
+    many = [WarpMarker(i * 0.01, i * 0.005) for i in range(70)]
+    many.append(WarpMarker(many[-1].beat_time + 0.03125, 1.0))
+    long_rows = warp_rows(types.SimpleNamespace(warp_markers=many))
+    assert len(long_rows) == 64 and not any("sentinel" in r for r in long_rows)
