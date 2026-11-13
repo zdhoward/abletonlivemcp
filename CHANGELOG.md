@@ -10,6 +10,8 @@ minor version once the first public release is tagged.
   input schema. The default-listing byte budget rises to 84 KB to fit them.
 - `live_get_clips` concise rows keep `end` and `arrangement_length` for arrangement clips;
   `length` stays the loop/source length.
+- Warp-marker reads flag Live's trailing sentinel marker (1/32 beat after the last real
+  one) with `"sentinel": true` instead of hiding it. Remote Script change: reinstall it.
 
 ## [1.0.0] - 2026-11-12
 

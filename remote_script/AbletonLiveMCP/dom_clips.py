@@ -62,6 +62,7 @@ QUANTIZATIONS = (
 WARP_MODES = ("beats", "tones", "texture", "re_pitch", "complex", "rex", "complex_pro")
 CLIP_KINDS = ("clip", "arr_clip")
 EPS = 1e-6
+SENTINEL_GAP = 0.03125 + 1e-9  # beats between the last real warp marker and Live's sentinel
 
 
 def _get(obj, name, default=None):
@@ -81,7 +82,11 @@ def is_audio(clip):
 
 def warp_rows(clip):
     markers = list(_get(clip, "warp_markers", None) or ())[:MARKER_LIMIT]
-    return [{"beat_time": m.beat_time, "sample_time": m.sample_time} for m in markers]
+    rows = [{"beat_time": m.beat_time, "sample_time": m.sample_time} for m in markers]
+    # Live appends a sentinel marker 1/32 beat after the last real one; flag it, keep it.
+    if len(rows) >= 2 and rows[-1]["beat_time"] - rows[-2]["beat_time"] <= SENTINEL_GAP:
+        rows[-1]["sentinel"] = True
+    return rows
 
 
 def clip_row(clip, detail=False):

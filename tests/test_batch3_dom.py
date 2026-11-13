@@ -1171,3 +1171,14 @@ def test_paged_reads_do_bounded_native_work_and_enforce_scope(env):
     track.arrangement_clips.append(Clip(1.0, start=999.0))
     out = dispatch("get_arrangement", {"tracks": [0], "include": ["clips"]})
     assert out["code"] == "beyond_scope"
+
+
+def test_warp_rows_flag_lives_trailing_sentinel_marker():
+    from AbletonLiveMCP.dom_clips import warp_rows
+
+    clip = types.SimpleNamespace(
+        warp_markers=[WarpMarker(0.0, 0.0), WarpMarker(8.0, 4.0), WarpMarker(8.03125, 4.01)]
+    )
+    rows = warp_rows(clip)
+    assert len(rows) == 3 and rows[2]["sentinel"] is True and "sentinel" not in rows[1]
+    assert "sentinel" not in warp_rows(types.SimpleNamespace(warp_markers=clip.warp_markers[:2]))[1]
