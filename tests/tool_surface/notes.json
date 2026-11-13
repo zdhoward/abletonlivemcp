@@ -433,7 +433,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity). The default window includes notes past the clip end (past_clip_end\ncounts them). More pages: call again with the same clip/window and the reply's `cursor`;\nall pages are one snapshot (single-use cursor, 10 min), refused if the clip is replaced or\nits notes change before the last page. A window over 12,000 notes refuses (beyond_scope).",
+  "description": "Notes by time with note_id (detailed adds probability, velocity_deviation,\nrelease_velocity; summary gives this page's counts and ranges instead of rows).\nThe default window includes notes past the clip end (past_clip_end\ncounts them). More pages: call again with the same clip/window and the reply's `cursor`;\nall pages are one snapshot (single-use cursor, 10 min), refused if the clip is replaced or\nits notes change before the last page. A window over 12,000 notes refuses (beyond_scope).",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {
@@ -532,7 +532,8 @@
      "default": "detailed",
      "enum": [
       "concise",
-      "detailed"
+      "detailed",
+      "summary"
      ],
      "type": "string"
     },
@@ -553,41 +554,130 @@
   },
   "name": "live_get_notes",
   "outputSchema": {
-   "additionalProperties": true,
-   "properties": {
-    "clip_end": {
-     "type": "number"
+   "$defs": {
+    "NoteSummary": {
+     "additionalProperties": true,
+     "properties": {
+      "cursor": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "distinct_pitches": {
+       "items": {
+        "type": "integer"
+       },
+       "type": "array"
+      },
+      "note_count": {
+       "type": "integer"
+      },
+      "pitch_counts": {
+       "additionalProperties": {
+        "type": "integer"
+       },
+       "type": "object"
+      },
+      "time_range": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "number"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "total": {
+       "type": "integer"
+      },
+      "velocity_range": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "number"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     },
+     "required": [
+      "note_count",
+      "distinct_pitches",
+      "pitch_counts",
+      "time_range",
+      "velocity_range",
+      "total",
+      "cursor"
+     ],
+     "type": "object"
     },
-    "cursor": {
+    "Notes": {
+     "additionalProperties": true,
+     "properties": {
+      "clip_end": {
+       "type": "number"
+      },
+      "cursor": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "notes": {
+       "items": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "type": "array"
+      },
+      "past_clip_end": {
+       "type": "integer"
+      },
+      "total": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "notes",
+      "total",
+      "cursor",
+      "clip_end",
+      "past_clip_end"
+     ],
+     "type": "object"
+    }
+   },
+   "properties": {
+    "result": {
      "anyOf": [
       {
-       "type": "string"
+       "$ref": "#/$defs/Notes"
       },
       {
-       "type": "null"
+       "$ref": "#/$defs/NoteSummary"
       }
      ]
-    },
-    "notes": {
-     "items": {
-      "additionalProperties": true,
-      "type": "object"
-     },
-     "type": "array"
-    },
-    "past_clip_end": {
-     "type": "integer"
-    },
-    "total": {
-     "type": "integer"
     }
    },
    "required": [
-    "notes",
-    "total",
-    "cursor",
-    "clip_end",
-    "past_clip_end"
+    "result"
    ],
    "type": "object"
   },

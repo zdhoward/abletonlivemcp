@@ -121,6 +121,17 @@ class Notes(TypedDict):
 
 
 @open_output
+class NoteSummary(TypedDict):  # live_get_notes response_format "summary": one page, no rows
+    note_count: int
+    distinct_pitches: list[int]
+    pitch_counts: dict[str, int]
+    time_range: list[float] | None
+    velocity_range: list[float] | None
+    total: int
+    cursor: str | None
+
+
+@open_output
 class BrowserPage(TypedDict):
     complete: bool
     truncated: bool
@@ -454,7 +465,7 @@ TOOL_OUTPUTS: dict[str, type] = {
     "live_get_clips": _untrusted("ClipsReply", Clips),
     "live_create_clips": WriteReceipt,
     "live_set_clips": WriteReceipt,
-    "live_get_notes": Notes,
+    "live_get_notes": Notes | NoteSummary,
     "live_edit_notes": WriteReceipt,
     "live_get_device_parameters": _untrusted(
         "DeviceParametersReply", DeviceListing | ParameterPage

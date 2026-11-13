@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from collections import Counter
+from typing import Annotated, Literal
 
 from pydantic import Field
 
-from ..models import ClipRef, ExpectName, ResponseFormat
+from ..models import ClipRef, ExpectName
 from ..models_clips import (
     READ_PAGE,
     Ids,
@@ -19,6 +20,8 @@ from ..models_clips import (
 )
 from ..server import _call, _overwrite, _read, clip_selector, issue_refs, shape
 
+NotesFormat = Literal["concise", "detailed", "summary"]  # summary: live_get_notes only
+
 
 @_read
 def live_get_notes(
@@ -29,10 +32,11 @@ def live_get_notes(
     time_span: Annotated[float, Field(gt=0, le=65536, allow_inf_nan=False)] | None = None,
     limit: Annotated[int, Field(ge=1, le=READ_PAGE)] = READ_PAGE,
     cursor: Annotated[str, Field(max_length=64)] | None = None,
-    response_format: ResponseFormat = "detailed",
+    response_format: NotesFormat = "detailed",
 ) -> dict:
     """Notes by time with note_id (detailed adds probability, velocity_deviation,
-    release_velocity). The default window includes notes past the clip end (past_clip_end
+    release_velocity; summary gives this page's counts and ranges instead of rows).
+    The default window includes notes past the clip end (past_clip_end
     counts them). More pages: call again with the same clip/window and the reply's `cursor`;
     all pages are one snapshot (single-use cursor, 10 min), refused if the clip is replaced or
     its notes change before the last page. A window over 12,000 notes refuses (beyond_scope)."""
@@ -45,11 +49,28 @@ def live_get_notes(
     if time_span is not None:
         params["time_span"] = time_span
     out = _call("get_notes", params)
+    if response_format == "summary":
+        return {**{k: v for k, v in out.items() if k != "notes"}, **summarize(out["notes"])}
     out["notes"] = shape(out["notes"], response_format, CONCISE)
     return out
 
 
 CONCISE = ("note_id", "pitch", "start_time", "duration", "velocity", "mute")
+
+
+def summarize(notes: list[dict]) -> dict:
+    """Counts and ranges of one page of note rows."""
+    counts = Counter(n["pitch"] for n in notes)
+    starts = [n["start_time"] for n in notes]
+    ends = [n["start_time"] + n["duration"] for n in notes]
+    velocities = [n["velocity"] for n in notes]
+    return {
+        "note_count": len(notes),
+        "distinct_pitches": sorted(counts),
+        "pitch_counts": {str(p): counts[p] for p in sorted(counts)},
+        "time_range": [min(starts), max(ends)] if notes else None,
+        "velocity_range": [min(velocities), max(velocities)] if notes else None,
+    }
 
 
 @_overwrite

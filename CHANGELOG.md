@@ -19,6 +19,9 @@ minor version once the first public release is tagged.
   only those parameters (case-insensitive) plus `missing`. Refused with a nonzero `offset`.
 - `live_get_scenes` takes `only_clips` (with `include_slots`): slot rows without a clip
   are dropped. Without `include_slots` it is refused.
+- `live_get_notes` accepts `response_format: "summary"`: per page, `note_count`,
+  `distinct_pitches`, `pitch_counts`, `time_range` and `velocity_range` replace the note
+  rows; `total`, `cursor` and the other paging fields are unchanged.
 
 ## [1.0.0] - 2026-11-12
 

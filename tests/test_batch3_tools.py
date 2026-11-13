@@ -395,3 +395,17 @@ def test_scenes_only_clips_drops_empty_slots(bridge):
     assert out["data"]["scenes"][0]["slots"] == [{"track": 0, "has_clip": True}]
     with pytest.raises(Exception, match="include_slots"):
         call(scenes.live_get_scenes, only_clips=True)
+
+
+def test_get_notes_summary_replaces_rows_and_keeps_paging(bridge):
+    rows = [
+        {"note_id": 1, "pitch": 60, "start_time": 0.0, "duration": 1.0, "velocity": 90},
+        {"note_id": 2, "pitch": 64, "start_time": 2.0, "duration": 0.5, "velocity": 110},
+        {"note_id": 3, "pitch": 60, "start_time": 3.0, "duration": 2.0, "velocity": 100},
+    ]
+    bridge.replies["get_notes"] = {"notes": rows, "total": 9, "cursor": "C1", "clip_end": 4.0}
+    out = call(notes.live_get_notes, clip={"track": 0, "scene": 0}, response_format="summary")
+    assert "notes" not in out and out["cursor"] == "C1" and out["total"] == 9
+    assert out["note_count"] == 3 and out["distinct_pitches"] == [60, 64]
+    assert out["pitch_counts"] == {"60": 2, "64": 1} and out["time_range"] == [0.0, 5.0]
+    assert out["velocity_range"] == [90, 110]
