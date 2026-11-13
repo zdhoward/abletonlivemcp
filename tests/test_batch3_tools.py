@@ -364,3 +364,21 @@ def test_device_parameters_carry_the_device_header_and_tidy_display(bridge):
     assert devices.tidy_display("65.87% %") == "65.87%" and devices.tidy_display("x x") == "x x"
     bridge.replies["device_parameters"] = rows  # a Remote Script without with_device
     assert "device" not in call(devices.live_get_device_parameters, track=0, path=[0])["data"]
+
+
+def test_device_parameter_names_filter_reads_every_page(bridge):
+    from abletonlivemcp.tools import devices
+
+    def page(p):
+        rows = [
+            {"index": i, "name": f"P{i}"} for i in range(p["offset"], min(200, p["offset"] + 128))
+        ]
+        return {"device": {"name": "Synth"}, "parameters": rows}
+
+    bridge.replies["device_parameters"] = page
+    out = call(devices.live_get_device_parameters, track=0, path=[0], names=["p3 ", "P150", "Nope"])
+    assert [p["index"] for p in out["data"]["parameters"]] == [3, 150]
+    assert out["data"]["missing"] == ["Nope"] and out["data"]["next_offset"] is None
+    assert len(bridge.calls) == 2
+    with pytest.raises(Exception, match="offset"):
+        call(devices.live_get_device_parameters, track=0, path=[0], offset=128, names=["P1"])

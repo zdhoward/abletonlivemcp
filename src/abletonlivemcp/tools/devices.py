@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
+from pydantic import Field, StringConstraints
+
 from .. import chain
 from ..errors import Invalid
 from ..models import DevicePath, RawValue, ResponseFormat, TrackSel
@@ -20,7 +24,10 @@ from ..server import (
 PARAMS_CONCISE = ("index", "name", "value", "display", "min", "max", "is_quantized", "items")
 DEVICES_CONCISE = ("index", "name", "class_name", "type", "on", "rack", "drum_rack", "chains")
 PAGE = 128
+MAX_PAGES = 32  # a names filter reads at most 4096 parameters
+MAX_NAMES = 64
 UNTRUSTED = "live_object_text_untrusted"
+ParamName = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 
 
 def loc(track, path) -> dict:
@@ -48,26 +55,52 @@ def live_get_device_parameters(
     offset: int = 0,
     limit: int = PAGE,
     response_format: ResponseFormat = "concise",
+    names: Annotated[list[ParamName], Field(max_length=MAX_NAMES)] | None = None,
 ) -> dict:
     """No path, or a path ending at a chain index or "pad:N": list the devices there. A path
     ending at a device ([d] or [d, chain, d, ...]): the device header and its parameters
     (value, range, display, items, default), paged (limit <= 128). track: index, "return:N"
-    or "master". Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack
+    or "master". names: only those parameters (case-insensitive, all pages; unmatched
+    names in missing). Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack
     (opt-in toolsets)."""
     if not at_device(path):
+        if names is not None:
+            raise Invalid("'names' needs a path ending at a device")
         info = _call("device_list", loc(track, path))
         info["devices"] = shape(info["devices"], response_format, DEVICES_CONCISE)
         return _untrusted(info)
     if not 1 <= limit <= PAGE or offset < 0:
         raise Invalid(f"'offset' must be >= 0 and 'limit' 1..{PAGE}")
-    device, rows = _param_page(track, path, offset, limit)
-    more = len(rows) == limit
     concise = PARAMS_CONCISE + ("default",)
-    out = {
-        "parameters": shape(rows, response_format, concise),
-        "next_offset": offset + len(rows) if more else None,
-    }
+    if names is not None:
+        if offset:
+            raise Invalid("'names' reads every page; leave 'offset' at 0")
+        device, rows, missing = _named_params(track, path, names)
+        out = {"parameters": shape(rows, response_format, concise), "next_offset": None}
+        out["missing"] = missing
+    else:
+        device, rows = _param_page(track, path, offset, limit)
+        more = len(rows) == limit
+        out = {
+            "parameters": shape(rows, response_format, concise),
+            "next_offset": offset + len(rows) if more else None,
+        }
     return _untrusted({"device": device, **out} if device is not None else out)
+
+
+def _named_params(track, path, names: list[str]) -> tuple[dict | None, list[dict], list[str]]:
+    """Every page (at most MAX_PAGES), filtered to the requested names (case-insensitive)."""
+    wanted = {n.strip().casefold() for n in names}
+    device, found = None, []
+    for page in range(MAX_PAGES):
+        head, rows = _param_page(track, path, page * PAGE, PAGE)
+        device = head if page == 0 else device
+        found += [r for r in rows if str(r.get("name", "")).strip().casefold() in wanted]
+        if len(rows) < PAGE:
+            break
+    seen = {str(r.get("name", "")).strip().casefold() for r in found}
+    missing = [n for n in dict.fromkeys(names) if n.strip().casefold() not in seen]
+    return device, found, missing
 
 
 def tidy_display(text):

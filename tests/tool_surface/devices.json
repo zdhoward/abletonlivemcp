@@ -6,12 +6,21 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "No path, or a path ending at a chain index or \"pad:N\": list the devices there. A path\nending at a device ([d] or [d, chain, d, ...]): the device header and its parameters\n(value, range, display, items, default), paged (limit <= 128). track: index, \"return:N\"\nor \"master\". Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack\n(opt-in toolsets).",
+  "description": "No path, or a path ending at a chain index or \"pad:N\": list the devices there. A path\nending at a device ([d] or [d, chain, d, ...]): the device header and its parameters\n(value, range, display, items, default), paged (limit <= 128). track: index, \"return:N\"\nor \"master\". names: only those parameters (case-insensitive, all pages; unmatched\nnames in missing). Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack\n(opt-in toolsets).",
   "inputSchema": {
    "properties": {
     "limit": {
      "default": 128,
      "type": "integer"
+    },
+    "names": {
+     "items": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+     },
+     "maxItems": 64,
+     "type": "array"
     },
     "offset": {
      "default": 0,
@@ -106,6 +115,12 @@
       "device": {
        "additionalProperties": true,
        "type": "object"
+      },
+      "missing": {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
       },
       "next_offset": {
        "anyOf": [

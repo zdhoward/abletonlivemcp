@@ -15,6 +15,8 @@ minor version once the first public release is tagged.
 - `live_get_device_parameters` on a device adds a `device` header (`name`, `class_name`,
   `type`; needs the updated Remote Script) and tidies `display`: surrounding whitespace is
   stripped and a doubled unit collapses (`"4.00dB dB"` -> `"4.00dB"`).
+- `live_get_device_parameters` takes `names` (up to 64): it reads every page and returns
+  only those parameters (case-insensitive) plus `missing`. Refused with a nonzero `offset`.
 
 ## [1.0.0] - 2026-11-12
 

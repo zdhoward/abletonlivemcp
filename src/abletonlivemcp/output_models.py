@@ -176,6 +176,7 @@ class ParameterPage(TypedDict):
     device: NotRequired[Row]
     parameters: list[Row]
     next_offset: int | None
+    missing: NotRequired[list[str]]
 
 
 @open_output
