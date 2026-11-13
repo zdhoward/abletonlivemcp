@@ -112,7 +112,8 @@ def tidy_display(text):
     if len(parts) == 2:
         head, unit = parts
         prev = head.split()[-1]
-        if not any(c.isdigit() for c in unit) and len(prev) > len(unit) and prev.endswith(unit):
+        numeric = prev[:1].isdigit() or (prev[:1] in "-+." and prev[1:2].isdigit())
+        if numeric and not any(c.isdigit() for c in unit) and prev.endswith(unit):
             return head.rstrip()
     return text
 

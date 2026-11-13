@@ -362,6 +362,8 @@ def test_device_parameters_carry_the_device_header_and_tidy_display(bridge):
     assert out["device"] == head and bridge.last()[1]["with_device"] is True
     assert [p["display"] for p in out["parameters"]] == ["4.00dB", "1/4 x"]
     assert devices.tidy_display("65.87% %") == "65.87%" and devices.tidy_display("x x") == "x x"
+    assert devices.tidy_display("Low Shelf f") == "Low Shelf f"
+    assert devices.tidy_display(" -3.0dB dB ") == "-3.0dB"
     bridge.replies["device_parameters"] = rows  # a Remote Script without with_device
     assert "device" not in call(devices.live_get_device_parameters, track=0, path=[0])["data"]
 
