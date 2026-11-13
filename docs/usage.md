@@ -33,6 +33,8 @@ client session so the client refreshes its tool list. Unknown toolset names stop
 Live version. A tool's presence does not mean every action is supported. See
 [known limits](validation.md#known-limits).
 
+Tools name a track by 0-based index, `"return:N"` (return track N) or `"master"`.
+
 ## Optional settings
 
 Set these in the MCP server's environment when needed:

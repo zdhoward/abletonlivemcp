@@ -27,7 +27,10 @@ MAX_DEVICE_DEPTH = 6  # device levels in a DevicePath
 ResponseFormat = Literal["concise", "detailed"]
 
 Index = Annotated[int, Field(ge=0)]
-TrackSel = Index | Annotated[str, StringConstraints(pattern=r"^(return:(0|[1-9]\d{0,2})|master)$")]
+TrackSel = Annotated[
+    Index | Annotated[str, StringConstraints(pattern=r"^(return:(0|[1-9]\d{0,2})|master)$")],
+    Field(description='Track index, "return:N" or "master"'),
+]
 """A regular track index, ``"return:N"`` or ``"master"``."""
 
 

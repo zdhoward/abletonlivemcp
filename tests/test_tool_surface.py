@@ -179,6 +179,18 @@ def test_toolset_switch_and_unknown_name_stops_startup():
     assert run.returncode == 2 and "bogus" in run.stderr
 
 
+def test_track_selectors_describe_their_string_forms():
+    seen = 0
+    for tool in _listing(server.TOOLSETS):
+        for name, prop in tool["inputSchema"]["properties"].items():
+            sel = prop.get("items", prop) if name in ("tracks", "to_track", "track") else None
+            if sel and "return:" in json.dumps(sel):
+                assert sel["description"] == 'Track index, "return:N" or "master"', tool["name"]
+                assert len(sel["anyOf"]) == 2, tool["name"]
+                seen += 1
+    assert seen >= 15  # plus nested models (ClipAddr, ...) in $defs
+
+
 def test_selectors_and_lease_ride_on_every_call(monkeypatch):
     track, path, param = TypeAdapter(TrackSel), TypeAdapter(DevicePath), TypeAdapter(ParamSel)
     sels = [0, "return:1", "master"]

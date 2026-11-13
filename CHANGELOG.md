@@ -6,6 +6,9 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
+- Track selectors describe their string forms (`"return:N"`, `"master"`) in every tool's
+  input schema. The default-listing byte budget rises to 84 KB to fit them.
+
 ## [1.0.0] - 2026-11-12
 
 Upgrade: upgrade the host package, close Live, reinstall the Remote Script with

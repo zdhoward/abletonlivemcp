@@ -93,7 +93,7 @@ CORE_LISTING_TARGET = 64_000
 # What a default install actually lists: core plus the always-on automation and arrangement
 # toolsets. Optional inputs advertise no redundant null branch (server._drop_optional_null).
 DEFAULT_INPUT_BYTES = 36_000
-DEFAULT_LISTING_BYTES = 80_000
+DEFAULT_LISTING_BYTES = 84_000  # +4 KB (1.0.x): TrackSel descriptions, read filters
 
 # The nine ordered phases of the complete Live proof. Scenario files
 # in scripts/final_cases/*.json name one of these as their ``phase``.

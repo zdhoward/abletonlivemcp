@@ -30,7 +30,8 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ]
+       ],
+       "description": "Track index, \"return:N\" or \"master\""
       }
      },
      "required": [
@@ -56,7 +57,8 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ]
+       ],
+       "description": "Track index, \"return:N\" or \"master\""
       }
      },
      "required": [
@@ -455,7 +457,8 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ]
+       ],
+       "description": "Track index, \"return:N\" or \"master\""
       }
      },
      "required": [
@@ -481,7 +484,8 @@
          "pattern": "^(return:(0|[1-9]\\d{0,2})|master)$",
          "type": "string"
         }
-       ]
+       ],
+       "description": "Track index, \"return:N\" or \"master\""
       }
      },
      "required": [
