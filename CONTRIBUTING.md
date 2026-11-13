@@ -63,6 +63,15 @@ Live proof helpers under `scripts/` are for contributors with a disposable Set.
 They can change Live and local configuration; read each helper before running it.
 The [validation record](docs/validation.md) distinguishes Live checks from offline tests.
 
+## Windows installer verification
+
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_installer.ps1`
+with Claude Code installed. It downloads a real runtime and PyPI package, installs into
+a temporary User Library and registers Claude Code in an isolated config directory.
+It checks a fresh install, rerun, running-Live refusal, invalid library and preserved
+registration conflict. It leaves temporary artifacts for inspection and does not
+connect to Live or change your normal Claude configuration.
+
 ## Conduct
 
 See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

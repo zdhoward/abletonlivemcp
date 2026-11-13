@@ -4,6 +4,7 @@
 !/.gitignore
 !/pyproject.toml
 !/README.md
+!/install-claude-code.cmd
 !/LICENSE
 !/NOTICE
 !/CHANGELOG.md
@@ -39,6 +40,8 @@
 !/scripts/
 /scripts/*
 !/scripts/check_distribution.py
+!/scripts/install-claude-code.ps1
+!/scripts/check_windows_installer.ps1
 !/scripts/proof_contract.py
 !/scripts/live_harness.py
 !/scripts/live_v2_final.py

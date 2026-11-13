@@ -21,10 +21,33 @@ See [supported operations and limits](docs/validation.md#known-limits).
 
 - Ableton Live 12.2 on Windows is the qualified setup. Other Ableton Live 12 versions
   and macOS are untested. The [validation record](docs/validation.md) lists the tested cases.
-- Python 3.10 or later, on the same machine and user account as Live.
+- Run your AI client on the same machine and user account as Live.
 - An MCP client such as Claude Desktop, Claude Code, Cursor or VS Code.
 
 ## Install
+
+### Windows + Claude Code
+
+Already have [Claude Code](https://code.claude.com/docs/en/setup)? No Python or terminal
+commands needed:
+
+1. Close Live, then **[download the installer](https://github.com/zdhoward/abletonlivemcp/raw/refs/heads/main/install-claude-code.cmd)**
+   and double-click it.
+2. Choose your **User Library** folder when prompted (the one shown in Live's
+   Settings > Library). The installer handles Python, the Remote Script and Claude Code.
+3. Reopen Live and select **AbletonLiveMCP** under **Settings > Link, Tempo & MIDI >
+   Control Surface**. Start a new Claude Code session and ask:
+
+   > Check Ableton with live_hello and tell me the tempo of my Set.
+
+Setup starts in read-only mode. To let your assistant edit, follow
+[enable writes](docs/setup.md#enable-writes). See [installer help](docs/setup.md#one-click-installer)
+if setup stops.
+
+<details>
+<summary>Manual setup / other clients / macOS</summary>
+
+For manual setup, install Python 3.10 or later first.
 
 ### 1. Install and add to Live
 
@@ -126,6 +149,8 @@ Setup starts in read-only mode; when you want to edit, follow
 
 Need something else? See [alternative installs](docs/setup.md#installation-alternatives),
 [upgrades](docs/setup.md#upgrades) or [connection troubleshooting](docs/setup.md#connection-problems).
+
+</details>
 
 ## FAQ
 

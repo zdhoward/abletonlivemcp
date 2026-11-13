@@ -2,6 +2,34 @@
 
 Start with the [README setup steps](../README.md#install).
 
+## One-click installer
+
+The Windows launcher `install-claude-code.cmd` downloads and runs
+[`scripts/install-claude-code.ps1`](../scripts/install-claude-code.ps1). It requires
+Claude Code and internet access. Close Live before running it; it will not close a Set
+for you. Select the User Library that contains your `Presets` folder.
+
+The installer downloads a pinned, SHA-256-checked copy of
+[uv](https://github.com/astral-sh/uv), then uses it to install managed Python 3.13 and
+`zx-ableton-live-mcp` from PyPI under `%LOCALAPPDATA%/AbletonLiveMCP`. It does not need
+administrator access, a system Python or changes to PATH. The existing Remote Script
+installer creates the private bridge config and preserves it on upgrades.
+
+Claude Code is registered through `claude mcp add --scope user`. Restart your Claude
+Code session afterward. Selecting the Control Surface in Live is still manual.
+macOS and other clients use the manual instructions in the README.
+
+To upgrade an installation made this way, close Live and run the launcher again.
+It upgrades the package and reinstalls the Remote Script. A matching Claude entry is
+left alone. If `abletonlive` already points to another installation, setup stops and
+preserves it. To switch, remove that user-scoped entry with
+`claude mcp remove --scope user abletonlive`, then rerun the installer.
+
+If a download or command fails, the window stays open with the error. Fix that error
+and rerun the launcher. If Claude Code cannot be found, install it first, then rerun.
+An unknown or modified Remote Script folder follows the same refusal and recovery
+rules as a [manual upgrade](#upgrades).
+
 ## Installation alternatives
 
 The PyPI package is `zx-ableton-live-mcp`. Both tools need Python 3.10 or later:
