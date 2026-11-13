@@ -98,6 +98,11 @@ def _named_params(track, path, names: list[str]) -> tuple[dict | None, list[dict
         found += [r for r in rows if str(r.get("name", "")).strip().casefold() in wanted]
         if len(rows) < PAGE:
             break
+    else:  # budget spent with pages left: unsearched names are not "missing"
+        raise Invalid(
+            f"'names' searches at most {MAX_PAGES * PAGE} parameters; this device has more, "
+            "page with offset/limit instead"
+        )
     seen = {str(r.get("name", "")).strip().casefold() for r in found}
     missing = [n for n in dict.fromkeys(names) if n.strip().casefold() not in seen]
     return device, found, missing

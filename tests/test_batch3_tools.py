@@ -386,6 +386,18 @@ def test_device_parameter_names_filter_reads_every_page(bridge):
         call(devices.live_get_device_parameters, track=0, path=[0], offset=128, names=["P1"])
 
 
+def test_device_parameter_names_filter_refuses_past_its_page_budget(bridge):
+    from abletonlivemcp.tools import devices
+
+    def page(p):  # endless full pages: the search cannot finish
+        rows = [{"index": i, "name": f"P{i}"} for i in range(p["offset"], p["offset"] + 128)]
+        return {"device": {"name": "Huge"}, "parameters": rows}
+
+    bridge.replies["device_parameters"] = page
+    with pytest.raises(Exception, match="at most 4096"):
+        call(devices.live_get_device_parameters, track=0, path=[0], names=["P5000"])
+
+
 def test_scenes_only_clips_drops_empty_slots(bridge):
     from abletonlivemcp.tools import scenes
 
