@@ -22,6 +22,9 @@ minor version once the first public release is tagged.
 - `live_get_notes` accepts `response_format: "summary"`: per page, `note_count`,
   `distinct_pitches`, `pitch_counts`, `time_range` and `velocity_range` replace the note
   rows; `total`, `cursor` and the other paging fields are unchanged.
+- Fix: an unexpected exception in a tool (for example a `KeyError`) now reaches the client
+  as `<Type>: tool_failed (outcome unknown; ...)` instead of a bare internal error. Its
+  text is withheld and only the type is logged; MCP protocol errors pass through.
 
 ## [1.0.0] - 2026-11-12
 

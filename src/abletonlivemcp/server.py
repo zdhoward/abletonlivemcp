@@ -42,6 +42,7 @@ from mcp.server.elicitation import AcceptedElicitation, ElicitationResult
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.mcpserver.resolve import Elicit, Resolve
+from mcp.shared.exceptions import MCPError
 from mcp.types import ToolAnnotations
 from mcp_types.version import is_version_at_least
 from pydantic import BaseModel, Field, ValidationError
@@ -663,6 +664,14 @@ def _guard(fn, annotations: ToolAnnotations, mutation: bool):
         except (Invalid, ValidationError, BridgeError) as exc:
             raise ToolFailure(_explain(exc)) from exc
         except ValueError as exc:  # not a deliberate refusal: its text may hold private data
+            _log.warning("tool %s failed: %s", fn.__name__, type(exc).__name__)
+            raise ToolFailure(_withheld(exc, "tool_failed")) from exc
+        except MCPError:  # protocol control flow (e.g. UrlElicitationRequiredError): keep it
+            raise
+        # Anything else (KeyError, TypeError, ...): its type and a stable code, not the MCP
+        # library's bare "Error executing tool". Elicitation's own _Pending is raised while the
+        # resolvers run, before this body, so it never reaches here; BaseException passes.
+        except Exception as exc:
             _log.warning("tool %s failed: %s", fn.__name__, type(exc).__name__)
             raise ToolFailure(_withheld(exc, "tool_failed")) from exc
         finally:

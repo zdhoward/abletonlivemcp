@@ -12,6 +12,7 @@ import pytest
 from mcp import Client
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.shared.exceptions import MCPError
 
 from abletonlivemcp import server
 from abletonlivemcp.chain import Refusal
@@ -260,6 +261,21 @@ def test_only_deliberate_refusals_are_echoed_by_the_guard(monkeypatch, caplog):
         run(kind="native")
     assert "Secret" not in str(error.value) and "outcome unknown" in str(error.value)
     assert "Secret" not in caplog.text and "live_fake_write failed: ValueError" in caplog.text
+
+
+def test_unexpected_exceptions_reach_the_client_as_a_withheld_failure(caplog):
+    def live_fake_read(kind: str) -> dict:
+        """Raises (test double)."""
+        if kind == "protocol":
+            raise MCPError(-32000, "protocol")
+        return {}["secret-key"]
+
+    run = server._guard(live_fake_read, server.READ, False)
+    with pytest.raises(ToolError, match=r"KeyError: tool_failed \(outcome unknown") as error:
+        run(kind="bug")
+    assert "secret-key" not in str(error.value) and "failed: KeyError" in caplog.text
+    with pytest.raises(MCPError, match="protocol"):
+        run(kind="protocol")
 
 
 def test_confirm_never_appears_in_the_input_schema(monkeypatch):
