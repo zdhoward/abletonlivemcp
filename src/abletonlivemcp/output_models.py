@@ -173,6 +173,7 @@ class DeviceListing(TypedDict):
 
 @open_output
 class ParameterPage(TypedDict):
+    device: NotRequired[Row]
     parameters: list[Row]
     next_offset: int | None
 

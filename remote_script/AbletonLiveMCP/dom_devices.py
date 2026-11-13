@@ -207,7 +207,8 @@ def _param_row(ctx, nodes, i, q, count):
 
 
 def device_parameters(ctx, p):
-    """Parameter rows with references. Optional ``offset``/``limit`` page (limit <= 128)."""
+    """Parameter rows with references. Optional ``offset``/``limit`` page (limit <= 128).
+    ``with_device: true`` wraps them as ``{device: {name, class_name, type}, parameters}``."""
     nodes = locate_device(ctx.song, p)
     dev = nodes[-1][1]
     params = dev.parameters
@@ -221,7 +222,15 @@ def device_parameters(ctx, p):
     if p.get("limit") is not None and limit > PARAM_PAGE:
         raise Invalid(f"'limit' must be at most {PARAM_PAGE}")
     end = min(count, offset + limit)
-    return [_param_row(ctx, nodes, i, params[i], count) for i in range(offset, end)]
+    rows = [_param_row(ctx, nodes, i, params[i], count) for i in range(offset, end)]
+    if p.get("with_device") is not True:
+        return rows
+    head = {
+        "name": _get(dev, "name"),
+        "class_name": _get(dev, "class_name"),
+        "type": DEVICE_TYPES.get(_get(dev, "type"), "undefined"),
+    }
+    return {"device": head, "parameters": rows}
 
 
 def set_device_parameter(_ctx, p, t):

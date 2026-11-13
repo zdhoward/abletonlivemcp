@@ -349,3 +349,18 @@ def test_concise_clips_keep_arrangement_span_fields(bridge):
     rows = call(clips.live_get_clips, track=0)["data"]["clips"]
     assert rows[0]["end"] == 24 and rows[0]["arrangement_length"] == 16 and "looping" not in rows[0]
     assert "end" not in rows[1] and rows[1]["is_playing"] is False
+
+
+def test_device_parameters_carry_the_device_header_and_tidy_display(bridge):
+    from abletonlivemcp.tools import devices
+
+    rows = [{"index": 0, "ref": "R", "name": "Drive", "display": " 4.00dB dB "}]
+    rows += [{"index": 1, "name": "Rate", "display": "1/4 x"}]
+    head = {"name": "Sat", "class_name": "Saturator", "type": "audio_effect"}
+    bridge.replies["device_parameters"] = {"device": head, "parameters": rows}
+    out = call(devices.live_get_device_parameters, track=0, path=[0])["data"]
+    assert out["device"] == head and bridge.last()[1]["with_device"] is True
+    assert [p["display"] for p in out["parameters"]] == ["4.00dB", "1/4 x"]
+    assert devices.tidy_display("65.87% %") == "65.87%" and devices.tidy_display("x x") == "x x"
+    bridge.replies["device_parameters"] = rows  # a Remote Script without with_device
+    assert "device" not in call(devices.live_get_device_parameters, track=0, path=[0])["data"]

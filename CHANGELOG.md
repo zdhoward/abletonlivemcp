@@ -12,6 +12,9 @@ minor version once the first public release is tagged.
   `length` stays the loop/source length.
 - Warp-marker reads flag Live's trailing sentinel marker (1/32 beat after the last real
   one) with `"sentinel": true` instead of hiding it. Remote Script change: reinstall it.
+- `live_get_device_parameters` on a device adds a `device` header (`name`, `class_name`,
+  `type`; needs the updated Remote Script) and tidies `display`: surrounding whitespace is
+  stripped and a doubled unit collapses (`"4.00dB dB"` -> `"4.00dB"`).
 
 ## [1.0.0] - 2026-11-12
 

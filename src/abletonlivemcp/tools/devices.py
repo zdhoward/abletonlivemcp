@@ -50,25 +50,53 @@ def live_get_device_parameters(
     response_format: ResponseFormat = "concise",
 ) -> dict:
     """No path, or a path ending at a chain index or "pad:N": list the devices there. A path
-    ending at a device ([d] or [d, chain, d, ...]): its parameters (value, range, display,
-    items, default), paged (limit <= 128). track: index, "return:N" or "master".
-    Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack (opt-in toolsets)."""
+    ending at a device ([d] or [d, chain, d, ...]): the device header and its parameters
+    (value, range, display, items, default), paged (limit <= 128). track: index, "return:N"
+    or "master". Rack macros and chains: live_get_rack; drum pads: live_get_drum_rack
+    (opt-in toolsets)."""
     if not at_device(path):
         info = _call("device_list", loc(track, path))
         info["devices"] = shape(info["devices"], response_format, DEVICES_CONCISE)
         return _untrusted(info)
     if not 1 <= limit <= PAGE or offset < 0:
         raise Invalid(f"'offset' must be >= 0 and 'limit' 1..{PAGE}")
-    rows = _call("device_parameters", {**loc(track, path), "offset": offset, "limit": limit})
-    rows = [{k: v for k, v in r.items() if k != "ref"} for r in rows]
+    device, rows = _param_page(track, path, offset, limit)
     more = len(rows) == limit
     concise = PARAMS_CONCISE + ("default",)
-    return _untrusted(
-        {
-            "parameters": shape(rows, response_format, concise),
-            "next_offset": offset + len(rows) if more else None,
-        }
+    out = {
+        "parameters": shape(rows, response_format, concise),
+        "next_offset": offset + len(rows) if more else None,
+    }
+    return _untrusted({"device": device, **out} if device is not None else out)
+
+
+def tidy_display(text):
+    """Strip Live's display text and collapse a doubled trailing unit ("4.00dB dB" -> "4.00dB")."""
+    if not isinstance(text, str):
+        return text
+    text = text.strip()
+    parts = text.rsplit(None, 1)
+    if len(parts) == 2:
+        head, unit = parts
+        prev = head.split()[-1]
+        if not any(c.isdigit() for c in unit) and len(prev) > len(unit) and prev.endswith(unit):
+            return head.rstrip()
+    return text
+
+
+def _param_page(track, path, offset: int, limit: int) -> tuple[dict | None, list[dict]]:
+    """One page of parameter rows (refs dropped, display tidied) and the device header (None
+    from a Remote Script that predates ``with_device``)."""
+    where = {**loc(track, path), "offset": offset, "limit": limit, "with_device": True}
+    reply = _call("device_parameters", where)
+    device, rows = (
+        (None, reply) if isinstance(reply, list) else (reply["device"], reply["parameters"])
     )
+    rows = [{k: v for k, v in r.items() if k != "ref"} for r in rows]
+    for r in rows:
+        if "display" in r:
+            r["display"] = tidy_display(r["display"])
+    return device, rows
 
 
 def _target(value):

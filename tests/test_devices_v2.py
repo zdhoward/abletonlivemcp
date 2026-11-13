@@ -191,6 +191,8 @@ def test_device_list_and_nested_parameters_on_a_return_chain(env):
     ]
     rows = d("device_parameters", {"track": "return:0", "path": [0, 0, 0], "limit": 1})
     assert len(rows) == 1 and rows[0]["name"] == "Device On"
+    page = d("device_parameters", {"track": "return:0", "path": [0, 0, 0], "with_device": True})
+    assert page["device"]["name"] == "Saturator" and page["parameters"][0]["name"] == "Device On"
     rows = (
         d("device_parameters", {"track": "master", "path": [0]})
         if song.master_track.devices
