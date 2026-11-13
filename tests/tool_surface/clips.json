@@ -235,7 +235,7 @@
    "openWorldHint": false,
    "readOnlyHint": true
   },
-  "description": "Clips by address, or scan Session clips (filter by track/scene; 128 rows max).\ndetail=True adds launch, audio and warp-marker fields.\nNote contents: live_get_notes.",
+  "description": "Clips by address, or scan Session clips (filter by track/scene; 128 rows max).\ndetail=True adds launch, audio and warp-marker fields. length is the loop/source length;\nstart, end and arrangement_length are timeline beats. Note contents: live_get_notes.",
   "inputSchema": {
    "$defs": {
     "ArrangementClipAddr": {

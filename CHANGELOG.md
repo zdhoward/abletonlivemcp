@@ -8,6 +8,8 @@ minor version once the first public release is tagged.
 
 - Track selectors describe their string forms (`"return:N"`, `"master"`) in every tool's
   input schema. The default-listing byte budget rises to 84 KB to fit them.
+- `live_get_clips` concise rows keep `end` and `arrangement_length` for arrangement clips;
+  `length` stays the loop/source length.
 
 ## [1.0.0] - 2026-11-12
 

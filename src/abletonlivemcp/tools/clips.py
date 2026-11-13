@@ -25,7 +25,7 @@ from ..server import (
 )
 
 CONCISE = ("track", "scene", "arrangement", "name", "kind", "length", "start", "is_playing")
-CONCISE += ("empty",)
+CONCISE += ("empty", "end", "arrangement_length")  # the last two: arrangement clips only
 
 
 def fields(model, skip: tuple[str, ...]) -> dict:
@@ -41,8 +41,8 @@ def live_get_clips(
     response_format: ResponseFormat = "concise",
 ) -> dict:
     """Clips by address, or scan Session clips (filter by track/scene; 128 rows max).
-    detail=True adds launch, audio and warp-marker fields.
-    Note contents: live_get_notes."""
+    detail=True adds launch, audio and warp-marker fields. length is the loop/source length;
+    start, end and arrangement_length are timeline beats. Note contents: live_get_notes."""
     params = {"detail": detail or response_format == "detailed"}
     if clips is not None:
         params["clips"] = [c.model_dump(exclude_none=True) for c in clips]

@@ -340,3 +340,12 @@ def test_export_refuses_a_clip_changed_between_pages(bridge, monkeypatch, tmp_pa
     with pytest.raises(Exception, match="stale_cursor"):
         call(files.live_export_midi, clip={"track": 0, "scene": 0}, file=str(target))
     assert not target.exists()
+
+
+def test_concise_clips_keep_arrangement_span_fields(bridge):
+    arr = {"track": 0, "arrangement": 0, "name": "A", "length": 4, "start": 8, "end": 24}
+    arr |= {"arrangement_length": 16, "looping": True}
+    bridge.replies["get_clips"] = {"clips": [arr, {"track": 0, "scene": 0, "is_playing": False}]}
+    rows = call(clips.live_get_clips, track=0)["data"]["clips"]
+    assert rows[0]["end"] == 24 and rows[0]["arrangement_length"] == 16 and "looping" not in rows[0]
+    assert "end" not in rows[1] and rows[1]["is_playing"] is False
