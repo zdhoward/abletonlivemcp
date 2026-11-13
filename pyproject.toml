@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "abletonlivemcp"
+name = "zx-ableton-live-mcp"
 dynamic = ["version"]
 description = "Model Context Protocol (MCP) server for Ableton Live: let AI assistants like Claude read and edit your Live Set."
 readme = "README.md"

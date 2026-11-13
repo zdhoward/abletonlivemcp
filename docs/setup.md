@@ -4,18 +4,20 @@ Start with the [README setup steps](../README.md#install).
 
 ## Installation alternatives
 
-These commands use the `v1.0.0` tag after it is published. Both tools need Python 3.10
-or later and Git:
+The PyPI package is `zx-ableton-live-mcp`. Both tools need Python 3.10 or later:
 
 ```sh
-pipx install "git+https://github.com/zdhoward/abletonlivemcp@v1.0.0"
+pipx install zx-ableton-live-mcp
 ```
 
 Or, with uv:
 
 ```sh
-uv tool install "git+https://github.com/zdhoward/abletonlivemcp@v1.0.0"
+uv tool install zx-ableton-live-mcp
 ```
+
+To install a Git tag instead, replace the package name with
+`"git+https://github.com/zdhoward/abletonlivemcp@v1.1.0"` (needs Git).
 
 Both expose `abletonlivemcp` and `abletonlivemcp-install` on PATH. Run
 `abletonlivemcp-install "<path to your User Library>"` with Live closed. A GUI MCP
@@ -30,14 +32,13 @@ You can install a downloaded wheel with the environment's Python:
 ```
 
 For a source checkout, use `python -m pip install .` in an activated environment.
-PyPI publication is optional; these instructions do not depend on it.
 
 ## Upgrades
 
 Upgrade the host package in the same environment where you installed it. With pip:
 
 ```powershell
-.venv/Scripts/python.exe -m pip install --upgrade "git+https://github.com/zdhoward/abletonlivemcp@v1.0.0"
+.venv/Scripts/python.exe -m pip install --upgrade zx-ableton-live-mcp
 ```
 
 For pipx or uv, replace the environment by repeating the installation command above

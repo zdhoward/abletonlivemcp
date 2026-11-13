@@ -6,6 +6,11 @@ minor version once the first public release is tagged.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-12
+
+- Published on PyPI as `zx-ableton-live-mcp` (`abletonlivemcp` is refused there as too similar to
+  an existing project). The import name, commands and Remote Script keep the `abletonlivemcp` names.
+  Releases are uploaded by a tag-triggered GitHub workflow using PyPI trusted publishing.
 - Track selectors describe their string forms (`"return:N"`, `"master"`) in every tool's
   input schema. The default-listing byte budget rises to 84 KB to fit them.
 - `live_get_clips` concise rows keep `end` and `arrangement_length` for arrangement clips;

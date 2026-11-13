@@ -23,20 +23,21 @@ See [supported operations and limits](docs/validation.md#known-limits).
   and macOS are untested. The [validation record](docs/validation.md) lists the tested cases.
 - Python 3.10 or later, on the same machine and user account as Live.
 - An MCP client that supports stdio. Deletion also needs a client with form elicitation.
-- Git for installation from GitHub, or a downloaded release wheel.
+- Internet access to PyPI, or Git or a downloaded release wheel instead.
 
 ## Install
 
-The command below uses the `v1.0.0` tag once it is published. PyPI availability is not
-assumed. In Windows PowerShell, create an environment in a folder you will keep:
+The package is on PyPI as `zx-ableton-live-mcp`; it installs the `abletonlivemcp` commands.
+In Windows PowerShell, create an environment in a folder you will keep:
 
 ```powershell
 py -3 -m venv .venv
-.venv/Scripts/python.exe -m pip install "git+https://github.com/zdhoward/abletonlivemcp@v1.0.0"
+.venv/Scripts/python.exe -m pip install zx-ableton-live-mcp
 ```
 
 On macOS, use `python3 -m venv .venv` and `.venv/bin/python` instead. You can also install a
-wheel from [GitHub Releases](https://github.com/zdhoward/abletonlivemcp/releases).
+wheel from [GitHub Releases](https://github.com/zdhoward/abletonlivemcp/releases), or a tag
+from Git: `pip install "git+https://github.com/zdhoward/abletonlivemcp@v1.1.0"`.
 For pipx or uv, see [installation alternatives and upgrades](docs/setup.md).
 
 ## Set up the Remote Script
