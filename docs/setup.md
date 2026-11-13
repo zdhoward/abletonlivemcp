@@ -33,6 +33,23 @@ You can install a downloaded wheel with the environment's Python:
 
 For a source checkout, use `python -m pip install .` in an activated environment.
 
+## Enable writes
+
+Setup starts in read-only mode. To let your assistant edit:
+
+1. Save a copy of your Set and stop playback.
+2. In your existing `~/.abletonlivemcp/bridge.json`, change `"read_only": true` to
+   `"read_only": false`. On Windows, `~` is your user profile folder. Preserve the
+   secret and other fields; never share this file or put it in an MCP client config.
+3. Ask your assistant to call `live_hello` and confirm `read_only` is `false` and
+   `script.match` is `true`.
+
+The switch takes effect without a restart. Set `read_only` back to `true` when you
+finish. New configs allow `transport` and `edit`; other permissions are opt-in.
+Ordinary edits do not ask for confirmation. Deletion also requires a client with
+form elicitation. See [local permissions](permissions.md). After an unknown write
+outcome, read the state before trying another edit.
+
 ## Upgrades
 
 Upgrade the host package in the same environment where you installed it. With pip:
