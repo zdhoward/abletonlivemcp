@@ -2,9 +2,98 @@
 
 Start with the [README setup steps](../README.md#install).
 
+## Client setup
+
+The server uses stdio. Your client launches the installed `abletonlivemcp` command;
+there is no HTTP URL or API key to enter. Run the client under the same user account
+as Live. Restart the client or start a new session after configuring it.
+
+### Claude Code
+
+```sh
+claude mcp add --transport stdio --scope user abletonlive -- abletonlivemcp
+```
+
+If Claude Code cannot find the command, replace the final `abletonlivemcp` with the
+quoted absolute executable path described below.
+
+### Claude Desktop and Cursor
+
+For Claude Desktop, open Settings > Developer > Edit Config and merge this into
+`claude_desktop_config.json`. For Cursor, use `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "abletonlive": {
+      "command": "<absolute path to abletonlivemcp>",
+      "args": []
+    }
+  }
+}
+```
+
+### VS Code
+
+In your workspace's `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "abletonlive": {
+      "type": "stdio",
+      "command": "<absolute path to abletonlivemcp>",
+      "args": []
+    }
+  }
+}
+```
+
+### Find the executable path
+
+On Windows, run `(Get-Command abletonlivemcp).Source` in PowerShell. On macOS, use
+`command -v abletonlivemcp`. Replace the placeholder in the JSON with that path.
+Use forward slashes in Windows JSON paths, for example
+`D:/Music/mcp/.venv/Scripts/abletonlivemcp.exe`.
+
+If `pip` or an installed command cannot be found, check that Python and its Scripts
+directory are on PATH, or use the explicit environment paths below. GUI clients may
+not inherit your terminal's PATH. Other stdio clients use the same executable with
+no arguments, or the installed environment's Python with `-m abletonlivemcp.server`.
+
+## Virtual environment installation
+
+Use a dedicated environment if you want to keep the MCP's dependencies separate from
+other Python tools. Run these commands from a folder you will keep; no activation is
+needed. Find your User Library in Live's Settings > Library and close Live first.
+
+Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.venv/Scripts/python.exe -m pip install --upgrade zx-ableton-live-mcp
+.venv/Scripts/abletonlivemcp-install.exe "<path to your User Library>"
+(Resolve-Path .venv/Scripts/abletonlivemcp.exe).Path.Replace('\', '/')
+```
+
+macOS (untested):
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade zx-ableton-live-mcp
+.venv/bin/abletonlivemcp-install "<path to your User Library>"
+echo "$PWD/.venv/bin/abletonlivemcp"
+```
+
+The last command prints the server path to use in your client configuration.
+Reopen Live and select AbletonLiveMCP in a free Control Surface slot under Settings >
+Link, Tempo & MIDI. Check the connection with `live_hello`; `script.match` should be
+`true`. Use `live_get_session` for a first read of the Set.
+
 ## One-click installer
 
-The Windows launcher `install-claude-code.cmd` downloads and runs
+The optional [Windows launcher](https://github.com/zdhoward/abletonlivemcp/raw/refs/heads/main/install-claude-code.cmd)
+downloads and runs
 [`scripts/install-claude-code.ps1`](../scripts/install-claude-code.ps1). It requires
 Claude Code and internet access. Close Live before running it; it will not close a Set
 for you. Select the User Library that contains your `Presets` folder.
@@ -17,7 +106,7 @@ installer creates the private bridge config and preserves it on upgrades.
 
 Claude Code is registered through `claude mcp add --scope user`. Restart your Claude
 Code session afterward. Selecting the Control Surface in Live is still manual.
-macOS and other clients use the manual instructions in the README.
+macOS and other clients use the [client setup](#client-setup) instructions above.
 
 To upgrade an installation made this way, close Live and run the launcher again.
 It upgrades the package and reinstalls the Remote Script. A matching Claude entry is
