@@ -14,6 +14,7 @@ python -m venv .venv
 # Windows PowerShell (on macOS/Linux use .venv/bin/python):
 .venv/Scripts/python.exe -m pip install -e ".[dev]"
 .venv/Scripts/python.exe -m ruff check .
+.venv/Scripts/python.exe scripts/check_docs.py
 .venv/Scripts/python.exe -m pytest -q
 ```
 
@@ -32,6 +33,23 @@ These offline checks do not qualify a Live installation on either OS. macOS is u
   prove that a package or clean clone is complete.
 - Socket rejection tests must verify bounded parsing and zero dispatch independently of
   diagnostic delivery: Windows can reset a socket closed with unread input.
+
+## Documentation
+
+- Keep the README user-facing: brief purpose, pip install plus the Remote Script
+  installer, client connection commands and a first-use example.
+- The README's client options are **Claude Code, Codex and OpenCode**. Keep their
+  registration commands consistent with [client setup](docs/setup.md#client-setup).
+- Put platform variants, other clients, optional installers, upgrades and recovery
+  in [setup](docs/setup.md); keep toolsets in [usage](docs/usage.md), authorization in
+  [permissions](docs/permissions.md), and tested scope in [validation](docs/validation.md).
+- Keep package names and executable names aligned with `pyproject.toml`. Separate
+  documented protocol compatibility from a completed client/Live qualification.
+- Preserve dated release notes and distribution manifests as historical records.
+  Keep personal plans, reviews and handoff notes local under the existing allowlist.
+- Run `python scripts/check_docs.py` after changing documentation. CI checks local
+  links/anchors, setup JSON, package identifiers and the three client command examples.
+  This does not verify external URLs or replace a real client/Live check.
 
 ## Commits and versions
 

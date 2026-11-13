@@ -213,14 +213,20 @@ outcome, read the state before trying another edit.
 
 ## Upgrades
 
-Upgrade the host package in the same environment where you installed it. With pip:
+Close Live and upgrade the package using the same Python environment as the original
+installation. For the README's pip installation:
 
-```powershell
-.venv/Scripts/python.exe -m pip install --upgrade zx-ableton-live-mcp
+```sh
+pip install --upgrade zx-ableton-live-mcp
+abletonlivemcp-install "path to your User Library"
 ```
 
-For pipx or uv, replace the environment by repeating the installation command above
-with `--force`. Close Live, then rerun `abletonlivemcp-install` for the same User Library.
+For a virtual environment, use that environment's Python and installer paths from
+[virtual environment installation](#virtual-environment-installation). For pipx, run
+`pipx upgrade zx-ableton-live-mcp`; for uv, run `uv tool upgrade zx-ableton-live-mcp`.
+Then rerun `abletonlivemcp-install` for the same User Library.
+For the optional Windows launcher, follow its [upgrade instructions](#one-click-installer).
+
 Restart Live and open a new MCP client session. Call `live_hello` and check `script.match`.
 The host and Remote Script must match in version and build.
 

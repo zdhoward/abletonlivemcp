@@ -36,10 +36,11 @@
 /docs/data/*
 !/docs/data/live-12.2-api.json
 
-# Only the scripts that tests, CI and the Live proof harness depend on.
+# Public setup scripts and reproducible verification helpers.
 !/scripts/
 /scripts/*
 !/scripts/check_distribution.py
+!/scripts/check_docs.py
 !/scripts/install-claude-code.ps1
 !/scripts/check_windows_installer.ps1
 !/scripts/proof_contract.py
