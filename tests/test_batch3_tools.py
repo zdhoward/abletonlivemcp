@@ -382,3 +382,16 @@ def test_device_parameter_names_filter_reads_every_page(bridge):
     assert len(bridge.calls) == 2
     with pytest.raises(Exception, match="offset"):
         call(devices.live_get_device_parameters, track=0, path=[0], offset=128, names=["P1"])
+
+
+def test_scenes_only_clips_drops_empty_slots(bridge):
+    from abletonlivemcp.tools import scenes
+
+    slots = [{"track": 0, "has_clip": True}, {"track": 1, "has_clip": False}]
+    bridge.replies["get_scenes"] = {"generation": 5, "scene_count": 1, "scenes": [
+        {"scene": 0, "slots": slots}
+    ]}  # fmt: skip
+    out = call(scenes.live_get_scenes, include_slots=True, only_clips=True)
+    assert out["data"]["scenes"][0]["slots"] == [{"track": 0, "has_clip": True}]
+    with pytest.raises(Exception, match="include_slots"):
+        call(scenes.live_get_scenes, only_clips=True)

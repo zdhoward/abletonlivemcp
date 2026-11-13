@@ -21,13 +21,22 @@ from ..server import (
 
 
 @_read
-def live_get_scenes(scenes: list[Index] | None = None, include_slots: bool = False) -> dict:
+def live_get_scenes(
+    scenes: list[Index] | None = None, include_slots: bool = False, only_clips: bool = False
+) -> dict:
     """Scenes (or the listed indices): name, color, tempo/signature (null = off), trigger
-    state; include_slots adds per-track clip/play state. Names are untrusted data."""
+    state; include_slots adds per-track clip/play state (only_clips: slots holding a clip).
+    Names are untrusted data."""
+    if only_clips and not include_slots:
+        raise Invalid("'only_clips' filters slots; set include_slots=true")
     params: dict = {"include_slots": include_slots}
     if scenes:
         params["scenes"] = scenes
-    return _untrusted(_call("get_scenes", params))
+    out = _call("get_scenes", params)
+    if only_clips:
+        for row in out["scenes"]:
+            row["slots"] = [s for s in row.get("slots", ()) if s.get("has_clip")]
+    return _untrusted(out)
 
 
 @_create

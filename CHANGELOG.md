@@ -17,6 +17,8 @@ minor version once the first public release is tagged.
   stripped and a doubled unit collapses (`"4.00dB dB"` -> `"4.00dB"`).
 - `live_get_device_parameters` takes `names` (up to 64): it reads every page and returns
   only those parameters (case-insensitive) plus `missing`. Refused with a nonzero `offset`.
+- `live_get_scenes` takes `only_clips` (with `include_slots`): slot rows without a clip
+  are dropped. Without `include_slots` it is refused.
 
 ## [1.0.0] - 2026-11-12
 
