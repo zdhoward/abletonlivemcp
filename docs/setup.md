@@ -8,6 +8,32 @@ The server uses stdio. Your client launches the installed `abletonlivemcp` comma
 there is no HTTP URL or API key to enter. Run the client under the same user account
 as Live. Restart the client or start a new session after configuring it.
 
+### Codex
+
+After installing the package and Remote Script, run:
+
+```sh
+codex mcp add abletonlive -- abletonlivemcp
+```
+
+Start a new Codex session and use the README's first-use prompt. Check registration
+with `codex mcp list`. If the command cannot be found, use the quoted absolute
+executable path from [Find the executable path](#find-the-executable-path) instead
+of the final `abletonlivemcp`.
+
+The equivalent entry in `~/.codex/config.toml` is:
+
+```toml
+[mcp_servers.abletonlive]
+command = "abletonlivemcp"
+args = []
+```
+
+Codex uses the same stdio server; no Codex-specific server changes are needed.
+These configuration instructions follow the [official OpenAI MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+An end-to-end Codex/Live session has not been qualified here. Deletion still requires
+the client's form-elicitation support, as described in [permissions](permissions.md).
+
 ### Claude Code
 
 ```sh

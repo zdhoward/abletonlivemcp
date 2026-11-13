@@ -7,7 +7,7 @@
 Connect your AI assistant to Ableton Live. Explore your Set, edit MIDI, adjust
 devices and mixer settings, and build effect chains through MCP.
 
-Works with Claude Code, Claude Desktop, Cursor, VS Code and other MCP clients.
+Works with Codex, Claude Code, Claude Desktop, Cursor, VS Code and other MCP clients.
 
 ## Install
 
@@ -34,7 +34,13 @@ For Claude Code, run:
 claude mcp add --transport stdio --scope user abletonlive -- abletonlivemcp
 ```
 
-Then start a new Claude Code session.
+For Codex, run:
+
+```sh
+codex mcp add abletonlive -- abletonlivemcp
+```
+
+Then start a new session in your chosen client.
 
 Using **Claude Desktop, Cursor or VS Code**? See [client setup](docs/setup.md#client-setup).
 
