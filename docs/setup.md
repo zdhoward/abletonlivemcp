@@ -34,6 +34,24 @@ These configuration instructions follow the [official OpenAI MCP documentation](
 An end-to-end Codex/Live session has not been qualified here. Deletion still requires
 the client's form-elicitation support, as described in [permissions](permissions.md).
 
+### OpenCode
+
+After installing the package and Remote Script, run:
+
+```sh
+opencode mcp add --global abletonlive -- abletonlivemcp
+```
+
+This registers the local stdio server in your user configuration. Omit `--global`
+to configure only the current project. Start a new OpenCode session and use the
+README's first-use prompt. `opencode mcp list` shows configured servers and their
+connection status. If the command cannot be found, replace the final
+`abletonlivemcp` with its quoted [absolute executable path](#find-the-executable-path).
+
+See the [official OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/).
+No OpenCode-specific server changes are needed. An end-to-end OpenCode/Live session
+has not been qualified here; deletion still requires client form-elicitation support.
+
 ### Claude Code
 
 ```sh
