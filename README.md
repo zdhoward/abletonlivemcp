@@ -27,29 +27,48 @@ See [supported operations and limits](docs/validation.md#known-limits).
 
 ## Install
 
-The package is on PyPI as `zx-ableton-live-mcp`; it installs the `abletonlivemcp` commands.
-In Windows PowerShell, create an environment in a folder you will keep:
+Install [`zx-ableton-live-mcp`](https://pypi.org/project/zx-ableton-live-mcp/) from PyPI
+(current release: **1.1.0**). It provides the `abletonlivemcp` server and
+`abletonlivemcp-install` Remote Script installer.
+
+Create a virtual environment in a folder you will keep. Run these commands from that
+folder; you do not need to activate the environment.
+
+Windows PowerShell:
 
 ```powershell
 py -3 -m venv .venv
-.venv/Scripts/python.exe -m pip install zx-ableton-live-mcp
+.venv/Scripts/python.exe -m pip install --upgrade zx-ableton-live-mcp
 ```
 
-On macOS, use `python3 -m venv .venv` and `.venv/bin/python` instead. You can also install a
-wheel from [GitHub Releases](https://github.com/zdhoward/abletonlivemcp/releases), or a tag
-from Git: `pip install "git+https://github.com/zdhoward/abletonlivemcp@v1.1.0"`.
-For pipx or uv, see [installation alternatives and upgrades](docs/setup.md).
+macOS (untested):
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade zx-ableton-live-mcp
+```
+
+For pipx, uv, Git tags or downloaded wheels, see
+[installation alternatives](docs/setup.md#installation-alternatives).
 
 ## Set up the Remote Script
 
-1. Close Live. Find your User Library in Live's Preferences/Settings > Library.
-   Pass that folder to the installer; it must contain a `Presets` folder:
+1. In Live, find your User Library in Preferences/Settings > Library, then close Live.
+   Pass that folder to the installer; it must contain a `Presets` folder. Replace the
+   placeholder below with your actual User Library path.
+
+   Windows PowerShell:
 
    ```powershell
    .venv/Scripts/abletonlivemcp-install.exe "<path to your User Library>"
    ```
 
-   On macOS, use `.venv/bin/abletonlivemcp-install`.
+   macOS:
+
+   ```sh
+   .venv/bin/abletonlivemcp-install "<path to your User Library>"
+   ```
+
 2. Start Live. In Preferences > Link/Tempo/MIDI > Control Surface (called
    Settings > Link, Tempo & MIDI in Live 12), select `AbletonLiveMCP` in a free slot.
 
@@ -120,6 +139,22 @@ Set `read_only` back to `true` when you finish. The switch takes effect without 
 New configs allow only `transport` and `edit`. Other permissions are opt-in; see
 [local permissions](docs/permissions.md). Ordinary edits do not ask for confirmation.
 After an unknown outcome, read the state before another write.
+
+## Upgrade an existing installation
+
+Close Live, then upgrade the package in your existing environment and reinstall the
+Remote Script into the same User Library:
+
+```powershell
+.venv/Scripts/python.exe -m pip install --upgrade zx-ableton-live-mcp
+.venv/Scripts/abletonlivemcp-install.exe "<path to your User Library>"
+```
+
+On macOS, use `.venv/bin/python` and `.venv/bin/abletonlivemcp-install` instead.
+The installer preserves your existing bridge configuration. Restart Live and your
+MCP client, then call `live_hello` and check that `script.match` is `true`.
+See [upgrade troubleshooting](docs/setup.md#upgrades) if the installer refuses an
+older or modified Remote Script folder.
 
 ## Troubleshooting
 
